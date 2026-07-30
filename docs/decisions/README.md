@@ -12,6 +12,9 @@ architecture, security, money movement, or operations.
 - [ADR-0005: Use PostgreSQL and Prisma](ADR-0005-use-postgresql-and-prisma.md)
 - [ADR-0006: Use a transactional outbox](ADR-0006-use-a-transactional-outbox.md)
 - [ADR-0007: Model one order item per purchased voucher](ADR-0007-model-one-order-item-per-voucher.md)
+- [ADR-0008: Use pg-boss for MVP background jobs](ADR-0008-use-pg-boss-for-mvp-jobs.md)
+- [ADR-0009: Use AWS Cape Town for MVP infrastructure](ADR-0009-use-aws-cape-town-for-mvp-infrastructure.md)
+- [ADR-0010: Use Supabase and Google Cloud serverless](ADR-0010-use-supabase-and-google-cloud-serverless.md)
 
 ## Status values
 

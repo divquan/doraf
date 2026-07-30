@@ -22,6 +22,20 @@ requirements.
 5. Check [Decision records](decisions/README.md) for accepted cross-cutting
    decisions.
 
+## Implementation entry points
+
+- [System context](architecture/system-context.md)
+- [Logical data model](architecture/data-model.md)
+- [Domain state machines](architecture/state-machines.md)
+- [Transaction integrity](architecture/transaction-integrity.md)
+- [Infrastructure, observability, and recovery](architecture/infrastructure-and-recovery.md)
+- [Lean Supabase and Google Cloud infrastructure](architecture/lean-infrastructure-and-costs.md)
+- [Physical database schema plan](architecture/database-schema-plan.md)
+- [Database constraints and indexes](architecture/database-constraints-and-indexes.md)
+- [Database invariant and concurrency tests](architecture/database-test-plan.md)
+- [Initial schema migration plan](planning/schema-migration-plan.md)
+- [MVP delivery phases](planning/delivery-phases.md)
+
 ## Planned documentation map
 
 - `product/` — users, journeys, business rules, scope, and roadmap
