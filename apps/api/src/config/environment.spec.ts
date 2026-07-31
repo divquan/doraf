@@ -1,10 +1,20 @@
 import { validateEnvironment } from './environment';
 
+const keyMaterial = {
+  VOUCHER_MASTER_KEY_BASE64: Buffer.alloc(32, 1).toString('base64'),
+  VOUCHER_FINGERPRINT_KEY_BASE64: Buffer.alloc(32, 2).toString('base64'),
+  SESSION_FINGERPRINT_KEY_BASE64: Buffer.alloc(32, 3).toString('base64'),
+  INTERNAL_ENROLLMENT_FINGERPRINT_KEY_BASE64: Buffer.alloc(32, 4).toString(
+    'base64',
+  ),
+};
+
 describe('validateEnvironment', () => {
   it('applies safe local defaults', () => {
     expect(
       validateEnvironment({
         DATABASE_URL: 'postgresql://localhost:5432/doraf',
+        ...keyMaterial,
         INTERNAL_AUTH_RP_NAME: 'Doraf Administration',
         INTERNAL_AUTH_RP_ID: 'localhost',
         INTERNAL_AUTH_ORIGIN: 'http://localhost:3001',
@@ -13,6 +23,7 @@ describe('validateEnvironment', () => {
       NODE_ENV: 'development',
       PORT: 3000,
       DATABASE_URL: 'postgresql://localhost:5432/doraf',
+      ...keyMaterial,
       INTERNAL_AUTH_RP_NAME: 'Doraf Administration',
       INTERNAL_AUTH_RP_ID: 'localhost',
       INTERNAL_AUTH_ORIGIN: 'http://localhost:3001',
@@ -36,6 +47,7 @@ describe('validateEnvironment', () => {
     expect(() =>
       validateEnvironment({
         DATABASE_URL: 'postgresql://localhost:5432/doraf',
+        ...keyMaterial,
         INTERNAL_AUTH_RP_NAME: 'Doraf Administration',
         INTERNAL_AUTH_RP_ID: 'localhost',
         INTERNAL_AUTH_ORIGIN: 'http://localhost:3001/admin',
@@ -47,6 +59,7 @@ describe('validateEnvironment', () => {
     expect(() =>
       validateEnvironment({
         DATABASE_URL: 'postgresql://localhost:5432/doraf',
+        ...keyMaterial,
         INTERNAL_AUTH_RP_NAME: 'Doraf Administration',
         INTERNAL_AUTH_RP_ID: 'doraf.example',
         INTERNAL_AUTH_ORIGIN: 'https://attacker.example',

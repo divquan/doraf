@@ -84,7 +84,8 @@ API request processes do not perform long-running provider work inline.
 
 The current lean baseline uses Supabase for PostgreSQL only. Google Cloud
 provides private object storage, Cloud Run, Cloud Tasks, Pub/Sub, Secret
-Manager, Cloud KMS, and Cloud Logging. See
+Manager, and Cloud Logging. Voucher key wrapping uses the application-held
+master-key design in ADR-0012. See
 [Lean Supabase and Google Cloud infrastructure](lean-infrastructure-and-costs.md).
 The earlier AWS baseline is superseded. Specific SMS, email, and USSD providers
 remain open.

@@ -105,10 +105,11 @@ should:
 - record every manual reveal or export.
 
 Voucher values use AES-256-GCM with unique nonces and authenticated record
-context. A random data key is created per batch and wrapped by Google Cloud KMS.
-Duplicate detection uses purpose-separated keyed HMAC-SHA-256 fingerprints;
-fingerprint and encryption keys remain separate. Plaintext data keys are wiped
-from the importer after use.
+context. A random data key is created per batch and wrapped by the
+application-held voucher master key under ADR-0012. Duplicate detection uses
+purpose-separated keyed HMAC-SHA-256 fingerprints; fingerprint and encryption
+keys remain separate. Plaintext data keys are wiped from the importer after
+use.
 
 ## Required invariants
 

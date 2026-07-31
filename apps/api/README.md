@@ -56,12 +56,11 @@ administration web application must keep the returned bearer token in a secure,
 HTTP-only session cookie or server-side session and must not place it in browser
 local storage.
 
-Bootstrap the first Administrator only after applying migrations:
+Bootstrap the first Administrator only after applying migrations. The command
+loads `apps/api/.env` automatically:
 
 ```bash
-DATABASE_URL=postgresql://... \
-INTERNAL_ENROLLMENT_FINGERPRINT_KEY_BASE64=... \
-  pnpm --filter @doraf/api internal:bootstrap-admin -- "Administrator Name"
+pnpm --filter @doraf/api internal:bootstrap-admin -- "Administrator Name"
 ```
 
 The command refuses to run once any internal user exists and prints one
@@ -78,11 +77,12 @@ serial_number,pin
 ABC123456,012345678912
 ```
 
-Production registration uses `InventoryModule.registerGcp()` and requires
-`VOUCHER_KMS_KEY_NAME`, `VOUCHER_FINGERPRINT_KEY_BASE64`, and Google Application
-Default Credentials. Voucher data keys are generated per batch and wrapped by
-Google Cloud KMS. `SESSION_FINGERPRINT_KEY_BASE64` is a separate secret used to
-store only HMAC fingerprints of opaque session tokens, never the bearer tokens.
+Inventory registration uses `InventoryModule.registerMasterKey()` and requires
+independent `VOUCHER_MASTER_KEY_BASE64` and `VOUCHER_FINGERPRINT_KEY_BASE64`
+runtime secrets. Voucher data keys are generated per batch and wrapped by the
+application-held master key. `SESSION_FINGERPRINT_KEY_BASE64` is a separate
+secret used to store only HMAC fingerprints of opaque session tokens, never the
+bearer tokens.
 `INTERNAL_ENROLLMENT_FINGERPRINT_KEY_BASE64` separately protects one-time
 operator enrollment tokens.
 

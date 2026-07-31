@@ -16,6 +16,7 @@ architecture, security, money movement, or operations.
 - [ADR-0009: Use AWS Cape Town for MVP infrastructure](ADR-0009-use-aws-cape-town-for-mvp-infrastructure.md)
 - [ADR-0010: Use Supabase and Google Cloud serverless](ADR-0010-use-supabase-and-google-cloud-serverless.md)
 - [ADR-0011: Use passkeys for internal authentication](ADR-0011-use-passkeys-for-internal-authentication.md)
+- [ADR-0012: Use an application-held voucher master key](ADR-0012-use-an-application-held-voucher-master-key.md)
 
 ## Status values
 

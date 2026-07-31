@@ -24,15 +24,16 @@ complete when its exit criteria in `delivery-phases.md` pass.
 ## Current position
 
 The API foundation, product catalog, encrypted inventory import backend, and
-internal passkey authentication backend are implemented. The administration and
-agent web applications remain scaffolds.
+internal passkey authentication backend are implemented. The administration
+application now has the initial passkey flow; the agent web application remains
+a scaffold.
 
-**Next slice:** build the administration passkey enrollment and login UI,
-including bootstrap enrollment, login, logout, protected navigation, and
-Administrator operator invitations.
+**Next slice:** run browser-level passkey enrollment and authentication tests
+against a configured API/test database, including session expiry and invitation
+authorization cases.
 
-After that, continue Phase 2 with agent onboarding, SMS OTP, pricing, permanent
-sales-channel identifiers, and agent retail-price configuration.
+After that, continue Phase 2 with agent onboarding, SMS OTP, pricing,
+permanent sales-channel identifiers, and agent retail-price configuration.
 
 ## Capability status
 
@@ -41,9 +42,9 @@ sales-channel identifiers, and agent retail-price configuration.
 | API and PostgreSQL foundation | Complete | NestJS modular API, Prisma migrations, health/readiness endpoints, PostgreSQL constraint tests | Continue applying these conventions to later domains |
 | Three-product catalog | Complete | Stable `BECE`, `WASSCE`, and `NOVDEC_PRIVATE` seed records and catalog endpoint | Products remain unavailable until pricing and stock are configured |
 | Internal operator authentication backend | Complete | Passkey enrollment/authentication ceremonies, opaque revocable sessions, logout, bootstrap command, invitation endpoints, rate limits | Shared/edge production rate limiting |
-| Administration passkey UI | Next | Next.js administration application scaffold | Bootstrap enrollment, login, logout, protected navigation, invitation workflow, and browser-level passkey tests |
+| Administration passkey UI | Partial | Passkey enrollment/login screens, same-origin gateway with HttpOnly session cookie, logout, protected dashboard navigation, and Administrator invitation UI | Browser-level passkey ceremony tests against configured API/test database; session-expiry and invitation-authorization coverage |
 | Internal authorization and audit baseline | Partial | Administrator/Support RBAC, server-side session checks, append-only audit events for implemented sensitive actions | Extend policies and audit coverage to every later administration workflow |
-| Encrypted inventory import backend | Complete | Whole-batch CSV validation, duplicate fingerprints, envelope encryption, Google Cloud KMS adapter, atomic import and audit | Administration upload UI, inventory management, quarantine, reservations, and low-stock alerts |
+| Encrypted inventory import backend | Complete | Whole-batch CSV validation, duplicate fingerprints, envelope encryption under an application-held master key, atomic import and audit | Administration upload UI, inventory management, quarantine, reservations, low-stock alerts, and master-key recovery exercise |
 | Agent identity and tenancy | Partial | Agent-tenant schema and protected phone-storage foundation | Registration, SMS OTP, sessions, recovery, suspension behavior, and authorization tests |
 | Pricing and agent sales channels | Partial | Pricing-policy, per-agent override, and agent-price schema foundation | Commands/APIs, effective-price evaluation, clamping, audit, permanent web links, and USSD codes |
 | Order and payment foundation | Not started | Confirmed requirements and state-machine documentation | Orders, snapshots, reservations, payment attempts/events, Paystack adapter, webhook handling, outbox, and idempotency |

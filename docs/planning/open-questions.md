@@ -487,7 +487,8 @@ operators.
   permanently polling `pg-boss` worker.
 - The transactional outbox remains the durable business intent.
 - Google Secret Manager stores provider and application secrets.
-- Google Cloud KMS protects voucher and evidence envelope-encryption keys.
+- The application-held voucher master key protects voucher envelope-encryption
+  keys under ADR-0012; evidence key management remains to be finalized.
 - Cloud Logging stores redacted operational telemetry; PostgreSQL remains the
   durable business audit source.
 - Google Cloud Storage uses private buckets, least-privilege IAM, short-lived

@@ -4,6 +4,10 @@ export interface AppEnvironment {
   NODE_ENV: NodeEnvironment;
   PORT: number;
   DATABASE_URL: string;
+  VOUCHER_MASTER_KEY_BASE64: string;
+  VOUCHER_FINGERPRINT_KEY_BASE64: string;
+  SESSION_FINGERPRINT_KEY_BASE64: string;
+  INTERNAL_ENROLLMENT_FINGERPRINT_KEY_BASE64: string;
   INTERNAL_AUTH_RP_NAME: string;
   INTERNAL_AUTH_RP_ID: string;
   INTERNAL_AUTH_ORIGIN: string;
@@ -41,6 +45,31 @@ export function validateEnvironment(
   ) {
     throw new Error('DATABASE_URL must be a PostgreSQL connection URL');
   }
+
+  const voucherMasterKey = requiredBase64Key(
+    raw.VOUCHER_MASTER_KEY_BASE64,
+    'VOUCHER_MASTER_KEY_BASE64',
+    32,
+    true,
+  );
+  const voucherFingerprintKey = requiredBase64Key(
+    raw.VOUCHER_FINGERPRINT_KEY_BASE64,
+    'VOUCHER_FINGERPRINT_KEY_BASE64',
+    32,
+    false,
+  );
+  const sessionFingerprintKey = requiredBase64Key(
+    raw.SESSION_FINGERPRINT_KEY_BASE64,
+    'SESSION_FINGERPRINT_KEY_BASE64',
+    32,
+    false,
+  );
+  const enrollmentFingerprintKey = requiredBase64Key(
+    raw.INTERNAL_ENROLLMENT_FINGERPRINT_KEY_BASE64,
+    'INTERNAL_ENROLLMENT_FINGERPRINT_KEY_BASE64',
+    32,
+    false,
+  );
 
   const relyingPartyName = requiredString(
     raw.INTERNAL_AUTH_RP_NAME,
@@ -85,6 +114,10 @@ export function validateEnvironment(
     NODE_ENV: nodeEnvironment as NodeEnvironment,
     PORT: port,
     DATABASE_URL: databaseUrl,
+    VOUCHER_MASTER_KEY_BASE64: voucherMasterKey,
+    VOUCHER_FINGERPRINT_KEY_BASE64: voucherFingerprintKey,
+    SESSION_FINGERPRINT_KEY_BASE64: sessionFingerprintKey,
+    INTERNAL_ENROLLMENT_FINGERPRINT_KEY_BASE64: enrollmentFingerprintKey,
     INTERNAL_AUTH_RP_NAME: relyingPartyName,
     INTERNAL_AUTH_RP_ID: relyingPartyId,
     INTERNAL_AUTH_ORIGIN: origin,
@@ -92,6 +125,27 @@ export function validateEnvironment(
     INTERNAL_AUTH_SESSION_TTL_SECONDS: sessionTtlSeconds,
     INTERNAL_ENROLLMENT_TTL_SECONDS: enrollmentTtlSeconds,
   };
+}
+
+function requiredBase64Key(
+  value: unknown,
+  name: string,
+  minimumBytes: number,
+  exact: boolean,
+): string {
+  const encoded = requiredString(value, name);
+  const decoded = Buffer.from(encoded, 'base64');
+  if (
+    decoded.length < minimumBytes ||
+    (exact && decoded.length !== minimumBytes)
+  ) {
+    throw new Error(
+      exact
+        ? `${name} must contain exactly ${minimumBytes} bytes in base64`
+        : `${name} must contain at least ${minimumBytes} bytes in base64`,
+    );
+  }
+  return encoded;
 }
 
 function requiredString(value: unknown, name: string): string {

@@ -1,9 +1,10 @@
 import { DynamicModule, Module, type Provider } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { AppEnvironment } from '../config/environment';
 import { InternalAccessModule } from '../internal-access/internal-access.module';
 import { AesGcmVoucherCrypto } from './aes-gcm-voucher.crypto';
 import { CsvInventoryParser } from './csv-inventory.parser';
-import { GcpKmsVoucherKeyProvider } from './gcp-kms-voucher-key.provider';
+import { MasterKeyVoucherKeyProvider } from './master-key-voucher-key.provider';
 import { InventoryImportService } from './inventory-import.service';
 import { InventoryImportController } from './inventory-import.controller';
 import { InventoryImportExceptionFilter } from './inventory-import-exception.filter';
@@ -25,23 +26,25 @@ export class InventoryModule {
     return this.createModule(cryptoProvider);
   }
 
-  static registerGcp(): DynamicModule {
+  static registerMasterKey(): DynamicModule {
     return this.createModule({
       provide: VOUCHER_CRYPTO,
       inject: [ConfigService],
-      useFactory: (config: ConfigService): VoucherCrypto => {
-        const kmsKeyName = config.get<string>('VOUCHER_KMS_KEY_NAME');
-        const fingerprintKeyBase64 = config.get<string>(
+      useFactory: (
+        config: ConfigService<AppEnvironment, true>,
+      ): VoucherCrypto => {
+        const masterKeyBase64 = config.get('VOUCHER_MASTER_KEY_BASE64', {
+          infer: true,
+        });
+        const fingerprintKeyBase64 = config.get(
           'VOUCHER_FINGERPRINT_KEY_BASE64',
+          { infer: true },
         );
-        if (!kmsKeyName || !fingerprintKeyBase64) {
-          throw new Error(
-            'VOUCHER_KMS_KEY_NAME and VOUCHER_FINGERPRINT_KEY_BASE64 are required',
-          );
-        }
 
         return new AesGcmVoucherCrypto(
-          new GcpKmsVoucherKeyProvider(kmsKeyName),
+          new MasterKeyVoucherKeyProvider(
+            Buffer.from(masterKeyBase64, 'base64'),
+          ),
           Buffer.from(fingerprintKeyBase64, 'base64'),
         );
       },

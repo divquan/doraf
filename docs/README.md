@@ -27,6 +27,7 @@ marked **Assumption** must be validated before they become requirements.
 
 ## Implementation entry points
 
+- [Local development with Docker Compose](development.md)
 - [System context](architecture/system-context.md)
 - [Logical data model](architecture/data-model.md)
 - [Domain state machines](architecture/state-machines.md)

@@ -262,7 +262,7 @@ if implementation queries require it.
 - unit acquisition cost minor
 - source row count
 - accepted row count
-- wrapped batch data key, KMS key version, and crypto version
+- wrapped batch data key, master-key version, and crypto version
 - uploader
 - timestamps
 

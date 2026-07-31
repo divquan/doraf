@@ -15,7 +15,7 @@ import { InventoryModule } from './inventory/inventory.module';
     DatabaseModule,
     HealthModule,
     CatalogModule,
-    InventoryModule.registerGcp(),
+    InventoryModule.registerMasterKey(),
   ],
 })
 export class AppModule {}

@@ -20,7 +20,7 @@ PostgreSQL and the confirmed transaction model.
 | PostgreSQL | Supabase |
 | Complaint evidence and generated exports | Google Cloud Storage |
 | Application and provider secrets | Google Secret Manager |
-| Voucher and evidence key-encryption keys | Google Cloud KMS |
+| Voucher encryption keys | Application-held runtime master key |
 | Runtime logs and metrics | Google Cloud Logging and Monitoring |
 | Durable business audit and reconciliation | Supabase PostgreSQL |
 
@@ -140,21 +140,19 @@ voucher encryption because database readers must not see plaintext vouchers.
 
 Use envelope encryption:
 
-1. A Cloud KMS software key-encryption key protects a data-encryption key.
+1. An application-held 32-byte master key protects a data-encryption key.
 2. Doraf encrypts voucher serial/PIN pairs with AES-256-GCM.
 3. A unique nonce and authenticated record context prevent ciphertext reuse or
    substitution.
-4. Store ciphertext, encrypted data key, nonce, algorithm version, and KMS key
+4. Store ciphertext, wrapped data key, nonce, algorithm version, and master-key
    version in PostgreSQL.
 5. Remove plaintext keys and voucher values from memory as soon as practical.
 
-Use separate KMS keys for voucher inventory and sensitive evidence. Keep the
-HMAC fingerprint key in Secret Manager under a distinct access policy.
+Keep the voucher master key and HMAC fingerprint key separate and under
+distinct access policies. Recovery copies and rotation follow ADR-0012.
 
-Ordinary software KMS key versions currently cost about $0.06 per active
-version per month, and cryptographic operations cost $0.03 per 10,000. Using a
-data key per inventory batch or bounded group keeps both cost and KMS
-dependency low. Expected MVP cost is approximately $0.12–$0.50 per month.
+Using a data key per inventory batch or bounded group keeps the master key out
+of the database and avoids a per-operation key-management dependency.
 
 ## Logs, metrics, and audit
 

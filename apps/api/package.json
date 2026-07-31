@@ -16,9 +16,10 @@
     "internal:bootstrap-admin": "tsx scripts/bootstrap-internal-admin.ts",
     "db:validate": "prisma validate",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "dev": "pnpm db:generate && nest start --watch",
     "start": "nest start",
-    "start:dev": "nest start --watch",
-    "start:debug": "nest start --debug --watch",
+    "start:dev": "pnpm db:generate && nest start --watch",
+    "start:debug": "pnpm db:generate && nest start --debug --watch",
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\"",
     "lint:fix": "pnpm run lint --fix",
@@ -31,7 +32,6 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
-    "@google-cloud/kms": "^5.4.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.0.1",
@@ -58,6 +58,7 @@
     "@types/node": "^24.0.0",
     "@types/pg": "^8.15.5",
     "@types/supertest": "^7.0.0",
+    "dotenv": "^16.6.1",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",

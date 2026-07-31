@@ -20,8 +20,9 @@ handlers. Use Cloud Tasks, Pub/Sub, Cloud Scheduler, and Cloud Run Jobs for
 durable delivery and scheduled work.
 
 Use private Google Cloud Storage for complaint evidence and generated exports.
-Use Google Secret Manager, Cloud KMS, and Cloud Logging for secrets,
-application-layer envelope-encryption keys, and runtime observability.
+Use Google Secret Manager and Cloud Logging for secrets and runtime
+observability. Voucher envelope-encryption keys use the application-held master
+key design in [ADR-0012](ADR-0012-use-an-application-held-voucher-master-key.md).
 
 Supabase Free is allowed for development and a closed no-stakes pilot only.
 Supabase Pro is the minimum tier before processing meaningful live payments.
