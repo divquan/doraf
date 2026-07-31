@@ -13,6 +13,9 @@ describe('foundation database constraints', () => {
   const pool = new Pool({ connectionString: databaseUrl });
   let agentId: string;
   let productId: string;
+  let inventoryBatchId: string;
+  let voucherId: string;
+  let serialFingerprint: Buffer;
 
   beforeAll(async () => {
     const tenantId = randomUUID();
@@ -46,6 +49,43 @@ describe('foundation database constraints', () => {
         'Only used by the database constraint suite.',
         99,
       ],
+    );
+
+    inventoryBatchId = randomUUID();
+    voucherId = randomUUID();
+    serialFingerprint = randomBytes(32);
+    await pool.query(
+      `INSERT INTO inventory_batch (
+        id, product_id, vendor_name, vendor_reference, acquisition_date,
+        unit_acquisition_cost_minor, source_row_count, accepted_row_count,
+        encrypted_data_key, kms_key_version, uploaded_by_actor_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9, $10)`,
+      [
+        inventoryBatchId,
+        productId,
+        'Database Test Vendor',
+        'DB-TEST-INV-1',
+        '2026-07-30',
+        1_500,
+        1,
+        randomBytes(48),
+        'projects/test/locations/global/keyRings/test/cryptoKeys/voucher/cryptoKeyVersions/1',
+        randomUUID(),
+      ],
+    );
+    await insertVoucher(pool, {
+      id: voucherId,
+      batchId: inventoryBatchId,
+      productId,
+      serialFingerprint,
+      pinFingerprint: randomBytes(32),
+    });
+    await pool.query(
+      `INSERT INTO inventory_event (
+        voucher_id, event_type, previous_availability,
+        resulting_availability, source_type, source_id
+      ) VALUES ($1, 'IMPORTED', NULL, 'AVAILABLE', 'INVENTORY_BATCH', $2)`,
+      [voucherId, inventoryBatchId],
     );
   });
 
@@ -167,7 +207,113 @@ describe('foundation database constraints', () => {
       '23505',
     );
   });
+
+  it('rejects duplicate voucher serial fingerprints', async () => {
+    await expectDatabaseError(
+      insertVoucher(pool, {
+        id: randomUUID(),
+        batchId: inventoryBatchId,
+        productId,
+        serialFingerprint,
+        pinFingerprint: randomBytes(32),
+      }),
+      '23505',
+    );
+  });
+
+  it('rejects a voucher whose product differs from its batch', async () => {
+    const otherProduct = await pool.query<{ id: string }>(
+      'SELECT id FROM product WHERE code = $1',
+      ['BECE'],
+    );
+    const otherProductId = otherProduct.rows[0]?.id;
+    expect(otherProductId).toBeDefined();
+
+    await expectDatabaseError(
+      insertVoucher(pool, {
+        id: randomUUID(),
+        batchId: inventoryBatchId,
+        productId: otherProductId,
+        serialFingerprint: randomBytes(32),
+        pinFingerprint: randomBytes(32),
+      }),
+      '23503',
+    );
+  });
+
+  it('prevents terminal sold inventory from returning to available', async () => {
+    await pool.query(
+      `UPDATE voucher
+       SET availability = 'SOLD', version = version + 1, updated_at = NOW()
+       WHERE id = $1`,
+      [voucherId],
+    );
+
+    await expectDatabaseError(
+      pool.query(
+        `UPDATE voucher
+         SET availability = 'AVAILABLE', version = version + 1, updated_at = NOW()
+         WHERE id = $1`,
+        [voucherId],
+      ),
+      '23514',
+    );
+  });
+
+  it('keeps inventory events append-only', async () => {
+    await expectDatabaseError(
+      pool.query(
+        `UPDATE inventory_event
+         SET event_type = 'ALTERED'
+         WHERE voucher_id = $1`,
+        [voucherId],
+      ),
+      '42501',
+    );
+  });
 });
+
+interface VoucherFixture {
+  id: string;
+  batchId: string;
+  productId: string;
+  serialFingerprint: Buffer;
+  pinFingerprint: Buffer;
+}
+
+function insertVoucher(pool: Pool, voucher: VoucherFixture): Promise<unknown> {
+  return pool.query(
+    `INSERT INTO voucher (
+      id, batch_id, product_id,
+      serial_ciphertext, serial_nonce, serial_auth_tag,
+      serial_fingerprint, serial_mask, serial_key_version,
+      pin_ciphertext, pin_nonce, pin_auth_tag,
+      pin_fingerprint, pin_mask, pin_key_version, updated_at
+    ) VALUES (
+      $1, $2, $3,
+      $4, $5, $6,
+      $7, $8, $9,
+      $10, $11, $12,
+      $13, $14, $9, NOW()
+    )`,
+    [
+      voucher.id,
+      voucher.batchId,
+      voucher.productId,
+      randomBytes(32),
+      randomBytes(12),
+      randomBytes(16),
+      voucher.serialFingerprint,
+      '****0001',
+      'projects/test/locations/global/keyRings/test/cryptoKeys/voucher/cryptoKeyVersions/1',
+      randomBytes(12),
+      randomBytes(12),
+      randomBytes(16),
+      voucher.pinFingerprint,
+      '********0001',
+    ],
+  );
+}
 
 async function expectDatabaseError(
   operation: Promise<unknown>,

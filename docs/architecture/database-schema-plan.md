@@ -262,9 +262,13 @@ if implementation queries require it.
 - unit acquisition cost minor
 - source row count
 - accepted row count
-- import status
+- wrapped batch data key, KMS key version, and crypto version
 - uploader
 - timestamps
+
+Only successfully committed batches are persisted, so a separate import-status
+projection is not needed for the initial import model. Failed previews create no
+inventory records and are represented by the authenticated audit slice.
 
 #### `Voucher`
 

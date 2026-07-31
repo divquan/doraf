@@ -40,6 +40,11 @@ includes database tests before dependent application features are added.
 - reservations and reservation items
 - uniqueness, state, and active-reservation constraints
 
+Implementation progress: batches, encrypted vouchers, HMAC fingerprints,
+append-only import events, terminal-state protection, and import constraints are
+implemented. Reservations and reservation items remain part of the web-sale
+slice because they require orders and payment attempts.
+
 ## Migration 5 — Orders and payments
 
 - orders and order items

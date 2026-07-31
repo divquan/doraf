@@ -1,0 +1,64 @@
+import { DynamicModule, Module, type Provider } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { AesGcmVoucherCrypto } from './aes-gcm-voucher.crypto';
+import { CsvInventoryParser } from './csv-inventory.parser';
+import { GcpKmsVoucherKeyProvider } from './gcp-kms-voucher-key.provider';
+import { InventoryImportService } from './inventory-import.service';
+import {
+  INVENTORY_REPOSITORY,
+  VOUCHER_CRYPTO,
+  type VoucherCrypto,
+} from './inventory.types';
+import { PrismaInventoryRepository } from './prisma-inventory.repository';
+
+@Module({})
+export class InventoryModule {
+  static register(crypto: VoucherCrypto): DynamicModule {
+    const cryptoProvider: Provider = {
+      provide: VOUCHER_CRYPTO,
+      useValue: crypto,
+    };
+
+    return this.createModule(cryptoProvider);
+  }
+
+  static registerGcp(): DynamicModule {
+    return this.createModule({
+      provide: VOUCHER_CRYPTO,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService): VoucherCrypto => {
+        const kmsKeyName = config.get<string>('VOUCHER_KMS_KEY_NAME');
+        const fingerprintKeyBase64 = config.get<string>(
+          'VOUCHER_FINGERPRINT_KEY_BASE64',
+        );
+        if (!kmsKeyName || !fingerprintKeyBase64) {
+          throw new Error(
+            'VOUCHER_KMS_KEY_NAME and VOUCHER_FINGERPRINT_KEY_BASE64 are required',
+          );
+        }
+
+        return new AesGcmVoucherCrypto(
+          new GcpKmsVoucherKeyProvider(kmsKeyName),
+          Buffer.from(fingerprintKeyBase64, 'base64'),
+        );
+      },
+    });
+  }
+
+  private static createModule(cryptoProvider: Provider): DynamicModule {
+    return {
+      module: InventoryModule,
+      providers: [
+        CsvInventoryParser,
+        PrismaInventoryRepository,
+        {
+          provide: INVENTORY_REPOSITORY,
+          useExisting: PrismaInventoryRepository,
+        },
+        cryptoProvider,
+        InventoryImportService,
+      ],
+      exports: [InventoryImportService],
+    };
+  }
+}

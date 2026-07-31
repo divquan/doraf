@@ -74,7 +74,23 @@ The entire batch is validated before inventory is created. Any invalid or
 duplicate row rejects the whole batch. The importer must return row-level error
 details so the Administrator can correct and retry the source data.
 
-## Proposed security requirements
+### Implemented import contract
+
+The CSV header is exactly `serial_number,pin`. Preview parses the complete file,
+validates every row, and checks keyed fingerprints against existing inventory.
+Commit repeats validation so a stale or modified preview cannot bypass it.
+
+Only successfully committed batches are stored in `InventoryBatch`; therefore
+the presence of a batch means the import completed. A failed preview creates no
+batch or vouchers. The future authenticated administration/audit slice records
+the attempted action without treating a rejected file as inventory.
+
+Commit creates the batch, all encrypted vouchers, and one append-only import
+event per voucher in a single serializable transaction. Database uniqueness is
+the final defense if another import commits the same serial or PIN after
+preview.
+
+## Security requirements
 
 Voucher secrets are the platform's primary inventory asset. The implementation
 should:
@@ -88,7 +104,11 @@ should:
 - avoid exposing available inventory through agent-facing interfaces, and
 - record every manual reveal or export.
 
-These security details will be finalized in the architecture phase.
+Voucher values use AES-256-GCM with unique nonces and authenticated record
+context. A random data key is created per batch and wrapped by Google Cloud KMS.
+Duplicate detection uses purpose-separated keyed HMAC-SHA-256 fingerprints;
+fingerprint and encryption keys remain separate. Plaintext data keys are wiped
+from the importer after use.
 
 ## Required invariants
 

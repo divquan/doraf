@@ -31,6 +31,25 @@ The current HTTP surface is:
 Products are seeded as `UNAVAILABLE`; checkout must not expose them until valid
 pricing and inventory exist.
 
+## Inventory import
+
+The inventory feature currently provides a service boundary, not a public HTTP
+route. It remains deliberately unmounted until Administrator authentication and
+authorization are implemented.
+
+`InventoryImportService` supports validation preview and atomic commit for CSV
+files with this exact header:
+
+```csv
+serial_number,pin
+ABC123456,012345678912
+```
+
+Production registration uses `InventoryModule.registerGcp()` and requires
+`VOUCHER_KMS_KEY_NAME`, `VOUCHER_FINGERPRINT_KEY_BASE64`, and Google Application
+Default Credentials. Voucher data keys are generated per batch and wrapped by
+Google Cloud KMS.
+
 ## Verification
 
 ```bash

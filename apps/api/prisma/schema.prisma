@@ -1,6 +1,8 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "cjs"
+  importFileExtension = ""
 }
 
 datasource db {
@@ -21,6 +23,24 @@ enum ProductStatus {
   @@map("product_status")
 }
 
+enum VoucherAvailability {
+  AVAILABLE
+  RESERVED
+  SOLD
+  QUARANTINED
+  VOID
+
+  @@map("voucher_availability")
+}
+
+enum VoucherDisputeDisposition {
+  NONE
+  REPLACED
+  REFUNDED
+
+  @@map("voucher_dispute_disposition")
+}
+
 model AgentTenant {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -33,7 +53,7 @@ model Agent {
   id               String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId         String                 @unique @map("tenant_id") @db.Uuid
   name             String                 @db.VarChar(120)
-  phoneCiphertext  Bytes                  @map("jjj")
+  phoneCiphertext  Bytes                  @map("phone_ciphertext")
   phoneFingerprint Bytes                  @unique @map("phone_fingerprint")
   phoneMask        String                 @map("phone_mask") @db.VarChar(32)
   encryptionKeyId  String                 @map("encryption_key_id") @db.VarChar(100)
@@ -63,6 +83,8 @@ model Product {
   pricingPolicies    ProductPricingPolicy[]
   agentOverrides     AgentPricingOverride[]
   agentProductPrices AgentProductPrice[]
+  inventoryBatches   InventoryBatch[]
+  vouchers           Voucher[]
 
   @@index([status, displayOrder])
   @@map("product")
@@ -119,4 +141,78 @@ model AgentProductPrice {
   @@unique([agentId, productId])
   @@index([productId])
   @@map("agent_product_price")
+}
+
+model InventoryBatch {
+  id                       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productId                String    @map("product_id") @db.Uuid
+  vendorName               String    @map("vendor_name") @db.VarChar(160)
+  vendorReference          String    @map("vendor_reference") @db.VarChar(160)
+  acquisitionDate          DateTime  @map("acquisition_date") @db.Date
+  unitAcquisitionCostMinor BigInt    @map("unit_acquisition_cost_minor")
+  currency                 String    @default("GHS") @db.Char(3)
+  sourceRowCount           Int       @map("source_row_count")
+  acceptedRowCount         Int       @map("accepted_row_count")
+  encryptedDataKey         Bytes     @map("encrypted_data_key")
+  kmsKeyVersion            String    @map("kms_key_version") @db.VarChar(300)
+  cryptoVersion            Int       @default(1) @map("crypto_version")
+  uploadedByActorId        String    @map("uploaded_by_actor_id") @db.Uuid
+  importedAt               DateTime  @default(now()) @map("imported_at") @db.Timestamptz(6)
+  createdAt                DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  product                  Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
+  vouchers                 Voucher[]
+
+  @@unique([id, productId])
+  @@index([productId, acquisitionDate, importedAt])
+  @@map("inventory_batch")
+}
+
+model Voucher {
+  id                 String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  batchId            String                    @map("batch_id") @db.Uuid
+  productId          String                    @map("product_id") @db.Uuid
+  serialCiphertext   Bytes                     @map("serial_ciphertext")
+  serialNonce        Bytes                     @map("serial_nonce")
+  serialAuthTag      Bytes                     @map("serial_auth_tag")
+  serialFingerprint  Bytes                     @unique @map("serial_fingerprint")
+  serialMask         String                    @map("serial_mask") @db.VarChar(64)
+  serialKeyVersion   String                    @map("serial_key_version") @db.VarChar(300)
+  pinCiphertext      Bytes                     @map("pin_ciphertext")
+  pinNonce           Bytes                     @map("pin_nonce")
+  pinAuthTag         Bytes                     @map("pin_auth_tag")
+  pinFingerprint     Bytes                     @unique @map("pin_fingerprint")
+  pinMask            String                    @map("pin_mask") @db.VarChar(32)
+  pinKeyVersion      String                    @map("pin_key_version") @db.VarChar(300)
+  cryptoVersion      Int                       @default(1) @map("crypto_version")
+  availability       VoucherAvailability       @default(AVAILABLE)
+  disputeDisposition VoucherDisputeDisposition @default(NONE) @map("dispute_disposition")
+  version            Int                       @default(1)
+  createdAt          DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  batch              InventoryBatch            @relation(fields: [batchId, productId], references: [id, productId], onDelete: Restrict)
+  product            Product                   @relation(fields: [productId], references: [id], onDelete: Restrict)
+  events             InventoryEvent[]
+
+  @@index([productId, availability, batchId, createdAt])
+  @@index([batchId])
+  @@map("voucher")
+}
+
+model InventoryEvent {
+  id                    String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  voucherId             String               @map("voucher_id") @db.Uuid
+  eventType             String               @map("event_type") @db.VarChar(80)
+  previousAvailability  VoucherAvailability? @map("previous_availability")
+  resultingAvailability VoucherAvailability  @map("resulting_availability")
+  sourceType            String               @map("source_type") @db.VarChar(80)
+  sourceId              String               @map("source_id") @db.VarChar(160)
+  actorId               String?              @map("actor_id") @db.Uuid
+  safeMetadata          Json                 @default("{}") @map("safe_metadata")
+  createdAt             DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  voucher               Voucher              @relation(fields: [voucherId], references: [id], onDelete: Restrict)
+
+  @@unique([voucherId, sourceType, sourceId])
+  @@index([voucherId, createdAt])
+  @@index([eventType, createdAt])
+  @@map("inventory_event")
 }
