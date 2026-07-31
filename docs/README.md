@@ -7,19 +7,22 @@ recorded here.
 
 ## Current state
 
-The product is in discovery. Requirements marked **Confirmed** came directly
-from the product owner. Items marked **Proposed** are recommendations awaiting
-approval. Items marked **Assumption** must be validated before they become
-requirements.
+The product is in active implementation with some external discovery and launch
+readiness work still open. Check the
+[MVP implementation progress](planning/implementation-progress.md) before
+starting work. Requirements marked **Confirmed** came directly from the product
+owner. Items marked **Proposed** are recommendations awaiting approval. Items
+marked **Assumption** must be validated before they become requirements.
 
 ## Start here
 
-1. Read [Platform brief](product/00-platform-brief.md).
-2. Review [Open questions](planning/open-questions.md) before making a decision
+1. Check [MVP implementation progress](planning/implementation-progress.md).
+2. Read [Platform brief](product/00-platform-brief.md).
+3. Review [Open questions](planning/open-questions.md) before making a decision
    in an unsettled area.
-3. Review [Risks and assumptions](planning/risks-and-assumptions.md).
-4. Use the [Glossary](planning/glossary.md) consistently in code and prose.
-5. Check [Decision records](decisions/README.md) for accepted cross-cutting
+4. Review [Risks and assumptions](planning/risks-and-assumptions.md).
+5. Use the [Glossary](planning/glossary.md) consistently in code and prose.
+6. Check [Decision records](decisions/README.md) for accepted cross-cutting
    decisions.
 
 ## Implementation entry points
@@ -35,6 +38,7 @@ requirements.
 - [Database invariant and concurrency tests](architecture/database-test-plan.md)
 - [Initial schema migration plan](planning/schema-migration-plan.md)
 - [MVP delivery phases](planning/delivery-phases.md)
+- [MVP implementation progress](planning/implementation-progress.md)
 
 ## Planned documentation map
 
