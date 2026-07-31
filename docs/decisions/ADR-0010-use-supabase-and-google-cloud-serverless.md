@@ -12,12 +12,14 @@ be delivered to request-driven workers.
 
 ## Decision
 
-Use Supabase for PostgreSQL and private file storage.
+Use Supabase for PostgreSQL only. Supabase Auth, Storage, Functions, and other
+Supabase application services are outside this architecture.
 
 Use Google Cloud Run for the two Next.js applications, API, and asynchronous
 handlers. Use Cloud Tasks, Pub/Sub, Cloud Scheduler, and Cloud Run Jobs for
 durable delivery and scheduled work.
 
+Use private Google Cloud Storage for complaint evidence and generated exports.
 Use Google Secret Manager, Cloud KMS, and Cloud Logging for secrets,
 application-layer envelope-encryption keys, and runtime observability.
 
@@ -42,7 +44,8 @@ Preserve the transactional outbox, but do not use a permanently polling
   publication after commit.
 - Database and Google compute are cross-cloud, so transactional compute must be
   placed and tested near the selected Supabase Region.
-- Supabase Storage objects require recovery separate from database backups.
+- Google Cloud Storage objects require lifecycle, access-control, and recovery
+  policies separate from PostgreSQL backups.
 
 ## Supersedes
 

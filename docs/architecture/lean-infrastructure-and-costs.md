@@ -18,7 +18,7 @@ PostgreSQL and the confirmed transaction model.
 | Asynchronous execution | Google Cloud Tasks and Pub/Sub push to Cloud Run |
 | Scheduled sweeps and reconciliation | Cloud Scheduler and Cloud Run Jobs |
 | PostgreSQL | Supabase |
-| Complaint evidence and generated exports | Supabase Storage |
+| Complaint evidence and generated exports | Google Cloud Storage |
 | Application and provider secrets | Google Secret Manager |
 | Voucher and evidence key-encryption keys | Google Cloud KMS |
 | Runtime logs and metrics | Google Cloud Logging and Monitoring |
@@ -84,36 +84,35 @@ measures it.
 
 ## File storage
 
-Use private Supabase Storage buckets:
+Supabase is used for PostgreSQL only. Use private Google Cloud Storage buckets:
 
 - `dispute-evidence-quarantine`
 - `dispute-evidence-clean`
 - `generated-exports`
 
-The Free plan includes 1 GB; Pro includes 100 GB.
-
 Rules:
 
 - Never use public buckets.
-- Access is server-mediated and protected by restrictive RLS.
+- Access is server-mediated and protected by least-privilege Cloud IAM.
 - Issue short-lived signed URLs only after API authorization.
-- Restrict MIME types and file sizes at the bucket and API layers.
+- Restrict MIME types and file sizes at the API layer and upload policy.
 - Malware-scan evidence before moving it from quarantine to clean storage.
 - Encrypt sensitive evidence before upload using application envelope
   encryption.
 - Keep object keys opaque and free of phone numbers or order details.
 - Expire exports automatically under the retention schedule.
-- Audit upload, read, signed-link creation, and deletion.
+- Enable access logging and audit upload, read, signed-link creation, and
+  deletion.
 
-Supabase database backups contain Storage metadata but not the stored objects.
-Objects therefore need their own off-site backup or replication process.
+Use lifecycle policies for retention and, before meaningful live operation,
+versioning or a separate recovery copy according to the approved recovery
+objective. Database backups do not contain these objects.
 
 ## Secrets
 
 Use Google Secret Manager for:
 
 - Supabase direct and pooled database credentials,
-- Supabase service-role credential,
 - Paystack secret and webhook material,
 - SMS provider credential,
 - email provider credential,

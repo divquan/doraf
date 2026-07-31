@@ -2,8 +2,7 @@
   "moduleFileExtensions": ["js", "json", "ts"],
   "rootDir": ".",
   "testEnvironment": "node",
-  "testRegex": "app\\.e2e-spec\\.ts$",
-  "setupFiles": ["<rootDir>/setup-env.ts"],
+  "testRegex": "database-constraints.e2e-spec.ts$",
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
   }

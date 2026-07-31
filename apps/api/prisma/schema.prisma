@@ -1,0 +1,122 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum AgentStatus {
+  ACTIVE
+  SUSPENDED
+
+  @@map("agent_status")
+}
+
+enum ProductStatus {
+  ACTIVE
+  UNAVAILABLE
+
+  @@map("product_status")
+}
+
+model AgentTenant {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  agent     Agent?
+
+  @@map("agent_tenant")
+}
+
+model Agent {
+  id               String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String                 @unique @map("tenant_id") @db.Uuid
+  name             String                 @db.VarChar(120)
+  phoneCiphertext  Bytes                  @map("jjj")
+  phoneFingerprint Bytes                  @unique @map("phone_fingerprint")
+  phoneMask        String                 @map("phone_mask") @db.VarChar(32)
+  encryptionKeyId  String                 @map("encryption_key_id") @db.VarChar(100)
+  formatVersion    Int                    @default(1) @map("format_version")
+  status           AgentStatus            @default(ACTIVE)
+  version          Int                    @default(1)
+  createdAt        DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant           AgentTenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  pricingOverrides AgentPricingOverride[]
+  productPrices    AgentProductPrice[]
+
+  @@index([status])
+  @@map("agent")
+}
+
+model Product {
+  id                 String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code               String                 @unique @db.VarChar(40)
+  name               String                 @db.VarChar(120)
+  scopeDisclosure    String                 @map("scope_disclosure")
+  disclosureVersion  Int                    @default(1) @map("disclosure_version")
+  status             ProductStatus          @default(UNAVAILABLE)
+  displayOrder       Int                    @map("display_order")
+  createdAt          DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  pricingPolicies    ProductPricingPolicy[]
+  agentOverrides     AgentPricingOverride[]
+  agentProductPrices AgentProductPrice[]
+
+  @@index([status, displayOrder])
+  @@map("product")
+}
+
+model ProductPricingPolicy {
+  id                      String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productId               String    @map("product_id") @db.Uuid
+  basePriceMinor          BigInt    @map("base_price_minor")
+  maximumRetailPriceMinor BigInt    @map("maximum_retail_price_minor")
+  currency                String    @default("GHS") @db.Char(3)
+  effectiveFrom           DateTime  @map("effective_from") @db.Timestamptz(6)
+  effectiveTo             DateTime? @map("effective_to") @db.Timestamptz(6)
+  reason                  String    @db.VarChar(500)
+  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  product                 Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([productId, effectiveFrom])
+  @@map("product_pricing_policy")
+}
+
+model AgentPricingOverride {
+  id                      String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  agentId                 String    @map("agent_id") @db.Uuid
+  productId               String    @map("product_id") @db.Uuid
+  basePriceMinor          BigInt?   @map("base_price_minor")
+  maximumRetailPriceMinor BigInt?   @map("maximum_retail_price_minor")
+  currency                String    @default("GHS") @db.Char(3)
+  effectiveFrom           DateTime  @map("effective_from") @db.Timestamptz(6)
+  effectiveTo             DateTime? @map("effective_to") @db.Timestamptz(6)
+  reason                  String    @db.VarChar(500)
+  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  agent                   Agent     @relation(fields: [agentId], references: [id], onDelete: Restrict)
+  product                 Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([agentId, productId, effectiveFrom])
+  @@map("agent_pricing_override")
+}
+
+model AgentProductPrice {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  agentId          String   @map("agent_id") @db.Uuid
+  productId        String   @map("product_id") @db.Uuid
+  retailPriceMinor BigInt   @map("retail_price_minor")
+  currency         String   @default("GHS") @db.Char(3)
+  version          Int      @default(1)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  agent            Agent    @relation(fields: [agentId], references: [id], onDelete: Restrict)
+  product          Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@unique([agentId, productId])
+  @@index([productId])
+  @@map("agent_product_price")
+}

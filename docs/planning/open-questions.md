@@ -476,7 +476,8 @@ operators.
 
 ## Resolved in Topic 18 — Lean hosted infrastructure
 
-- Supabase provides PostgreSQL and private file storage.
+- Supabase provides PostgreSQL only; Supabase Auth, Storage, Functions, and
+  other application services are not used.
 - Supabase Free is restricted to development and closed no-stakes pilots.
 - Supabase Pro, currently $25 monthly, is the minimum meaningful live tier.
 - Google Cloud Run hosts web applications, API, and asynchronous handlers.
@@ -487,8 +488,8 @@ operators.
 - Google Cloud KMS protects voucher and evidence envelope-encryption keys.
 - Cloud Logging stores redacted operational telemetry; PostgreSQL remains the
   durable business audit source.
-- Supabase Storage uses private buckets, RLS, short-lived signed URLs,
-  quarantine, malware scanning, and separate object recovery.
+- Google Cloud Storage uses private buckets, least-privilege IAM, short-lived
+  signed URLs, quarantine, malware scanning, and separate object recovery.
 - The expected closed-pilot infrastructure cost is $0–$2 monthly.
 - The expected small live infrastructure cost is $25–$30 monthly before
   transaction, messaging, USSD, domain, and inventory costs.

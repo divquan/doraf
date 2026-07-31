@@ -82,9 +82,9 @@ API request processes do not perform long-running provider work inline.
 - Key and secret management — voucher encryption and provider credentials
 - Central observability — structured safe logs, metrics, traces, and alerts
 
-The current lean baseline uses Supabase for PostgreSQL and private file storage,
-with Google Cloud Run, Cloud Tasks, Pub/Sub, Secret Manager, Cloud KMS, and
-Cloud Logging. See
+The current lean baseline uses Supabase for PostgreSQL only. Google Cloud
+provides private object storage, Cloud Run, Cloud Tasks, Pub/Sub, Secret
+Manager, Cloud KMS, and Cloud Logging. See
 [Lean Supabase and Google Cloud infrastructure](lean-infrastructure-and-costs.md).
 The earlier AWS baseline is superseded. Specific SMS, email, and USSD providers
 remain open.
