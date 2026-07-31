@@ -29,6 +29,13 @@ The current HTTP surface is:
 - `GET /v1/catalog/products`
 - `POST /v1/admin/inventory/imports/preview` (Administrator)
 - `POST /v1/admin/inventory/imports` (Administrator)
+- `POST /v1/internal-auth/passkeys/registration/options`
+- `POST /v1/internal-auth/passkeys/registration/verify`
+- `POST /v1/internal-auth/passkeys/authentication/options`
+- `POST /v1/internal-auth/passkeys/authentication/verify`
+- `POST /v1/internal-auth/logout`
+- `POST /v1/admin/internal-users` (Administrator)
+- `POST /v1/admin/internal-users/:userId/enrollment-tokens` (Administrator)
 
 Products are seeded as `UNAVAILABLE`; checkout must not expose them until valid
 pricing and inventory exist.
@@ -39,10 +46,29 @@ The inventory import routes require an active, unexpired internal Administrator
 session through a bearer token. Support sessions are denied. A committed import
 and its audit event are written in the same serializable database transaction.
 
-The opaque session-token boundary, revocation, role enforcement, and audit
-storage are implemented. Credential enrollment and the login endpoint are not:
-the documented passkey-preferred/authenticator-MFA choice must be completed
-before anything can legitimately issue these internal sessions.
+Internal operators use user-verified discoverable passkeys. Registration and
+authentication ceremonies expire after five minutes and are one-time. A valid
+assertion issues an opaque eight-hour bearer session; logout, expiry,
+suspension, and explicit revocation invalidate it.
+
+Authentication and invitation responses use `Cache-Control: no-store`. The
+administration web application must keep the returned bearer token in a secure,
+HTTP-only session cookie or server-side session and must not place it in browser
+local storage.
+
+Bootstrap the first Administrator only after applying migrations:
+
+```bash
+DATABASE_URL=postgresql://... \
+INTERNAL_ENROLLMENT_FINGERPRINT_KEY_BASE64=... \
+  pnpm --filter @doraf/api internal:bootstrap-admin -- "Administrator Name"
+```
+
+The command refuses to run once any internal user exists and prints one
+15-minute enrollment token exactly once. Use it with the registration-options
+endpoint, complete the browser WebAuthn ceremony, and send the result to the
+registration-verification endpoint. Later operators are invited through the
+Administrator-only internal-user endpoint.
 
 `InventoryImportService` supports validation preview and atomic commit for CSV
 files with this exact header:
@@ -57,6 +83,8 @@ Production registration uses `InventoryModule.registerGcp()` and requires
 Default Credentials. Voucher data keys are generated per batch and wrapped by
 Google Cloud KMS. `SESSION_FINGERPRINT_KEY_BASE64` is a separate secret used to
 store only HMAC fingerprints of opaque session tokens, never the bearer tokens.
+`INTERNAL_ENROLLMENT_FINGERPRINT_KEY_BASE64` separately protects one-time
+operator enrollment tokens.
 
 ## Verification
 

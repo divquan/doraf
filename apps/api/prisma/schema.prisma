@@ -37,6 +37,19 @@ enum InternalRole {
   @@map("internal_role")
 }
 
+enum InternalCredentialType {
+  PASSKEY
+
+  @@map("internal_credential_type")
+}
+
+enum InternalAuthCeremonyType {
+  PASSKEY_REGISTRATION
+  PASSKEY_AUTHENTICATION
+
+  @@map("internal_auth_ceremony_type")
+}
+
 enum VoucherAvailability {
   AVAILABLE
   RESERVED
@@ -86,18 +99,79 @@ model Agent {
 }
 
 model InternalUser {
-  id          String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  displayName String             @map("display_name") @db.VarChar(120)
-  role        InternalRole
-  status      InternalUserStatus @default(ACTIVE)
-  version     Int                @default(1)
-  createdAt   DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
-  sessions    Session[]
-  auditEvents AuditEvent[]
+  id                      String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  displayName             String                    @map("display_name") @db.VarChar(120)
+  role                    InternalRole
+  status                  InternalUserStatus        @default(ACTIVE)
+  version                 Int                       @default(1)
+  createdAt               DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  sessions                Session[]
+  auditEvents             AuditEvent[]
+  credentials             InternalCredential[]
+  enrollmentTokens        InternalEnrollmentToken[] @relation("EnrollmentTokenTarget")
+  createdEnrollmentTokens InternalEnrollmentToken[] @relation("EnrollmentTokenCreator")
+  authCeremonies          InternalAuthCeremony[]
 
   @@index([status, role])
   @@map("internal_user")
+}
+
+model InternalCredential {
+  id             String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  internalUserId String                 @map("internal_user_id") @db.Uuid
+  type           InternalCredentialType @default(PASSKEY)
+  name           String                 @db.VarChar(80)
+  credentialId   String                 @unique @map("credential_id") @db.VarChar(1024)
+  publicKey      Bytes                  @map("public_key")
+  counter        BigInt                 @default(0)
+  transports     String[]
+  deviceType     String                 @map("device_type") @db.VarChar(20)
+  backedUp       Boolean                @map("backed_up")
+  aaguid         String                 @db.VarChar(36)
+  lastUsedAt     DateTime?              @map("last_used_at") @db.Timestamptz(6)
+  revokedAt      DateTime?              @map("revoked_at") @db.Timestamptz(6)
+  createdAt      DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  internalUser   InternalUser           @relation(fields: [internalUserId], references: [id], onDelete: Restrict)
+
+  @@index([internalUserId, revokedAt])
+  @@map("internal_credential")
+}
+
+model InternalEnrollmentToken {
+  id                      String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  internalUserId          String                 @map("internal_user_id") @db.Uuid
+  createdByInternalUserId String?                @map("created_by_internal_user_id") @db.Uuid
+  tokenFingerprint        Bytes                  @unique @map("token_fingerprint")
+  expiresAt               DateTime               @map("expires_at") @db.Timestamptz(6)
+  consumedAt              DateTime?              @map("consumed_at") @db.Timestamptz(6)
+  createdAt               DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  internalUser            InternalUser           @relation("EnrollmentTokenTarget", fields: [internalUserId], references: [id], onDelete: Restrict)
+  createdBy               InternalUser?          @relation("EnrollmentTokenCreator", fields: [createdByInternalUserId], references: [id], onDelete: Restrict)
+  ceremonies              InternalAuthCeremony[]
+
+  @@index([internalUserId, expiresAt])
+  @@map("internal_enrollment_token")
+}
+
+model InternalAuthCeremony {
+  id                String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type              InternalAuthCeremonyType
+  internalUserId    String?                  @map("internal_user_id") @db.Uuid
+  enrollmentTokenId String?                  @map("enrollment_token_id") @db.Uuid
+  challenge         String                   @unique @db.VarChar(160)
+  credentialName    String?                  @map("credential_name") @db.VarChar(80)
+  attemptCount      Int                      @default(0) @map("attempt_count")
+  expiresAt         DateTime                 @map("expires_at") @db.Timestamptz(6)
+  consumedAt        DateTime?                @map("consumed_at") @db.Timestamptz(6)
+  createdAt         DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  internalUser      InternalUser?            @relation(fields: [internalUserId], references: [id], onDelete: Restrict)
+  enrollmentToken   InternalEnrollmentToken? @relation(fields: [enrollmentTokenId], references: [id], onDelete: Restrict)
+
+  @@index([type, expiresAt])
+  @@index([internalUserId, expiresAt])
+  @@map("internal_auth_ceremony")
 }
 
 model Session {

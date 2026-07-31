@@ -293,6 +293,24 @@ describe('foundation database constraints', () => {
     );
   });
 
+  it('allows only one unconsumed enrollment token per internal user', async () => {
+    await pool.query(
+      `INSERT INTO internal_enrollment_token (
+        internal_user_id, token_fingerprint, expires_at
+      ) VALUES ($1, $2, NOW() + INTERVAL '15 minutes')`,
+      [internalUserId, randomBytes(32)],
+    );
+    await expectDatabaseError(
+      pool.query(
+        `INSERT INTO internal_enrollment_token (
+          internal_user_id, token_fingerprint, expires_at
+        ) VALUES ($1, $2, NOW() + INTERVAL '15 minutes')`,
+        [internalUserId, randomBytes(32)],
+      ),
+      '23505',
+    );
+  });
+
   it('keeps security audit events append-only', async () => {
     const auditEventId = randomUUID();
     await pool.query(

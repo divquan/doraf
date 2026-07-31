@@ -135,8 +135,8 @@ An Administrator can reveal an individual raw voucher only after:
 3. confirming the specific voucher and order, and
 4. creating the sensitive-action audit record.
 
-The step-up authentication mechanism remains to be chosen. Reveal access is
-time-limited and does not enable bulk export.
+A fresh user-verified passkey assertion provides step-up authentication under
+ADR-0011. Reveal access is time-limited and does not enable bulk export.
 
 ## Work queues
 

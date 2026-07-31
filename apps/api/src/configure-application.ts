@@ -7,6 +7,10 @@ import {
 import { Reflector } from '@nestjs/core';
 
 export function configureApplication(app: INestApplication): void {
+  const server = app.getHttpAdapter().getInstance() as {
+    set(name: string, value: unknown): void;
+  };
+  server.set('trust proxy', 1);
   app.enableShutdownHooks();
   app.enableVersioning({
     type: VersioningType.URI,

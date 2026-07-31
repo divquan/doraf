@@ -32,6 +32,25 @@ describe('AppController (e2e)', () => {
       .expect(401);
   });
 
+  it('validates passkey enrollment input before accessing persistence', () => {
+    return request(app.getHttpServer())
+      .post('/v1/internal-auth/passkeys/registration/options')
+      .send({ enrollmentToken: 'invalid', credentialName: '' })
+      .expect('Cache-Control', 'no-store')
+      .expect(400);
+  });
+
+  it('denies anonymous internal-user invitations', () => {
+    return request(app.getHttpServer())
+      .post('/v1/admin/internal-users')
+      .send({
+        displayName: 'Support Operator',
+        role: 'SUPPORT',
+        reason: 'Onboard support operator',
+      })
+      .expect(401);
+  });
+
   afterEach(async () => {
     await app.close();
   });

@@ -22,11 +22,11 @@ includes database tests before dependent application features are added.
 - internal users and credentials
 - tenant and phone uniqueness
 
-Implementation progress: agent tenancy is present. Internal users and the
-provider-neutral, opaque, revocable session boundary are present, with an
-exactly-one-actor database constraint. Agent OTP, internal credential
-enrollment, and credential verification remain to be implemented. The open
-passkey-versus-authenticator decision has not been resolved in code.
+Implementation progress: agent tenancy is present. Internal users, passkey
+credentials, one-time enrollment, bounded authentication ceremonies, and the
+opaque revocable session boundary are present, with an exactly-one-actor
+database constraint. Agent OTP remains to be implemented. Internal passkey
+authentication is recorded in ADR-0011.
 
 ## Migration 3 — Catalog, pricing, and channels
 

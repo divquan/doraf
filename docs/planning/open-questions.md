@@ -314,9 +314,11 @@ replacement behavior.
 
 ## Open after Topic 10
 
-1. What authentication mechanism provides Administrator step-up confirmation?
-2. What low-stock threshold should each checker product start with?
-3. How long should generated administration exports remain downloadable?
+1. What low-stock threshold should each checker product start with?
+2. How long should generated administration exports remain downloadable?
+
+Administrator step-up uses a fresh user-verified passkey assertion under
+[ADR-0011](../decisions/ADR-0011-use-passkeys-for-internal-authentication.md).
 
 Operational and reconciliation queue items are assignable to specific
 operators.
@@ -397,8 +399,8 @@ operators.
 
 ## Open after Topic 14
 
-1. Which agent and internal authentication implementation will satisfy the
-   confirmed authentication policies?
+1. Which SMS provider and implementation will support confirmed agent OTP
+   authentication?
 2. Which SMS, email, and USSD providers will be selected?
 
 ## Resolved in Topic 15 — Logical data model and states
@@ -469,8 +471,8 @@ operators.
 
 ## Open after Topic 17
 
-1. Which agent and internal authentication implementation will satisfy the
-   confirmed authentication policies?
+1. Which SMS provider and implementation will support confirmed agent OTP
+   authentication?
 2. Which SMS, email, and USSD providers will be selected?
 3. What exact retention periods will legal and accounting review approve?
 

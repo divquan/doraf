@@ -4,6 +4,12 @@ export interface AppEnvironment {
   NODE_ENV: NodeEnvironment;
   PORT: number;
   DATABASE_URL: string;
+  INTERNAL_AUTH_RP_NAME: string;
+  INTERNAL_AUTH_RP_ID: string;
+  INTERNAL_AUTH_ORIGIN: string;
+  INTERNAL_AUTH_CHALLENGE_TTL_SECONDS: number;
+  INTERNAL_AUTH_SESSION_TTL_SECONDS: number;
+  INTERNAL_ENROLLMENT_TTL_SECONDS: number;
 }
 
 const nodeEnvironments = new Set<NodeEnvironment>([
@@ -36,9 +42,104 @@ export function validateEnvironment(
     throw new Error('DATABASE_URL must be a PostgreSQL connection URL');
   }
 
+  const relyingPartyName = requiredString(
+    raw.INTERNAL_AUTH_RP_NAME,
+    'INTERNAL_AUTH_RP_NAME',
+  );
+  const relyingPartyId = requiredString(
+    raw.INTERNAL_AUTH_RP_ID,
+    'INTERNAL_AUTH_RP_ID',
+  );
+  if (!isValidRelyingPartyId(relyingPartyId)) {
+    throw new Error('INTERNAL_AUTH_RP_ID must be a hostname without a scheme');
+  }
+  const origin = requiredString(
+    raw.INTERNAL_AUTH_ORIGIN,
+    'INTERNAL_AUTH_ORIGIN',
+  );
+  if (!isValidWebAuthnOrigin(origin)) {
+    throw new Error(
+      'INTERNAL_AUTH_ORIGIN must be an HTTP localhost or HTTPS origin without a path',
+    );
+  }
+  if (!originMatchesRelyingParty(origin, relyingPartyId)) {
+    throw new Error(
+      'INTERNAL_AUTH_ORIGIN hostname must equal or be a subdomain of INTERNAL_AUTH_RP_ID',
+    );
+  }
+
+  const challengeTtlSeconds = positiveInteger(
+    raw.INTERNAL_AUTH_CHALLENGE_TTL_SECONDS ?? 300,
+    'INTERNAL_AUTH_CHALLENGE_TTL_SECONDS',
+  );
+  const sessionTtlSeconds = positiveInteger(
+    raw.INTERNAL_AUTH_SESSION_TTL_SECONDS ?? 28_800,
+    'INTERNAL_AUTH_SESSION_TTL_SECONDS',
+  );
+  const enrollmentTtlSeconds = positiveInteger(
+    raw.INTERNAL_ENROLLMENT_TTL_SECONDS ?? 900,
+    'INTERNAL_ENROLLMENT_TTL_SECONDS',
+  );
+
   return {
     NODE_ENV: nodeEnvironment as NodeEnvironment,
     PORT: port,
     DATABASE_URL: databaseUrl,
+    INTERNAL_AUTH_RP_NAME: relyingPartyName,
+    INTERNAL_AUTH_RP_ID: relyingPartyId,
+    INTERNAL_AUTH_ORIGIN: origin,
+    INTERNAL_AUTH_CHALLENGE_TTL_SECONDS: challengeTtlSeconds,
+    INTERNAL_AUTH_SESSION_TTL_SECONDS: sessionTtlSeconds,
+    INTERNAL_ENROLLMENT_TTL_SECONDS: enrollmentTtlSeconds,
   };
+}
+
+function requiredString(value: unknown, name: string): string {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error(`${name} is required`);
+  }
+  return value.trim();
+}
+
+function positiveInteger(value: unknown, name: string): number {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new Error(`${name} must be a positive integer`);
+  }
+  return parsed;
+}
+
+function isValidRelyingPartyId(value: string): boolean {
+  if (value === 'localhost') {
+    return true;
+  }
+  return (
+    value.length <= 253 &&
+    value
+      .split('.')
+      .every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label))
+  );
+}
+
+function originMatchesRelyingParty(origin: string, relyingPartyId: string) {
+  const hostname = new URL(origin).hostname;
+  return hostname === relyingPartyId || hostname.endsWith(`.${relyingPartyId}`);
+}
+
+function isValidWebAuthnOrigin(value: string): boolean {
+  try {
+    const url = new URL(value);
+    const isLocalHttp =
+      url.protocol === 'http:' &&
+      (url.hostname === 'localhost' || url.hostname === '127.0.0.1');
+    return (
+      (url.protocol === 'https:' || isLocalHttp) &&
+      url.pathname === '/' &&
+      !url.search &&
+      !url.hash &&
+      value === url.origin
+    );
+  } catch {
+    return false;
+  }
 }
