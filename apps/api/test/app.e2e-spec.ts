@@ -3,6 +3,7 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
+import { configureApplication } from './../src/configure-application';
 
 describe('AppController (e2e)', () => {
   let app: INestApplication<App>;
@@ -13,6 +14,7 @@ describe('AppController (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    configureApplication(app);
     await app.init();
   });
 
@@ -21,6 +23,13 @@ describe('AppController (e2e)', () => {
       .get('/health/live')
       .expect(200)
       .expect({ status: 'ok' });
+  });
+
+  it('denies anonymous inventory import access', () => {
+    return request(app.getHttpServer())
+      .post('/v1/admin/inventory/imports/preview')
+      .send({})
+      .expect(401);
   });
 
   afterEach(async () => {

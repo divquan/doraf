@@ -23,6 +23,20 @@ enum ProductStatus {
   @@map("product_status")
 }
 
+enum InternalUserStatus {
+  ACTIVE
+  SUSPENDED
+
+  @@map("internal_user_status")
+}
+
+enum InternalRole {
+  SUPPORT
+  ADMINISTRATOR
+
+  @@map("internal_role")
+}
+
 enum VoucherAvailability {
   AVAILABLE
   RESERVED
@@ -65,9 +79,64 @@ model Agent {
   tenant           AgentTenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   pricingOverrides AgentPricingOverride[]
   productPrices    AgentProductPrice[]
+  sessions         Session[]
 
   @@index([status])
   @@map("agent")
+}
+
+model InternalUser {
+  id          String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  displayName String             @map("display_name") @db.VarChar(120)
+  role        InternalRole
+  status      InternalUserStatus @default(ACTIVE)
+  version     Int                @default(1)
+  createdAt   DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  sessions    Session[]
+  auditEvents AuditEvent[]
+
+  @@index([status, role])
+  @@map("internal_user")
+}
+
+model Session {
+  id                     String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  agentId                String?       @map("agent_id") @db.Uuid
+  internalUserId         String?       @map("internal_user_id") @db.Uuid
+  tokenFingerprint       Bytes         @unique @map("token_fingerprint")
+  authenticationStrength String        @map("authentication_strength") @db.VarChar(40)
+  authenticatedAt        DateTime      @map("authenticated_at") @db.Timestamptz(6)
+  stepUpAt               DateTime?     @map("step_up_at") @db.Timestamptz(6)
+  expiresAt              DateTime      @map("expires_at") @db.Timestamptz(6)
+  lastSeenAt             DateTime?     @map("last_seen_at") @db.Timestamptz(6)
+  revokedAt              DateTime?     @map("revoked_at") @db.Timestamptz(6)
+  createdAt              DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  agent                  Agent?        @relation(fields: [agentId], references: [id], onDelete: Restrict)
+  internalUser           InternalUser? @relation(fields: [internalUserId], references: [id], onDelete: Restrict)
+
+  @@index([internalUserId, expiresAt])
+  @@index([agentId, expiresAt])
+  @@map("session")
+}
+
+model AuditEvent {
+  id                     String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorInternalUserId    String       @map("actor_internal_user_id") @db.Uuid
+  actorRole              InternalRole @map("actor_role")
+  action                 String       @db.VarChar(100)
+  entityType             String       @map("entity_type") @db.VarChar(80)
+  entityId               String       @map("entity_id") @db.VarChar(160)
+  reason                 String       @db.VarChar(500)
+  authenticationStrength String       @map("authentication_strength") @db.VarChar(40)
+  requestId              String       @map("request_id") @db.VarChar(100)
+  safeMetadata           Json         @default("{}") @map("safe_metadata")
+  createdAt              DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  actor                  InternalUser @relation(fields: [actorInternalUserId], references: [id], onDelete: Restrict)
+
+  @@index([entityType, entityId, createdAt])
+  @@index([actorInternalUserId, createdAt])
+  @@map("audit_event")
 }
 
 model Product {

@@ -14,12 +14,14 @@ describe('foundation database constraints', () => {
   let agentId: string;
   let productId: string;
   let inventoryBatchId: string;
+  let internalUserId: string;
   let voucherId: string;
   let serialFingerprint: Buffer;
 
   beforeAll(async () => {
     const tenantId = randomUUID();
     agentId = randomUUID();
+    internalUserId = randomUUID();
     productId = randomUUID();
 
     await pool.query('INSERT INTO agent_tenant (id) VALUES ($1)', [tenantId]);
@@ -37,6 +39,12 @@ describe('foundation database constraints', () => {
         '024****567',
         'test-key-v1',
       ],
+    );
+    await pool.query(
+      `INSERT INTO internal_user (
+        id, display_name, role, status, updated_at
+      ) VALUES ($1, $2, 'ADMINISTRATOR', 'ACTIVE', NOW())`,
+      [internalUserId, 'Database Test Administrator'],
     );
     await pool.query(
       `INSERT INTO product (
@@ -268,6 +276,50 @@ describe('foundation database constraints', () => {
          WHERE voucher_id = $1`,
         [voucherId],
       ),
+      '42501',
+    );
+  });
+
+  it('rejects a session assigned to both an agent and an internal user', async () => {
+    await expectDatabaseError(
+      pool.query(
+        `INSERT INTO session (
+          agent_id, internal_user_id, token_fingerprint,
+          authentication_strength, authenticated_at, expires_at
+        ) VALUES ($1, $2, $3, 'MFA', NOW(), NOW() + INTERVAL '1 hour')`,
+        [agentId, internalUserId, randomBytes(32)],
+      ),
+      '23514',
+    );
+  });
+
+  it('keeps security audit events append-only', async () => {
+    const auditEventId = randomUUID();
+    await pool.query(
+      `INSERT INTO audit_event (
+        id, actor_internal_user_id, actor_role, action, entity_type,
+        entity_id, reason, authentication_strength, request_id
+      ) VALUES ($1, $2, 'ADMINISTRATOR', $3, $4, $5, $6, 'MFA', $7)`,
+      [
+        auditEventId,
+        internalUserId,
+        'INVENTORY_BATCH_IMPORTED',
+        'INVENTORY_BATCH',
+        inventoryBatchId,
+        'Verify append-only database enforcement',
+        randomUUID(),
+      ],
+    );
+
+    await expectDatabaseError(
+      pool.query('UPDATE audit_event SET reason = $1 WHERE id = $2', [
+        'Attempted mutation',
+        auditEventId,
+      ]),
+      '42501',
+    );
+    await expectDatabaseError(
+      pool.query('DELETE FROM audit_event WHERE id = $1', [auditEventId]),
       '42501',
     );
   });

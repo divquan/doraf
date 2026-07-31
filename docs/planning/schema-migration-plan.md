@@ -22,6 +22,12 @@ includes database tests before dependent application features are added.
 - internal users and credentials
 - tenant and phone uniqueness
 
+Implementation progress: agent tenancy is present. Internal users and the
+provider-neutral, opaque, revocable session boundary are present, with an
+exactly-one-actor database constraint. Agent OTP, internal credential
+enrollment, and credential verification remain to be implemented. The open
+passkey-versus-authenticator decision has not been resolved in code.
+
 ## Migration 3 — Catalog, pricing, and channels
 
 - products
@@ -83,6 +89,12 @@ slice because they require orders and payment attempts.
 - idempotency records
 - generated exports
 - append-only protections and operational indexes
+
+Implementation progress: the minimal internal-action audit event was brought
+forward with the first guarded Administrator workflow. It records the operator,
+role snapshot, action, affected record, reason, authentication strength, request
+ID, safe metadata, and timestamp, and is append-only at the database layer. The
+outbox, idempotency, export, and broader audit slices remain here.
 
 ## Migration 10 — Reconciliation
 

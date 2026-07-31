@@ -67,6 +67,10 @@ describe('InventoryImportService', () => {
       acquisitionDate: new Date('2026-07-30T00:00:00Z'),
       unitAcquisitionCostMinor: 1_500n,
       uploadedByActorId: actorId,
+      actorRole: 'ADMINISTRATOR',
+      authenticationStrength: 'PHISHING_RESISTANT',
+      reason: 'Load authorized WAEC inventory',
+      requestId: randomUUID(),
       csv: [
         'serial_number,pin',
         'SERIAL001,012345678912',
@@ -95,6 +99,10 @@ describe('InventoryImportService', () => {
         acquisitionDate: new Date('2026-07-30T00:00:00Z'),
         unitAcquisitionCostMinor: 1_500n,
         uploadedByActorId: actorId,
+        actorRole: 'ADMINISTRATOR',
+        authenticationStrength: 'PHISHING_RESISTANT',
+        reason: 'Load authorized WAEC inventory',
+        requestId: randomUUID(),
         csv: [
           'serial_number,pin',
           'SERIAL001,012345678912',

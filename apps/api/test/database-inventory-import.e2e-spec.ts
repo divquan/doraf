@@ -1,6 +1,6 @@
 import { Test, type TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { randomBytes, randomInt, randomUUID } from 'node:crypto';
 import type { AppEnvironment } from '../src/config/environment';
 import { PrismaService } from '../src/database/prisma.service';
 import { AesGcmVoucherCrypto } from '../src/inventory/aes-gcm-voucher.crypto';
@@ -27,6 +27,7 @@ describe('inventory import transaction', () => {
   let service: InventoryImportService;
   let prisma: PrismaService;
   let productId: string;
+  let administratorId: string;
 
   beforeAll(async () => {
     const config = {
@@ -65,6 +66,14 @@ describe('inventory import transaction', () => {
       select: { id: true },
     });
     productId = product.id;
+    const administrator = await prisma.internalUser.create({
+      data: {
+        displayName: 'Inventory Import Test Administrator',
+        role: 'ADMINISTRATOR',
+      },
+      select: { id: true },
+    });
+    administratorId = administrator.id;
   });
 
   afterAll(async () => {
@@ -78,11 +87,15 @@ describe('inventory import transaction', () => {
       vendorReference: `TEST-${randomUUID()}`,
       acquisitionDate: new Date('2026-07-30T00:00:00Z'),
       unitAcquisitionCostMinor: 1_500n,
-      uploadedByActorId: randomUUID(),
+      uploadedByActorId: administratorId,
+      actorRole: 'ADMINISTRATOR',
+      authenticationStrength: 'PHISHING_RESISTANT',
+      reason: 'Integration test import',
+      requestId: randomUUID(),
       csv: [
         'serial_number,pin',
-        `DB${randomUUID().replaceAll('-', '')},001111111111`,
-        `DB${randomUUID().replaceAll('-', '')},002222222222`,
+        `DB${randomUUID().replaceAll('-', '')},${randomPin()}`,
+        `DB${randomUUID().replaceAll('-', '')},${randomPin()}`,
       ].join('\n'),
     });
 
@@ -97,6 +110,11 @@ describe('inventory import transaction', () => {
     expect(batch?.acceptedRowCount).toBe(2);
     expect(voucherCount).toBe(2);
     expect(eventCount).toBe(2);
+    await expect(
+      prisma.auditEvent.count({
+        where: { entityType: 'INVENTORY_BATCH', entityId: result.batchId },
+      }),
+    ).resolves.toBe(1);
   });
 
   it('creates no batch when any row is invalid', async () => {
@@ -109,7 +127,11 @@ describe('inventory import transaction', () => {
         vendorReference: `TEST-${randomUUID()}`,
         acquisitionDate: new Date('2026-07-30T00:00:00Z'),
         unitAcquisitionCostMinor: 1_500n,
-        uploadedByActorId: randomUUID(),
+        uploadedByActorId: administratorId,
+        actorRole: 'ADMINISTRATOR',
+        authenticationStrength: 'PHISHING_RESISTANT',
+        reason: 'Integration test invalid import',
+        requestId: randomUUID(),
         csv: 'serial_number,pin\nVALID123,not-a-pin',
       }),
     ).rejects.toBeInstanceOf(InventoryImportValidationError);
@@ -117,3 +139,7 @@ describe('inventory import transaction', () => {
     await expect(prisma.inventoryBatch.count()).resolves.toBe(before);
   });
 });
+
+function randomPin(): string {
+  return randomInt(0, 1_000_000_000_000).toString().padStart(12, '0');
+}

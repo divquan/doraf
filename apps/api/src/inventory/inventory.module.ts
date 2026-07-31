@@ -1,9 +1,12 @@
 import { DynamicModule, Module, type Provider } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InternalAccessModule } from '../internal-access/internal-access.module';
 import { AesGcmVoucherCrypto } from './aes-gcm-voucher.crypto';
 import { CsvInventoryParser } from './csv-inventory.parser';
 import { GcpKmsVoucherKeyProvider } from './gcp-kms-voucher-key.provider';
 import { InventoryImportService } from './inventory-import.service';
+import { InventoryImportController } from './inventory-import.controller';
+import { InventoryImportExceptionFilter } from './inventory-import-exception.filter';
 import {
   INVENTORY_REPOSITORY,
   VOUCHER_CRYPTO,
@@ -48,6 +51,8 @@ export class InventoryModule {
   private static createModule(cryptoProvider: Provider): DynamicModule {
     return {
       module: InventoryModule,
+      imports: [InternalAccessModule],
+      controllers: [InventoryImportController],
       providers: [
         CsvInventoryParser,
         PrismaInventoryRepository,
@@ -57,6 +62,7 @@ export class InventoryModule {
         },
         cryptoProvider,
         InventoryImportService,
+        InventoryImportExceptionFilter,
       ],
       exports: [InventoryImportService],
     };

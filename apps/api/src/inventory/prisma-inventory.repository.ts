@@ -116,6 +116,23 @@ export class PrismaInventoryRepository implements InventoryRepository {
             })),
           });
 
+          await transaction.auditEvent.create({
+            data: {
+              actorInternalUserId: input.uploadedByActorId,
+              actorRole: input.actorRole,
+              action: 'INVENTORY_BATCH_IMPORTED',
+              entityType: 'INVENTORY_BATCH',
+              entityId: input.batchId,
+              reason: input.reason,
+              authenticationStrength: input.authenticationStrength,
+              requestId: input.requestId,
+              safeMetadata: {
+                productId: input.productId,
+                importedVoucherCount: input.vouchers.length,
+              },
+            },
+          });
+
           return {
             batchId: input.batchId,
             importedVoucherCount: input.vouchers.length,

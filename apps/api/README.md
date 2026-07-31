@@ -27,15 +27,22 @@ The current HTTP surface is:
 - `GET /health/live`
 - `GET /health/ready`
 - `GET /v1/catalog/products`
+- `POST /v1/admin/inventory/imports/preview` (Administrator)
+- `POST /v1/admin/inventory/imports` (Administrator)
 
 Products are seeded as `UNAVAILABLE`; checkout must not expose them until valid
 pricing and inventory exist.
 
 ## Inventory import
 
-The inventory feature currently provides a service boundary, not a public HTTP
-route. It remains deliberately unmounted until Administrator authentication and
-authorization are implemented.
+The inventory import routes require an active, unexpired internal Administrator
+session through a bearer token. Support sessions are denied. A committed import
+and its audit event are written in the same serializable database transaction.
+
+The opaque session-token boundary, revocation, role enforcement, and audit
+storage are implemented. Credential enrollment and the login endpoint are not:
+the documented passkey-preferred/authenticator-MFA choice must be completed
+before anything can legitimately issue these internal sessions.
 
 `InventoryImportService` supports validation preview and atomic commit for CSV
 files with this exact header:
@@ -48,7 +55,8 @@ ABC123456,012345678912
 Production registration uses `InventoryModule.registerGcp()` and requires
 `VOUCHER_KMS_KEY_NAME`, `VOUCHER_FINGERPRINT_KEY_BASE64`, and Google Application
 Default Credentials. Voucher data keys are generated per batch and wrapped by
-Google Cloud KMS.
+Google Cloud KMS. `SESSION_FINGERPRINT_KEY_BASE64` is a separate secret used to
+store only HMAC fingerprints of opaque session tokens, never the bearer tokens.
 
 ## Verification
 

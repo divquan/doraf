@@ -5,7 +5,7 @@ import type { BatchDataKey, VoucherKeyProvider } from './inventory.types';
 export class GcpKmsVoucherKeyProvider implements VoucherKeyProvider {
   constructor(
     private readonly keyName: string,
-    private readonly client = new KeyManagementServiceClient(),
+    private client?: KeyManagementServiceClient,
   ) {
     if (!keyName.startsWith('projects/')) {
       throw new Error(
@@ -15,6 +15,7 @@ export class GcpKmsVoucherKeyProvider implements VoucherKeyProvider {
   }
 
   async createBatchKey(): Promise<BatchDataKey> {
+    this.client ??= new KeyManagementServiceClient();
     const plaintextKey = randomBytes(32);
 
     try {

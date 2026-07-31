@@ -4,6 +4,7 @@ import { CatalogModule } from './catalog/catalog.module';
 import { validateEnvironment } from './config/environment';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
+import { InventoryModule } from './inventory/inventory.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { HealthModule } from './health/health.module';
     DatabaseModule,
     HealthModule,
     CatalogModule,
+    InventoryModule.registerGcp(),
   ],
 })
 export class AppModule {}

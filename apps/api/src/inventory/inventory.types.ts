@@ -42,6 +42,10 @@ export interface ImportInventoryCommand {
   acquisitionDate: Date;
   unitAcquisitionCostMinor: bigint;
   uploadedByActorId: string;
+  actorRole: 'ADMINISTRATOR';
+  authenticationStrength: 'PRIMARY' | 'MFA' | 'PHISHING_RESISTANT';
+  reason: string;
+  requestId: string;
   csv: string;
 }
 
@@ -99,6 +103,10 @@ export interface CommitInventoryInput {
   acquisitionDate: Date;
   unitAcquisitionCostMinor: bigint;
   uploadedByActorId: string;
+  actorRole: 'ADMINISTRATOR';
+  authenticationStrength: 'PRIMARY' | 'MFA' | 'PHISHING_RESISTANT';
+  reason: string;
+  requestId: string;
   encryptedDataKey: Buffer;
   kmsKeyVersion: string;
   cryptoVersion: number;
