@@ -1,5 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '../generated/prisma/client';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { Prisma, type AgentProductPrice } from '../generated/prisma/client';
 import type { InternalPrincipal } from '../internal-access/internal-access.types';
 import { OutboxService } from '../operations/outbox.service';
 import { PrismaService } from '../database/prisma.service';
@@ -21,7 +25,7 @@ export class PricingService {
     actor: InternalPrincipal;
   }) {
     if (input.maximumRetailPriceMinor < input.basePriceMinor)
-      throw new NotFoundException(
+      throw new BadRequestException(
         'Maximum retail price must be at least the base price',
       );
     return this.prisma.$transaction(
@@ -31,6 +35,11 @@ export class PricingService {
           select: { id: true },
         });
         if (!product) throw new NotFoundException('Product not found');
+        await this.closePreviousDefaultPolicy(
+          transaction,
+          product.id,
+          input.effectiveFrom,
+        );
         const policy = await transaction.productPricingPolicy.create({
           data: {
             productId: product.id,
@@ -64,7 +73,18 @@ export class PricingService {
           aggregateVersion: 1,
           payload: { policyId: policy.id },
         });
-        return policy;
+        const clampedPriceCount =
+          input.effectiveFrom <= new Date()
+            ? await this.clampAffectedPrices(transaction, {
+                productId: product.id,
+                defaultBasePriceMinor: policy.basePriceMinor,
+                defaultMaximumRetailPriceMinor: policy.maximumRetailPriceMinor,
+                reason: input.reason,
+                requestId: input.requestId,
+                actor: input.actor,
+              })
+            : 0;
+        return { policy, clampedPriceCount };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
@@ -84,13 +104,13 @@ export class PricingService {
       input.basePriceMinor === undefined &&
       input.maximumRetailPriceMinor === undefined
     )
-      throw new NotFoundException('At least one override value is required');
+      throw new BadRequestException('At least one override value is required');
     if (
       input.basePriceMinor !== undefined &&
       input.maximumRetailPriceMinor !== undefined &&
       input.maximumRetailPriceMinor < input.basePriceMinor
     )
-      throw new NotFoundException(
+      throw new BadRequestException(
         'Maximum retail price must be at least the base price',
       );
     return this.prisma.$transaction(
@@ -107,6 +127,41 @@ export class PricingService {
         ]);
         if (!agent || !product)
           throw new NotFoundException('Agent or product not found');
+        const defaultPolicy = await transaction.productPricingPolicy.findFirst({
+          where: {
+            productId: product.id,
+            effectiveFrom: { lte: input.effectiveFrom },
+            OR: [
+              { effectiveTo: null },
+              { effectiveTo: { gt: input.effectiveFrom } },
+            ],
+          },
+          orderBy: { effectiveFrom: 'desc' },
+        });
+        if (!defaultPolicy) {
+          throw new BadRequestException(
+            'No default pricing policy exists at the override start time',
+          );
+        }
+        const effectiveBasePriceMinor =
+          input.basePriceMinor === undefined
+            ? defaultPolicy.basePriceMinor
+            : BigInt(input.basePriceMinor);
+        const effectiveMaximumRetailPriceMinor =
+          input.maximumRetailPriceMinor === undefined
+            ? defaultPolicy.maximumRetailPriceMinor
+            : BigInt(input.maximumRetailPriceMinor);
+        if (effectiveMaximumRetailPriceMinor < effectiveBasePriceMinor) {
+          throw new BadRequestException(
+            'The effective maximum retail price must be at least the effective base price',
+          );
+        }
+        await this.closePreviousOverride(
+          transaction,
+          agent.id,
+          product.id,
+          input.effectiveFrom,
+        );
         const override = await transaction.agentPricingOverride.create({
           data: {
             agentId: agent.id,
@@ -143,7 +198,20 @@ export class PricingService {
           aggregateVersion: 1,
           payload: { agentId: agent.id, productId: product.id },
         });
-        return override;
+        const clampedPriceCount =
+          input.effectiveFrom <= new Date()
+            ? await this.clampAffectedPrices(transaction, {
+                productId: product.id,
+                agentId: agent.id,
+                defaultBasePriceMinor: defaultPolicy.basePriceMinor,
+                defaultMaximumRetailPriceMinor:
+                  defaultPolicy.maximumRetailPriceMinor,
+                reason: input.reason,
+                requestId: input.requestId,
+                actor: input.actor,
+              })
+            : 0;
+        return { override, clampedPriceCount };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
@@ -163,7 +231,7 @@ export class PricingService {
       retailPriceMinor < effective.basePriceMinor ||
       retailPriceMinor > effective.maximumRetailPriceMinor
     ) {
-      throw new NotFoundException(
+      throw new BadRequestException(
         'Retail price is outside the permitted range',
       );
     }
@@ -245,4 +313,158 @@ export class PricingService {
       overrideId: override?.id ?? null,
     };
   }
+
+  private async closePreviousDefaultPolicy(
+    transaction: Prisma.TransactionClient,
+    productId: string,
+    effectiveFrom: Date,
+  ): Promise<void> {
+    const previous = await transaction.productPricingPolicy.findFirst({
+      where: {
+        productId,
+        effectiveFrom: { lt: effectiveFrom },
+        OR: [{ effectiveTo: null }, { effectiveTo: { gt: effectiveFrom } }],
+      },
+      orderBy: { effectiveFrom: 'desc' },
+      select: { id: true },
+    });
+    if (previous) {
+      await transaction.productPricingPolicy.update({
+        where: { id: previous.id },
+        data: { effectiveTo: effectiveFrom },
+      });
+    }
+  }
+
+  private async closePreviousOverride(
+    transaction: Prisma.TransactionClient,
+    agentId: string,
+    productId: string,
+    effectiveFrom: Date,
+  ): Promise<void> {
+    const previous = await transaction.agentPricingOverride.findFirst({
+      where: {
+        agentId,
+        productId,
+        effectiveFrom: { lt: effectiveFrom },
+        OR: [{ effectiveTo: null }, { effectiveTo: { gt: effectiveFrom } }],
+      },
+      orderBy: { effectiveFrom: 'desc' },
+      select: { id: true },
+    });
+    if (previous) {
+      await transaction.agentPricingOverride.update({
+        where: { id: previous.id },
+        data: { effectiveTo: effectiveFrom },
+      });
+    }
+  }
+
+  private async clampAffectedPrices(
+    transaction: Prisma.TransactionClient,
+    input: {
+      productId: string;
+      agentId?: string;
+      defaultBasePriceMinor: bigint;
+      defaultMaximumRetailPriceMinor: bigint;
+      reason: string;
+      requestId: string;
+      actor: InternalPrincipal;
+    },
+  ): Promise<number> {
+    const prices = await transaction.agentProductPrice.findMany({
+      where: {
+        productId: input.productId,
+        ...(input.agentId ? { agentId: input.agentId } : {}),
+      },
+    });
+    let changed = 0;
+
+    for (const price of prices) {
+      const override = await transaction.agentPricingOverride.findFirst({
+        where: {
+          agentId: price.agentId,
+          productId: price.productId,
+          effectiveFrom: { lte: new Date() },
+          OR: [{ effectiveTo: null }, { effectiveTo: { gt: new Date() } }],
+        },
+        orderBy: { effectiveFrom: 'desc' },
+      });
+      const basePriceMinor =
+        override?.basePriceMinor ?? input.defaultBasePriceMinor;
+      const maximumRetailPriceMinor =
+        override?.maximumRetailPriceMinor ??
+        input.defaultMaximumRetailPriceMinor;
+      const adjusted = clampRetailPrice(
+        price.retailPriceMinor,
+        basePriceMinor,
+        maximumRetailPriceMinor,
+      );
+      if (adjusted === price.retailPriceMinor) continue;
+
+      const updated = await transaction.agentProductPrice.update({
+        where: { id: price.id },
+        data: { retailPriceMinor: adjusted, version: { increment: 1 } },
+      });
+      await this.recordClamp(transaction, price, updated, input, {
+        basePriceMinor,
+        maximumRetailPriceMinor,
+      });
+      changed += 1;
+    }
+    return changed;
+  }
+
+  private async recordClamp(
+    transaction: Prisma.TransactionClient,
+    previous: AgentProductPrice,
+    updated: AgentProductPrice,
+    input: {
+      reason: string;
+      requestId: string;
+      actor: InternalPrincipal;
+    },
+    range: { basePriceMinor: bigint; maximumRetailPriceMinor: bigint },
+  ): Promise<void> {
+    await transaction.auditEvent.create({
+      data: {
+        actorInternalUserId: input.actor.userId,
+        actorRole: input.actor.role,
+        action: 'AGENT_RETAIL_PRICE_CLAMPED',
+        entityType: 'AGENT_PRODUCT_PRICE',
+        entityId: updated.id,
+        reason: input.reason.trim(),
+        authenticationStrength: input.actor.authenticationStrength,
+        requestId: input.requestId,
+        safeMetadata: {
+          previousRetailPriceMinor: Number(previous.retailPriceMinor),
+          resultingRetailPriceMinor: Number(updated.retailPriceMinor),
+          effectiveBasePriceMinor: Number(range.basePriceMinor),
+          effectiveMaximumRetailPriceMinor: Number(
+            range.maximumRetailPriceMinor,
+          ),
+        },
+      },
+    });
+    await this.outbox.enqueue(transaction, {
+      eventType: 'AGENT_RETAIL_PRICE_CLAMPED',
+      aggregateType: 'AGENT_PRODUCT_PRICE',
+      aggregateId: updated.id,
+      aggregateVersion: updated.version,
+      payload: { agentId: updated.agentId, productId: updated.productId },
+    });
+  }
+}
+
+export function clampRetailPrice(
+  current: bigint,
+  minimum: bigint,
+  maximum: bigint,
+): bigint {
+  if (maximum < minimum) {
+    throw new BadRequestException('Effective pricing policy is invalid');
+  }
+  if (current < minimum) return minimum;
+  if (current > maximum) return maximum;
+  return current;
 }

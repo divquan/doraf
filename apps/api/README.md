@@ -38,6 +38,8 @@ The current HTTP surface is:
 - `POST /v1/admin/internal-users/:userId/enrollment-tokens` (Administrator)
 - `POST /v1/admin/agents/:agentId/suspend` (Administrator)
 - `POST /v1/admin/agents/:agentId/restore` (Administrator)
+- `POST /v1/admin/products/:productId/pricing-policies` (Administrator)
+- `POST /v1/admin/products/:productId/agent-overrides/:agentId` (Administrator)
 - `POST /v1/agent-auth/registration/otp`
 - `POST /v1/agent-auth/registration/verify`
 - `POST /v1/agent-auth/registration/complete`
@@ -45,6 +47,7 @@ The current HTTP surface is:
 - `POST /v1/agent-auth/login/verify`
 - `GET /v1/agent-auth/session`
 - `POST /v1/agent-auth/logout`
+- `POST /v1/agent-auth/prices/:productId`
 
 Products are seeded as `UNAVAILABLE`; checkout must not expose them until valid
 pricing and inventory exist.
@@ -89,6 +92,11 @@ Agent suspension and restoration require an Administrator session and a recorded
 reason. Each action is serializable and appends an immutable audit event. A
 suspended agent can still sign in to their read-only portal; account recovery is
 not exposed until its documented evidence and withdrawal-hold policy is decided.
+
+Pricing policy and override writes are versioned by effective time. When a
+currently effective change makes an agent's active retail price invalid, the
+price is clamped to the nearest permitted boundary in the same transaction.
+Every automatic adjustment receives its own audit and outbox record.
 
 `InventoryImportService` supports validation preview and atomic commit for CSV
 files with this exact header:
