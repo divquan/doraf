@@ -15,7 +15,11 @@ describe('AppController (e2e)', () => {
 
     app = moduleFixture.createNestApplication({ rawBody: true });
     configureApplication(app);
-    await app.init();
+    await app.listen(0, '127.0.0.1');
+  });
+
+  afterEach(async () => {
+    await app.close();
   });
 
   it('/health/live (GET)', () => {
@@ -98,10 +102,6 @@ describe('AppController (e2e)', () => {
       .expect(401);
   });
 
-  afterEach(async () => {
-    await app.close();
-  });
-
   it('validates buyer recovery references before persistence access', () => {
     return request(app.getHttpServer())
       .post('/v1/buyer-recovery/request')
@@ -114,6 +114,18 @@ describe('AppController (e2e)', () => {
     return request(app.getHttpServer())
       .get('/v1/buyer-recovery/vouchers')
       .expect('Cache-Control', 'no-store')
+      .expect(401);
+  });
+
+  it('denies anonymous access to agent wallet summary', () => {
+    return request(app.getHttpServer())
+      .get('/v1/agent-wallet/summary')
+      .expect(401);
+  });
+
+  it('denies anonymous access to agent wallet transactions', () => {
+    return request(app.getHttpServer())
+      .get('/v1/agent-wallet/transactions')
       .expect(401);
   });
 });

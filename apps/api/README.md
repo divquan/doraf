@@ -53,6 +53,8 @@ The current HTTP surface is:
 - `POST /v1/agent-auth/logout`
 - `POST /v1/agent-auth/prices/:productId`
 - `GET /v1/agent-auth/sales-channel`
+- `GET /v1/agent-wallet/summary` (authenticated agent)
+- `GET /v1/agent-wallet/transactions` (authenticated agent)
 - `GET /v1/sales-channels/web/:webSalesId` (public active-agent resolution)
 - `POST /v1/sales-channels/web/:webSalesId/orders` (public idempotent checkout)
 - `POST /v1/buyer-recovery/request` (public, generic recovery challenge)
@@ -203,6 +205,15 @@ PAYSTACK_SECRET_KEY=sk_test_replace-me
 Configure the Paystack dashboard webhook URL as
 `https://<public-api-host>/v1/payments/paystack/webhook`. A tunnel is required
 when Paystack needs to reach a locally running API.
+
+## Agent Wallet & Ledger
+
+The `/v1/agent-wallet/summary` and `/v1/agent-wallet/transactions` endpoints provide authenticated agents with their current wallet balance breakdown and paginated transaction history.
+
+- **Signed Decimal String Contract:** All monetary fields (`ledgerBalanceMinor`, `activeHoldsMinor`, `withdrawableMinor`, `negativeBalanceMinor`, `amountMinor`) are returned as signed integer pesewa strings (e.g. `"2500"`, `"-500"`). Currency presentation formatting (`GHS 25.00`) is handled in the frontend.
+- **Zero-Hold Limitation:** Active holds are currently set to `"0"` until the withdrawal request slice introduces the `WalletHold` and `Withdrawal` models.
+- **No GET Initialization:** Querying balance or transactions for an agent without wallet entries returns a zero summary and empty history without creating database records.
+- **Append-Only Immutability:** `ledger_entry` records are protected by a PostgreSQL trigger `prevent_ledger_entry_update_or_delete` rejecting any `UPDATE` or `DELETE` attempt at the database engine level.
 
 ## Verification
 

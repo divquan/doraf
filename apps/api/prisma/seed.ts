@@ -1,11 +1,16 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient, ProductStatus } from '../src/generated/prisma/client';
 
-const connectionString = process.env.DATABASE_URL ?? process.env.DIRECT_URL;
+const connectionString =
+  (process.env.NODE_ENV === 'test'
+    ? process.env.TEST_DATABASE_URL
+    : undefined) ??
+  process.env.DATABASE_URL ??
+  process.env.DIRECT_URL;
 
 if (!connectionString) {
   throw new Error(
-    'DATABASE_URL or DIRECT_URL is required to seed the database',
+    'TEST_DATABASE_URL, DATABASE_URL, or DIRECT_URL is required to seed the database',
   );
 }
 

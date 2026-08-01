@@ -32,6 +32,12 @@ import { SalesChannelService } from './sales-channel.service';
     LocalSmsOtpSender,
     { provide: SMS_OTP_SENDER, useExisting: LocalSmsOtpSender },
   ],
-  exports: [OtpTokenService, SMS_OTP_SENDER],
+  exports: [
+    AgentSessionGuard,
+    AgentNoStoreInterceptor,
+    OtpTokenService,
+    SMS_OTP_SENDER,
+    InternalAccessModule,
+  ],
 })
 export class AgentAccessModule {}

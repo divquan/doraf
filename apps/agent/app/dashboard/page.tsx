@@ -3,7 +3,6 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import {
   CheckmarkCircle02Icon,
   SecurityCheckIcon,
-  Wallet01Icon,
 } from "@hugeicons/core-free-icons"
 import {
   Alert,
@@ -23,6 +22,15 @@ import { DorafMark } from "@/components/doraf-mark"
 import { LogoutButton } from "@/components/logout-button"
 import { AgentPricingRow, PricingGrid } from "@/components/pricing-grid"
 import { SalesLinkCard } from "@/components/sales-link-card"
+import {
+  TransactionHistoryTable,
+  TransactionItem,
+  PaginationMetadata,
+} from "@/components/transaction-history-table"
+import {
+  WalletBalanceCard,
+  WalletSummary,
+} from "@/components/wallet-balance-card"
 import { apiJson, apiRequest } from "@/lib/agent-api"
 
 interface AgentSession {
@@ -41,26 +49,36 @@ interface SalesChannel {
   type: "WEB"
 }
 
-const upcoming = [
-  {
-    icon: Wallet01Icon,
-    title: "Sales and earnings",
-    description: "Track orders, agent profit, and wallet activity.",
-  },
-]
+const MAX_WALLET_TRANSACTION_PAGE = 10_000
 
-export default async function DashboardPage() {
-  const [response, pricesResponse, channelResponse] = await Promise.all([
-    apiRequest("/agent-auth/session", {}, true),
-    apiRequest("/agent-auth/prices", {}, true),
-    apiRequest("/agent-auth/sales-channel", {}, true),
-  ])
-  if (response.status === 401) {
+export default async function DashboardPage({
+  searchParams,
+}: PageProps<"/dashboard">) {
+  const query = await searchParams
+  const walletPage = getWalletPage(query.walletPage)
+
+  const [sessionRes, pricesRes, channelRes, walletSummaryRes, transactionsRes] =
+    await Promise.all([
+      apiRequest("/agent-auth/session", {}, true),
+      apiRequest("/agent-auth/prices", {}, true),
+      apiRequest("/agent-auth/sales-channel", {}, true),
+      apiRequest("/agent-wallet/summary", {}, true),
+      apiRequest(`/agent-wallet/transactions?page=${walletPage}`, {}, true),
+    ])
+
+  if (sessionRes.status === 401) {
     redirect("/login")
   }
-  const { agent } = (await apiJson(response)) as AgentSession
-  const prices = (await apiJson(pricesResponse)) as AgentPricingRow[]
-  const channel = (await apiJson(channelResponse)) as SalesChannel
+
+  const { agent } = (await apiJson(sessionRes)) as AgentSession
+  const prices = (await apiJson(pricesRes)) as AgentPricingRow[]
+  const channel = (await apiJson(channelRes)) as SalesChannel
+  const walletSummary = (await apiJson(walletSummaryRes)) as WalletSummary
+  const transactionsData = (await apiJson(transactionsRes)) as {
+    items: TransactionItem[]
+    pagination: PaginationMetadata
+  }
+
   const salesUrl = new URL(
     channel.path,
     process.env.DORAF_AGENT_WEB_URL ?? "http://localhost:3002"
@@ -92,9 +110,8 @@ export default async function DashboardPage() {
             Welcome, {firstName}.
           </h1>
           <p className="max-w-2xl text-base leading-7 text-pretty text-muted-foreground">
-            Set the final prices buyers see. Every price stays within
-            Doraf&apos;s approved range, and your earnings update before you
-            save.
+            Manage your checker prices, track wallet earnings, and review your
+            complete transaction history.
           </p>
         </section>
 
@@ -109,95 +126,91 @@ export default async function DashboardPage() {
           </Alert>
         ) : null}
 
-        <section className="space-y-4">
-          <div>
-            <h2 className="font-heading text-2xl font-semibold">
-              Checker pricing
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              One price per checker across your web and USSD sales channels.
-            </p>
-          </div>
-          <PricingGrid rows={prices} readOnly={agent.status === "SUSPENDED"} />
+        <section>
+          <WalletBalanceCard summary={walletSummary} />
         </section>
 
         <section>
-          <SalesLinkCard
-            readOnly={agent.status === "SUSPENDED"}
-            salesUrl={salesUrl}
+          <TransactionHistoryTable
+            items={transactionsData.items}
+            pagination={transactionsData.pagination}
           />
         </section>
 
         <section className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-xl">
-                Finish setting up your workspace
-              </CardTitle>
-              <CardDescription>
-                The account and secure sign-in are complete. Commercial setup is
-                the next product slice.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-1">
-              {upcoming.map((item, index) => (
-                <div key={item.title}>
-                  <div className="flex items-start gap-4 py-4">
-                    <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-                      <HugeiconsIcon icon={item.icon} strokeWidth={1.8} />
-                    </div>
-                    <div className="flex min-w-0 flex-1 flex-col gap-1">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="font-medium">{item.title}</p>
-                        <Badge variant="outline">Coming next</Badge>
-                      </div>
-                      <p className="text-sm leading-6 text-pretty text-muted-foreground">
-                        {item.description}
-                      </p>
-                    </div>
-                  </div>
-                  {index < upcoming.length - 1 ? <Separator /> : null}
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+          <div className="space-y-4">
+            <div>
+              <h2 className="font-heading text-2xl font-semibold">
+                Checker pricing
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                One price per checker across your web and USSD sales channels.
+              </p>
+            </div>
+            <PricingGrid
+              rows={prices}
+              readOnly={agent.status === "SUSPENDED"}
+            />
+          </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Security</CardTitle>
-              <CardDescription>
-                Your current account access details.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-sm text-muted-foreground">
-                  Sign-in method
-                </span>
-                <span className="text-sm font-medium">SMS one-time code</span>
-              </div>
-              <Separator />
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-sm text-muted-foreground">Phone</span>
-                <span className="text-sm font-medium">{agent.phoneMask}</span>
-              </div>
-              <Separator />
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-sm text-muted-foreground">
-                  Account status
-                </span>
-                <Badge
-                  variant={
-                    agent.status === "ACTIVE" ? "secondary" : "destructive"
-                  }
-                >
-                  {agent.status === "ACTIVE" ? "Active" : "Suspended"}
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="flex flex-col gap-5">
+            <SalesLinkCard
+              readOnly={agent.status === "SUSPENDED"}
+              salesUrl={salesUrl}
+            />
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Security</CardTitle>
+                <CardDescription>
+                  Your current account access details.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-sm text-muted-foreground">
+                    Sign-in method
+                  </span>
+                  <span className="text-sm font-medium">SMS one-time code</span>
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-sm text-muted-foreground">Phone</span>
+                  <span className="text-sm font-medium">{agent.phoneMask}</span>
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-sm text-muted-foreground">
+                    Account status
+                  </span>
+                  <Badge
+                    variant={
+                      agent.status === "ACTIVE" ? "secondary" : "destructive"
+                    }
+                  >
+                    {agent.status === "ACTIVE" ? "Active" : "Suspended"}
+                  </Badge>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </section>
       </div>
     </main>
   )
+}
+
+function getWalletPage(value: string | string[] | undefined): number {
+  const page = Array.isArray(value) ? value[0] : value
+
+  if (!page || !/^[1-9]\d*$/.test(page)) {
+    return 1
+  }
+
+  const parsed = Number(page)
+  if (!Number.isSafeInteger(parsed)) {
+    return MAX_WALLET_TRANSACTION_PAGE
+  }
+
+  return Math.min(parsed, MAX_WALLET_TRANSACTION_PAGE)
 }
