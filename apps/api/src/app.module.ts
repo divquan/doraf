@@ -7,6 +7,7 @@ import { HealthModule } from './health/health.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { AgentAccessModule } from './agent-access/agent-access.module';
 import { OperationsModule } from './operations/operations.module';
+import { PricingModule } from './pricing/pricing.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { OperationsModule } from './operations/operations.module';
     CatalogModule,
     AgentAccessModule,
     OperationsModule,
+    PricingModule,
     InventoryModule.registerMasterKey(),
   ],
 })

@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import { Pool, type DatabaseError } from 'pg';
+import { Pool, type DatabaseError, type PoolClient } from 'pg';
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
 
@@ -303,6 +303,77 @@ describe('foundation database constraints', () => {
     );
   });
 
+  it('rejects a duplicate idempotency key within its scope', async () => {
+    const key = randomUUID();
+    await pool.query(
+      `INSERT INTO idempotency_record (
+        scope, key, operation, request_fingerprint, expires_at
+      ) VALUES ($1, $2, $3, $4, NOW() + INTERVAL '1 hour')`,
+      ['agent:command', key, 'AGENT_PRICE_SET', randomBytes(32)],
+    );
+    await expectDatabaseError(
+      pool.query(
+        `INSERT INTO idempotency_record (
+          scope, key, operation, request_fingerprint, expires_at
+        ) VALUES ($1, $2, $3, $4, NOW() + INTERVAL '1 hour')`,
+        ['agent:command', key, 'AGENT_PRICE_SET', randomBytes(32)],
+      ),
+      '23505',
+    );
+  });
+
+  it('rejects duplicate outbox events for one aggregate version', async () => {
+    const aggregateId = randomUUID();
+    await insertOutboxEvent(pool, aggregateId, 1, 'PRICE_CHANGED');
+    await expectDatabaseError(
+      insertOutboxEvent(pool, aggregateId, 1, 'PRICE_CHANGED'),
+      '23505',
+    );
+  });
+
+  it('does not retain outbox work when its domain transaction rolls back', async () => {
+    const aggregateId = randomUUID();
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        `INSERT INTO outbox_event (
+          event_type, aggregate_type, aggregate_id, aggregate_version
+        ) VALUES ('DELIVERY_REQUESTED', 'AGENT', $1, 1)`,
+        [aggregateId],
+      );
+      await client.query('ROLLBACK');
+    } finally {
+      client.release();
+    }
+    const result = await pool.query(
+      'SELECT id FROM outbox_event WHERE aggregate_id = $1',
+      [aggregateId],
+    );
+    expect(result.rowCount).toBe(0);
+  });
+
+  it('lets competing workers claim different outbox events', async () => {
+    await insertOutboxEvent(pool, randomUUID(), 1, 'DELIVERY_REQUESTED');
+    await insertOutboxEvent(pool, randomUUID(), 1, 'DELIVERY_REQUESTED');
+    const first = await pool.connect();
+    const second = await pool.connect();
+    try {
+      await Promise.all([first.query('BEGIN'), second.query('BEGIN')]);
+      const [left, right] = await Promise.all([
+        claimOne(first, randomUUID()),
+        claimOne(second, randomUUID()),
+      ]);
+      expect(left).toBeDefined();
+      expect(right).toBeDefined();
+      expect(left).not.toBe(right);
+      await Promise.all([first.query('COMMIT'), second.query('COMMIT')]);
+    } finally {
+      first.release();
+      second.release();
+    }
+  });
+
   it('allows only one unconsumed enrollment token per internal user', async () => {
     await pool.query(
       `INSERT INTO internal_enrollment_token (
@@ -359,6 +430,42 @@ interface VoucherFixture {
   productId: string;
   serialFingerprint: Buffer;
   pinFingerprint: Buffer;
+}
+
+function insertOutboxEvent(
+  client: Pool,
+  aggregateId: string,
+  aggregateVersion: number,
+  eventType: string,
+): Promise<unknown> {
+  return client.query(
+    `INSERT INTO outbox_event (
+      event_type, aggregate_type, aggregate_id, aggregate_version
+    ) VALUES ($1, 'AGENT', $2, $3)`,
+    [eventType, aggregateId, aggregateVersion],
+  );
+}
+
+async function claimOne(
+  client: PoolClient,
+  claimToken: string,
+): Promise<string | undefined> {
+  const result = await client.query<{ id: string }>(
+    `WITH candidate AS (
+      SELECT id FROM outbox_event
+      WHERE state = 'PENDING'
+      ORDER BY created_at
+      LIMIT 1 FOR UPDATE SKIP LOCKED
+    )
+    UPDATE outbox_event AS event
+    SET state = 'CLAIMED', claimed_at = NOW(), claim_token = $1,
+        attempt_count = attempt_count + 1
+    FROM candidate
+    WHERE event.id = candidate.id
+    RETURNING event.id`,
+    [claimToken],
+  );
+  return result.rows[0]?.id;
 }
 
 function insertVoucher(pool: Pool, voucher: VoucherFixture): Promise<unknown> {
