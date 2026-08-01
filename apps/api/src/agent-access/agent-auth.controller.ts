@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  Param,
+  ParseUUIDPipe,
   Post,
   UseGuards,
   UseInterceptors,
@@ -14,11 +16,16 @@ import { CompleteAgentRegistrationRequest } from './dto/complete-agent-registrat
 import { RequestAgentOtpRequest } from './dto/request-agent-otp.request';
 import { VerifyAgentOtpRequest } from './dto/verify-agent-otp.request';
 import { AgentNoStoreInterceptor } from './agent-no-store.interceptor';
+import { PricingService } from '../pricing/pricing.service';
+import { SetAgentRetailPriceRequest } from '../pricing/dto/set-agent-retail-price.request';
 
 @Controller('agent-auth')
 @UseInterceptors(AgentNoStoreInterceptor)
 export class AgentAuthController {
-  constructor(private readonly authentication: AgentAuthService) {}
+  constructor(
+    private readonly authentication: AgentAuthService,
+    private readonly pricing: PricingService,
+  ) {}
 
   @Post('registration/otp')
   requestRegistrationOtp(@Body() request: RequestAgentOtpRequest) {
@@ -73,5 +80,19 @@ export class AgentAuthController {
   async logout(@CurrentAgentPrincipal() principal: AgentPrincipal) {
     await this.authentication.revokeSession(principal.sessionId);
     return { ok: true };
+  }
+
+  @Post('prices/:productId')
+  @UseGuards(AgentSessionGuard)
+  setRetailPrice(
+    @Param('productId', new ParseUUIDPipe({ version: '4' })) productId: string,
+    @Body() request: SetAgentRetailPriceRequest,
+    @CurrentAgentPrincipal() principal: AgentPrincipal,
+  ) {
+    return this.pricing.setRetailPrice({
+      agentId: principal.agentId,
+      productId,
+      retailPriceMinor: request.retailPriceMinor,
+    });
   }
 }

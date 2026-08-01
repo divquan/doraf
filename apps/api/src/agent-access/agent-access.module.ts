@@ -10,9 +10,10 @@ import { OtpTokenService } from './otp-token.service';
 import { PhoneProtectionService } from './phone-protection.service';
 import { SMS_OTP_SENDER } from './agent-access.types';
 import { InternalAccessModule } from '../internal-access/internal-access.module';
+import { PricingModule } from '../pricing/pricing.module';
 
 @Module({
-  imports: [InternalAccessModule],
+  imports: [InternalAccessModule, PricingModule],
   controllers: [AgentAuthController, AgentAdministrationController],
   providers: [
     AgentAuthService,
