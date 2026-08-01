@@ -4,6 +4,8 @@ import { Test, type TestingModule } from '@nestjs/testing';
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { AppEnvironment } from '../src/config/environment';
 import { PrismaService } from '../src/database/prisma.service';
+import { DevelopmentDeliveryGateway } from '../src/delivery/delivery-gateway.service';
+import { DeliveryOutboxHandler } from '../src/delivery/delivery-outbox.handler';
 import { IdempotencyService } from '../src/operations/idempotency.service';
 import { OutboxService } from '../src/operations/outbox.service';
 import { OrderContactProtectionService } from '../src/orders/order-contact-protection.service';
@@ -23,6 +25,7 @@ describe('order creation and inventory reservation', () => {
   let prisma: PrismaService;
   let orders: OrdersService;
   let payments: PaymentProcessingService;
+  let delivery: DeliveryOutboxHandler;
   let paymentGateway: {
     mode: 'sandbox';
     initialize: jest.Mock;
@@ -47,6 +50,13 @@ describe('order creation and inventory reservation', () => {
       string,
       { amountMinor: bigint; currency: string }
     >();
+    const deliveryGateway = {
+      submit: jest.fn((input: { stableClientReference: string }) => ({
+        provider: 'test-delivery',
+        providerMessageReference: `test-${input.stableClientReference}`,
+        safeMetadata: { adapter: 'test' },
+      })),
+    };
     paymentGateway = {
       mode: 'sandbox' as const,
       initialize: jest.fn(
@@ -101,6 +111,8 @@ describe('order creation and inventory reservation', () => {
         IdempotencyService,
         OutboxService,
         OrderContactProtectionService,
+        { provide: DevelopmentDeliveryGateway, useValue: deliveryGateway },
+        DeliveryOutboxHandler,
         OrdersService,
         { provide: PaymentGatewayService, useValue: paymentGateway },
         PaymentProcessingService,
@@ -109,6 +121,7 @@ describe('order creation and inventory reservation', () => {
     prisma = module.get(PrismaService);
     orders = module.get(OrdersService);
     payments = module.get(PaymentProcessingService);
+    delivery = module.get(DeliveryOutboxHandler);
   });
 
   afterAll(async () => module.close());
@@ -291,6 +304,46 @@ describe('order creation and inventory reservation', () => {
         },
       }),
     ).resolves.toBe(3);
+
+    const claimToken = randomUUID();
+    await prisma.outboxEvent.updateMany({
+      where: {
+        aggregateId: {
+          in: order.deliveryMessages.map((message) => message.id),
+        },
+        eventType: 'DELIVERY_MESSAGE_REQUESTED',
+        state: 'PENDING',
+      },
+      data: { state: 'CLAIMED', claimToken, claimedAt: new Date() },
+    });
+    const events = await prisma.outboxEvent.findMany({
+      where: { claimToken, state: 'CLAIMED' },
+    });
+    for (const event of events) {
+      await delivery.handleClaimed(event.id, claimToken);
+    }
+    const delivered = await prisma.deliveryMessage.findMany({
+      where: {
+        id: { in: order.deliveryMessages.map((message) => message.id) },
+      },
+      include: { attempts: true },
+    });
+    expect(delivered.map((message) => message.state)).toEqual([
+      'SUBMITTED',
+      'SUBMITTED',
+      'SUBMITTED',
+    ]);
+    expect(delivered.every((message) => message.attempts.length === 1)).toBe(
+      true,
+    );
+    expect(delivered.flatMap((message) => message.attempts)).toHaveLength(3);
+    expect(
+      delivered
+        .flatMap((message) => message.attempts)
+        .every((attempt) =>
+          attempt.stableClientReference.includes('-attempt-1'),
+        ),
+    ).toBe(true);
   });
 
   it('immediately releases inventory after Paystack definitively rejects initialization', async () => {

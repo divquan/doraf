@@ -1,7 +1,7 @@
 # Voucher delivery
 
-Status: Discovery  
-Last updated: 2026-07-30
+Status: Partial implementation  
+Last updated: 2026-08-01
 
 ## Channels
 
@@ -67,6 +67,12 @@ The system must avoid sending duplicate messages after a provider accepted a
 request but Doraf did not receive the response. The exact reconciliation method
 depends on the selected providers.
 
+Current implementation uses a persisted pending attempt and a stable
+per-attempt client reference before invoking the development adapter. A restart
+therefore reuses that reference rather than creating unrelated work. Ambiguous
+submission outcomes are placed in `UNKNOWN` and require provider reconciliation;
+they are never automatically resent.
+
 ## Failure
 
 Failure on one channel does not cancel or suppress retries on the other.
@@ -91,6 +97,12 @@ failure receives at most three retries:
 3. approximately fifteen minutes after the initial attempt.
 
 This produces at most four provider submissions for a delivery item.
+
+The development adapter accepts submissions locally and logs only the channel,
+masked destination, and stable reference. It never logs a recipient address or
+phone number, serial number, PIN, or rendered voucher content. It runs only in
+the development environment; selecting and implementing real providers remains
+external work.
 
 If the provider accepted a request but its final status is unknown, Doraf
 queries or reconciles that request before submitting another. A timeout after

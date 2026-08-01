@@ -181,6 +181,15 @@ enum DeliveryMessageState {
   @@map("delivery_message_state")
 }
 
+enum DeliveryAttemptState {
+  PENDING
+  SUBMITTED
+  FAILED
+  UNKNOWN
+
+  @@map("delivery_attempt_state")
+}
+
 enum OutboxState {
   PENDING
   CLAIMED
@@ -757,10 +766,32 @@ model DeliveryMessage {
   updatedAt              DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
   order                  Order                @relation(fields: [orderId], references: [id], onDelete: Restrict)
   orderItem              OrderItem?           @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+  attempts               DeliveryAttempt[]
 
   @@index([state, nextAttemptAt])
   @@index([orderId, channel])
   @@map("delivery_message")
+}
+
+model DeliveryAttempt {
+  id                       String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  deliveryMessageId        String               @map("delivery_message_id") @db.Uuid
+  attemptNumber            Int                  @map("attempt_number")
+  stableClientReference    String               @unique @map("stable_client_reference") @db.VarChar(160)
+  provider                 String               @db.VarChar(80)
+  providerMessageReference String?              @map("provider_message_reference") @db.VarChar(160)
+  state                    DeliveryAttemptState @default(PENDING)
+  safeMetadata             Json                 @default("{}") @map("safe_metadata")
+  failureClassification    String?              @map("failure_classification") @db.VarChar(80)
+  submittedAt              DateTime?            @map("submitted_at") @db.Timestamptz(6)
+  reconciledAt             DateTime?            @map("reconciled_at") @db.Timestamptz(6)
+  createdAt                DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  deliveryMessage          DeliveryMessage      @relation(fields: [deliveryMessageId], references: [id], onDelete: Restrict)
+
+  @@unique([deliveryMessageId, attemptNumber])
+  @@index([deliveryMessageId, createdAt])
+  @@index([state, createdAt])
+  @@map("delivery_attempt")
 }
 
 model InventoryEvent {
