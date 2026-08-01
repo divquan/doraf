@@ -18,6 +18,7 @@ describe('validateEnvironment', () => {
       validateEnvironment({
         DATABASE_URL: 'postgresql://localhost:5432/doraf',
         ...keyMaterial,
+        PAYSTACK_SECRET_KEY: 'sk_test_environment-default',
         INTERNAL_AUTH_RP_NAME: 'Doraf Administration',
         INTERNAL_AUTH_RP_ID: 'localhost',
         INTERNAL_AUTH_ORIGIN: 'http://localhost:3001',
@@ -31,9 +32,9 @@ describe('validateEnvironment', () => {
         keyMaterial.AGENT_PHONE_ENCRYPTION_KEY_BASE64,
       ORDER_CONTACT_FINGERPRINT_KEY_BASE64:
         keyMaterial.AGENT_PHONE_FINGERPRINT_KEY_BASE64,
-      PAYSTACK_GUEST_EMAIL_DOMAIN: 'guest.localhost',
-      PAYSTACK_MODE: 'local',
-      PAYSTACK_SECRET_KEY: null,
+      PAYSTACK_GUEST_EMAIL_DOMAIN: 'example.com',
+      PAYSTACK_MODE: 'sandbox',
+      PAYSTACK_SECRET_KEY: 'sk_test_environment-default',
       INTERNAL_AUTH_RP_NAME: 'Doraf Administration',
       INTERNAL_AUTH_RP_ID: 'localhost',
       INTERNAL_AUTH_ORIGIN: 'http://localhost:3001',
@@ -59,6 +60,32 @@ describe('validateEnvironment', () => {
         INTERNAL_AUTH_ORIGIN: 'http://localhost:3001',
       }),
     ).toThrow('sk_test_');
+  });
+
+  it('requires a sandbox key when Paystack mode is omitted in development', () => {
+    expect(() =>
+      validateEnvironment({
+        DATABASE_URL: 'postgresql://localhost:5432/doraf',
+        ...keyMaterial,
+        INTERNAL_AUTH_RP_NAME: 'Doraf Administration',
+        INTERNAL_AUTH_RP_ID: 'localhost',
+        INTERNAL_AUTH_ORIGIN: 'http://localhost:3001',
+      }),
+    ).toThrow('PAYSTACK_SECRET_KEY is required');
+  });
+
+  it('rejects a localhost Paystack guest email domain', () => {
+    expect(() =>
+      validateEnvironment({
+        DATABASE_URL: 'postgresql://localhost:5432/doraf',
+        ...keyMaterial,
+        PAYSTACK_SECRET_KEY: 'sk_test_environment-email-domain',
+        PAYSTACK_GUEST_EMAIL_DOMAIN: 'guest.localhost',
+        INTERNAL_AUTH_RP_NAME: 'Doraf Administration',
+        INTERNAL_AUTH_RP_ID: 'localhost',
+        INTERNAL_AUTH_ORIGIN: 'http://localhost:3001',
+      }),
+    ).toThrow('valid non-localhost email domain');
   });
 
   it('does not allow live payment mode outside production', () => {
@@ -90,6 +117,7 @@ describe('validateEnvironment', () => {
       validateEnvironment({
         DATABASE_URL: 'postgresql://localhost:5432/doraf',
         ...keyMaterial,
+        PAYSTACK_SECRET_KEY: 'sk_test_environment-origin-domain',
         INTERNAL_AUTH_RP_NAME: 'Doraf Administration',
         INTERNAL_AUTH_RP_ID: 'localhost',
         INTERNAL_AUTH_ORIGIN: 'http://localhost:3001/admin',
@@ -102,6 +130,7 @@ describe('validateEnvironment', () => {
       validateEnvironment({
         DATABASE_URL: 'postgresql://localhost:5432/doraf',
         ...keyMaterial,
+        PAYSTACK_SECRET_KEY: 'sk_test_environment-origin-domain',
         INTERNAL_AUTH_RP_NAME: 'Doraf Administration',
         INTERNAL_AUTH_RP_ID: 'doraf.example',
         INTERNAL_AUTH_ORIGIN: 'https://attacker.example',

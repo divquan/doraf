@@ -40,15 +40,13 @@ export class PaymentsController {
     return this.payments.getPublicOrderStatus(webSalesId, orderReference);
   }
 
-  @Post(
-    'sales-channels/web/:webSalesId/orders/:orderReference/payments/local/complete',
-  )
+  @Post('sales-channels/web/:webSalesId/orders/:orderReference/verify')
   @UseGuards(ThrottlerGuard)
   @Throttle({ checkout: { limit: 10, ttl: 60_000 } })
-  completeLocal(
+  verify(
     @Param('webSalesId') webSalesId: string,
     @Param('orderReference') orderReference: string,
   ) {
-    return this.payments.completeLocalPayment(webSalesId, orderReference);
+    return this.payments.verifyPublicPayment(webSalesId, orderReference);
   }
 }

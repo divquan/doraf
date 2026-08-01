@@ -41,6 +41,14 @@ import {
   ToggleGroupItem,
 } from "@workspace/ui/components/toggle-group"
 
+declare global {
+  interface Window {
+    PaystackPop?: new () => {
+      resumeTransaction(accessCode: string): void
+    }
+  }
+}
+
 export interface StorefrontProduct {
   id: string
   code: string
@@ -58,8 +66,6 @@ interface CreatedOrder {
   totalMinor: number
   deliveryPhoneMask: string
   deliveryEmailMask: string | null
-  payerPhoneMask: string
-  payerNetwork: string
   payment: PaymentStatus
 }
 
@@ -69,7 +75,7 @@ interface PaymentStatus {
   providerStatus: string | null
   displayText: string | null
   authorizationExpiresAt: string
-  localDevelopment: boolean
+  accessCode?: string
 }
 
 interface OrderStatus {
@@ -98,7 +104,6 @@ export function StorefrontCheckout({
   const [error, setError] = useState<string | null>(null)
   const [order, setOrder] = useState<CreatedOrder | null>(null)
   const [status, setStatus] = useState<OrderStatus | null>(null)
-  const [paymentPending, setPaymentPending] = useState(false)
   const product = useMemo(
     () => products.find((item) => item.id === productId) ?? products[0],
     [productId, products]
@@ -129,6 +134,49 @@ export function StorefrontCheckout({
     }
   }, [order, webSalesId])
 
+  function openPaystackCheckout(accessCode: string) {
+    if (!accessCode || !window.PaystackPop) {
+      setError(
+        "Secure checkout is still loading. Please try again in a moment."
+      )
+      return
+    }
+    const popup = new window.PaystackPop()
+    popup.resumeTransaction(accessCode)
+  }
+
+  async function verifyPayment() {
+    if (!order) return
+    setPending(true)
+    setError(null)
+    try {
+      const response = await fetch(
+        `/api/checkout/${webSalesId}/${order.orderReference}`,
+        { method: "POST" }
+      )
+      const result = (await response.json().catch(() => ({}))) as
+        | OrderStatus
+        | { message?: string | string[] }
+      if (!response.ok) {
+        const message = "message" in result ? result.message : undefined
+        throw new Error(
+          Array.isArray(message)
+            ? message.join(". ")
+            : (message ?? "The payment result could not be verified")
+        )
+      }
+      setStatus(result as OrderStatus)
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The payment result could not be verified"
+      )
+    } finally {
+      setPending(false)
+    }
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const form = new FormData(event.currentTarget)
@@ -152,8 +200,6 @@ export function StorefrontCheckout({
           deliveryEmailConfirmation: optional(
             form.get("deliveryEmailConfirmation")
           ),
-          payerPhone: String(form.get("payerPhone")),
-          payerNetwork: String(form.get("payerNetwork")),
         }),
       })
       const result = (await response.json().catch(() => ({}))) as
@@ -169,6 +215,7 @@ export function StorefrontCheckout({
       }
       setOrder(result as CreatedOrder)
       setStatus(null)
+      openPaystackCheckout((result as CreatedOrder).payment.accessCode ?? "")
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -180,45 +227,8 @@ export function StorefrontCheckout({
     }
   }
 
-  async function completeLocalPayment() {
-    if (!order) return
-    setPaymentPending(true)
-    setError(null)
-    try {
-      const response = await fetch(
-        `/api/checkout/${webSalesId}/${order.orderReference}/local-payment`,
-        { method: "POST" }
-      )
-      const result = (await response.json().catch(() => ({}))) as {
-        message?: string | string[]
-      }
-      if (!response.ok) {
-        throw new Error(
-          Array.isArray(result.message)
-            ? result.message.join(". ")
-            : (result.message ?? "The local payment could not be completed")
-        )
-      }
-      const statusResponse = await fetch(
-        `/api/checkout/${webSalesId}/${order.orderReference}`,
-        { cache: "no-store" }
-      )
-      if (statusResponse.ok) {
-        setStatus((await statusResponse.json()) as OrderStatus)
-      }
-    } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "The local payment could not be completed"
-      )
-    } finally {
-      setPaymentPending(false)
-    }
-  }
-
   if (order) {
-    const payment = status?.payment ?? order.payment
+    const payment = { ...order.payment, ...status?.payment }
     const paid = status?.paymentState === "PAID"
     const failed = payment.state === "FAILED" || payment.state === "ABANDONED"
     return (
@@ -237,7 +247,7 @@ export function StorefrontCheckout({
               ? "Your payment and checker allocation are safely recorded."
               : failed
                 ? "This payment did not complete. No checker was sold."
-                : "Your checker stock and price are held while you authorize Mobile Money."}
+                : "Your checker stock and price are held while you complete secure payment with Paystack."}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
@@ -250,11 +260,7 @@ export function StorefrontCheckout({
           <Alert variant={failed ? "destructive" : "default"}>
             <HugeiconsIcon icon={InformationCircleIcon} />
             <AlertTitle>
-              {paid
-                ? "Payment received"
-                : payment.localDevelopment
-                  ? "Local development payment"
-                  : "Check your phone"}
+              {paid ? "Payment received" : "Check your phone"}
             </AlertTitle>
             <AlertDescription>
               {paid
@@ -262,7 +268,7 @@ export function StorefrontCheckout({
                 : failed
                   ? "The reserved inventory has been released."
                   : (payment.displayText ??
-                    "Approve the Mobile Money prompt on the payer phone within three minutes.")}
+                    "Complete payment in the secure Paystack checkout window.")}
             </AlertDescription>
           </Alert>
           <dl className="grid gap-4 sm:grid-cols-2">
@@ -274,7 +280,6 @@ export function StorefrontCheckout({
               value={money(order.totalMinor, order.currency)}
             />
             <Summary label="SMS delivery" value={order.deliveryPhoneMask} />
-            <Summary label="Mobile Money" value={order.payerPhoneMask} />
             <Summary
               label="Payment status"
               value={paymentLabel(payment.state)}
@@ -287,17 +292,25 @@ export function StorefrontCheckout({
             ) : null}
           </dl>
         </CardContent>
-        <CardFooter className="flex flex-wrap gap-3">
-          {payment.localDevelopment && !paid && !failed ? (
+        <CardFooter>
+          {!paid && !failed && payment.accessCode ? (
             <Button
-              disabled={paymentPending}
-              onClick={completeLocalPayment}
               type="button"
+              disabled={pending}
+              onClick={() => openPaystackCheckout(payment.accessCode ?? "")}
             >
-              {paymentPending ? <Spinner data-icon="inline-start" /> : null}
-              {paymentPending
-                ? "Completing payment…"
-                : "Complete local payment"}
+              Continue secure payment
+            </Button>
+          ) : null}
+          {!paid && !failed ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pending}
+              onClick={() => void verifyPayment()}
+            >
+              {pending ? <Spinner data-icon="inline-start" /> : null}
+              I&apos;ve completed payment
             </Button>
           ) : null}
           <Button
@@ -417,44 +430,6 @@ export function StorefrontCheckout({
                 required={false}
                 type="email"
               />
-            </FieldGroup>
-          </FieldSet>
-
-          <Separator />
-
-          <FieldSet>
-            <FieldLegend>Mobile Money payment</FieldLegend>
-            <FieldDescription>
-              The payer number may be different from the delivery number.
-            </FieldDescription>
-            <FieldGroup className="grid gap-4 sm:grid-cols-2">
-              <ContactField
-                autoComplete="tel"
-                id="payer-phone"
-                label="Mobile Money number"
-                name="payerPhone"
-                placeholder="024 123 4567"
-                type="tel"
-              />
-              <Field>
-                <FieldLabel htmlFor="payer-network">Network</FieldLabel>
-                <NativeSelect
-                  className="w-full"
-                  id="payer-network"
-                  name="payerNetwork"
-                  required
-                >
-                  <NativeSelectOption value="mtn">
-                    MTN Mobile Money
-                  </NativeSelectOption>
-                  <NativeSelectOption value="atl">
-                    ATMoney / Airtel Money
-                  </NativeSelectOption>
-                  <NativeSelectOption value="vod">
-                    Telecel Cash
-                  </NativeSelectOption>
-                </NativeSelect>
-              </Field>
             </FieldGroup>
           </FieldSet>
 

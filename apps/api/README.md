@@ -138,18 +138,20 @@ deterministic PostgreSQL row locking with `SKIP LOCKED`; a checkout never
 receives a partial quantity. Repeating the same safe `Idempotency-Key` and body
 returns the existing order.
 
-Delivery phone, optional delivery email, payer phone, and synthetic Paystack
-email are encrypted before persistence. API responses contain masks only.
-Development can temporarily fall back to the agent contact keys and
-`guest.localhost`; production requires independent
+Delivery phone, optional delivery email, and synthetic Paystack email are
+encrypted before persistence. API responses contain masks only.
+Development can temporarily fall back to the agent contact keys and the
+Paystack-valid `example.com` sandbox email domain; production requires independent
 `ORDER_CONTACT_ENCRYPTION_KEY_BASE64`,
 `ORDER_CONTACT_FINGERPRINT_KEY_BASE64`, and a controlled
 `PAYSTACK_GUEST_EMAIL_DOMAIN`.
 
-After the reservation commits, the payment adapter initializes the Mobile Money
-charge. `PAYSTACK_MODE=local` is the safe development default and never makes a
-network request. `PAYSTACK_MODE=sandbox` requires an `sk_test_` key, while live
-mode is rejected outside `NODE_ENV=production` and requires an `sk_live_` key.
+After the reservation commits, the API initializes a Paystack-hosted checkout
+and returns its short-lived access code to the storefront. The storefront opens
+Paystack InlineJS as a popup; payment details stay inside Paystack's UI.
+`PAYSTACK_MODE=sandbox` is required outside production and requires an
+`sk_test_` key. Live mode is rejected outside `NODE_ENV=production` and
+requires an `sk_live_` key. There is no simulated local payment adapter.
 
 Paystack webhook processing uses the exact raw request body and the documented
 HMAC-SHA512 signature. A reported success is verified against Paystack and must
@@ -157,14 +159,18 @@ match the stored reference, amount, and currency. One serializable transaction
 then accepts the payment, sells and allocates every reserved voucher, appends
 one wallet sale credit, and creates durable SMS and optional email work.
 Duplicate processing returns the existing effects. Terminal failure releases
-the reservation. Local checkout exposes an explicitly development-only control
-to exercise this same successful-payment transaction without credentials.
+the reservation. A definitive Paystack initialization rejection releases the
+reservation immediately. Network timeouts
+and provider 5xx responses remain in reconciliation because Doraf cannot safely
+assume that no payment prompt was sent. The API logs the Paystack HTTP status
+and a redacted provider reason alongside the payment reference.
 
 Initialized attempts still need the continuously running timeout verification
 and reconciliation worker. Delivery provider calls are also a later slice; the
 current transaction commits durable delivery messages and outbox work only.
 
-To use the Paystack sandbox locally:
+To use the Paystack sandbox locally, obtain a test secret key from the Paystack
+dashboard and set:
 
 ```dotenv
 PAYSTACK_MODE=sandbox

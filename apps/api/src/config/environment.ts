@@ -1,5 +1,5 @@
 export type NodeEnvironment = 'development' | 'production' | 'test';
-export type PaymentProviderMode = 'local' | 'sandbox' | 'live';
+export type PaymentProviderMode = 'sandbox' | 'live';
 
 export interface AppEnvironment {
   NODE_ENV: NodeEnvironment;
@@ -15,7 +15,7 @@ export interface AppEnvironment {
   ORDER_CONTACT_FINGERPRINT_KEY_BASE64: string;
   PAYSTACK_GUEST_EMAIL_DOMAIN: string;
   PAYSTACK_MODE: PaymentProviderMode;
-  PAYSTACK_SECRET_KEY: string | null;
+  PAYSTACK_SECRET_KEY: string;
   OTP_FINGERPRINT_KEY_BASE64: string;
   AGENT_AUTH_OTP_TTL_SECONDS: number;
   AGENT_AUTH_OTP_MAX_ATTEMPTS: number;
@@ -117,12 +117,14 @@ export function validateEnvironment(
   );
   const guestEmailDomain = optionalDevelopmentString(
     raw.PAYSTACK_GUEST_EMAIL_DOMAIN,
-    'guest.localhost',
+    'example.com',
     'PAYSTACK_GUEST_EMAIL_DOMAIN',
     nodeEnvironment as NodeEnvironment,
   ).toLowerCase();
-  if (!isValidHostname(guestEmailDomain)) {
-    throw new Error('PAYSTACK_GUEST_EMAIL_DOMAIN must be a hostname');
+  if (!isValidPaystackEmailDomain(guestEmailDomain)) {
+    throw new Error(
+      'PAYSTACK_GUEST_EMAIL_DOMAIN must be a valid non-localhost email domain',
+    );
   }
   const paystackMode = paymentProviderMode(
     raw.PAYSTACK_MODE,
@@ -222,9 +224,9 @@ function paymentProviderMode(
   value: unknown,
   environment: NodeEnvironment,
 ): PaymentProviderMode {
-  if (value === undefined && environment !== 'production') return 'local';
-  if (value !== 'local' && value !== 'sandbox' && value !== 'live') {
-    throw new Error('PAYSTACK_MODE must be local, sandbox, or live');
+  if (value === undefined && environment !== 'production') return 'sandbox';
+  if (value !== 'sandbox' && value !== 'live') {
+    throw new Error('PAYSTACK_MODE must be sandbox or live');
   }
   if (environment === 'production' && value !== 'live') {
     throw new Error('Production requires PAYSTACK_MODE=live');
@@ -239,8 +241,7 @@ function paymentProviderSecret(
   value: unknown,
   mode: PaymentProviderMode,
   environment: NodeEnvironment,
-): string | null {
-  if (mode === 'local') return null;
+): string {
   const secret = requiredString(value, 'PAYSTACK_SECRET_KEY');
   if (mode === 'sandbox' && !secret.startsWith('sk_test_')) {
     throw new Error('Paystack sandbox requires an sk_test_ secret key');
@@ -335,6 +336,14 @@ function isValidHostname(value: string): boolean {
     value
       .split('.')
       .every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label))
+  );
+}
+
+function isValidPaystackEmailDomain(value: string): boolean {
+  return (
+    isValidHostname(value) &&
+    value !== 'localhost' &&
+    !value.endsWith('.localhost')
   );
 }
 

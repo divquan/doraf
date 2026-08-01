@@ -8,7 +8,10 @@ import { IdempotencyService } from '../src/operations/idempotency.service';
 import { OutboxService } from '../src/operations/outbox.service';
 import { OrderContactProtectionService } from '../src/orders/order-contact-protection.service';
 import { OrdersService } from '../src/orders/orders.service';
-import { PaymentGatewayService } from '../src/payments/payment-gateway.service';
+import {
+  PaymentGatewayService,
+  PaymentProviderRequestException,
+} from '../src/payments/payment-gateway.service';
 import { PaymentProcessingService } from '../src/payments/payment-processing.service';
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
@@ -20,6 +23,11 @@ describe('order creation and inventory reservation', () => {
   let prisma: PrismaService;
   let orders: OrdersService;
   let payments: PaymentProcessingService;
+  let paymentGateway: {
+    mode: 'sandbox';
+    initialize: jest.Mock;
+    verify: jest.Mock;
+  };
 
   beforeAll(async () => {
     const values: Partial<AppEnvironment> = {
@@ -30,10 +38,53 @@ describe('order creation and inventory reservation', () => {
       ORDER_CONTACT_FINGERPRINT_KEY_BASE64: Buffer.alloc(32, 32).toString(
         'base64',
       ),
-      PAYSTACK_GUEST_EMAIL_DOMAIN: 'guest.localhost',
-      PAYSTACK_MODE: 'local',
-      PAYSTACK_SECRET_KEY: null,
+      PAYSTACK_GUEST_EMAIL_DOMAIN: 'example.com',
+      PAYSTACK_MODE: 'sandbox',
+      PAYSTACK_SECRET_KEY: 'sk_test_database-payment-secret',
       NODE_ENV: 'test',
+    };
+    const initializedPayments = new Map<
+      string,
+      { amountMinor: bigint; currency: string }
+    >();
+    paymentGateway = {
+      mode: 'sandbox' as const,
+      initialize: jest.fn(
+        (input: {
+          reference: string;
+          amountMinor: bigint;
+          currency: string;
+        }) => {
+          initializedPayments.set(input.reference, {
+            amountMinor: input.amountMinor,
+            currency: input.currency,
+          });
+          return {
+            reference: input.reference,
+            status: 'initialized',
+            amountMinor: input.amountMinor,
+            currency: input.currency,
+            transactionId: 'sandbox-transaction',
+            accessCode: 'paystack-access-code',
+            displayText: 'Approve the payment prompt on your phone.',
+            message: 'Sandbox payment initialized',
+          };
+        },
+      ),
+      verify: jest.fn((reference: string) => {
+        const initialized = initializedPayments.get(reference);
+        if (!initialized) throw new Error('Payment was not initialized');
+        return {
+          reference,
+          status: 'success',
+          amountMinor: initialized.amountMinor,
+          currency: initialized.currency,
+          transactionId: 'sandbox-transaction',
+          accessCode: null,
+          displayText: null,
+          message: 'Sandbox payment verified',
+        };
+      }),
     };
     const config = {
       get: jest.fn((key: keyof AppEnvironment) => values[key]),
@@ -51,7 +102,7 @@ describe('order creation and inventory reservation', () => {
         OutboxService,
         OrderContactProtectionService,
         OrdersService,
-        PaymentGatewayService,
+        { provide: PaymentGatewayService, useValue: paymentGateway },
         PaymentProcessingService,
       ],
     }).compile();
@@ -186,18 +237,12 @@ describe('order creation and inventory reservation', () => {
     );
     expect(initialized).toMatchObject({
       state: 'PENDING_AUTHORIZATION',
-      providerStatus: 'pay_offline',
-      localDevelopment: true,
+      providerStatus: 'initialized',
+      accessCode: 'paystack-access-code',
     });
 
-    await payments.completeLocalPayment(
-      fixture.webSalesId,
-      created.orderReference,
-    );
-    await payments.completeLocalPayment(
-      fixture.webSalesId,
-      created.orderReference,
-    );
+    await payments.verifyPayment(created.payment.reference);
+    await payments.verifyPayment(created.payment.reference);
 
     const order = await prisma.order.findUniqueOrThrow({
       where: { publicReference: created.orderReference },
@@ -246,6 +291,39 @@ describe('order creation and inventory reservation', () => {
         },
       }),
     ).resolves.toBe(3);
+  });
+
+  it('immediately releases inventory after Paystack definitively rejects initialization', async () => {
+    const fixture = await createCheckoutFixture(prisma, 1);
+    const created = await orders.createWebOrder(
+      checkoutCommand(fixture, randomUUID(), 1),
+    );
+    paymentGateway.initialize.mockImplementationOnce(() => {
+      throw new PaymentProviderRequestException(
+        'definitive',
+        400,
+        'Invalid Mobile Money number',
+      );
+    });
+
+    await expect(
+      payments.initializePayment(created.payment.reference),
+    ).rejects.toThrow('Paystack rejected payment setup');
+
+    const order = await prisma.order.findUniqueOrThrow({
+      where: { publicReference: created.orderReference },
+      include: { paymentAttempts: true, reservations: true },
+    });
+    expect(order.paymentAttempts[0]?.state).toBe('FAILED');
+    expect(order.paymentAttempts[0]?.providerStatus).toBe(
+      'INITIATION_REJECTED',
+    );
+    expect(order.reservations[0]?.state).toBe('RELEASED');
+    await expect(
+      prisma.voucher.count({
+        where: { id: fixture.voucherIds[0], availability: 'AVAILABLE' },
+      }),
+    ).resolves.toBe(1);
   });
 });
 
@@ -346,8 +424,6 @@ function checkoutCommand(
     deliveryPhoneConfirmation: '0241234567',
     deliveryEmail: 'buyer@example.com',
     deliveryEmailConfirmation: 'buyer@example.com',
-    payerPhone: '0247654321',
-    payerNetwork: 'MTN',
     idempotencyKey,
   };
 }

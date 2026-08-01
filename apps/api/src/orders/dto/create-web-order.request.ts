@@ -1,7 +1,6 @@
 import {
   IsEmail,
   IsInt,
-  IsIn,
   IsOptional,
   IsString,
   IsUUID,
@@ -40,12 +39,4 @@ export class CreateWebOrderRequest {
   @IsEmail()
   @MaxLength(254)
   deliveryEmailConfirmation?: string;
-
-  @IsString()
-  @Length(9, 24)
-  payerPhone!: string;
-
-  @IsString()
-  @IsIn(['mtn', 'atl', 'vod'])
-  payerNetwork!: string;
 }

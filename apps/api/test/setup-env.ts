@@ -30,8 +30,9 @@ process.env.ORDER_CONTACT_FINGERPRINT_KEY_BASE64 ??= Buffer.alloc(
   32,
   14,
 ).toString('base64');
-process.env.PAYSTACK_GUEST_EMAIL_DOMAIN ??= 'guest.localhost';
-process.env.PAYSTACK_MODE ??= 'local';
+process.env.PAYSTACK_GUEST_EMAIL_DOMAIN ??= 'example.com';
+process.env.PAYSTACK_MODE ??= 'sandbox';
+process.env.PAYSTACK_SECRET_KEY ??= 'sk_test_jest-only-payment-secret';
 process.env.AGENT_AUTH_OTP_TTL_SECONDS ??= '300';
 process.env.AGENT_AUTH_OTP_MAX_ATTEMPTS ??= '5';
 process.env.AGENT_AUTH_REGISTRATION_TTL_SECONDS ??= '900';

@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation"
+import Script from "next/script"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   SecurityCheckIcon,
@@ -50,6 +51,10 @@ export default async function StorefrontPage(
 
   return (
     <main className="min-h-svh bg-muted/35">
+      <Script
+        src="https://js.paystack.co/v2/inline.js"
+        strategy="afterInteractive"
+      />
       <header className="border-b bg-background/90">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-4 sm:px-8">
           <DorafMark />

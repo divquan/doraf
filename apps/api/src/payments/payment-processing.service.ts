@@ -4,58 +4,97 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { createHash } from 'node:crypto';
-import type { AppEnvironment } from '../config/environment';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { OutboxService } from '../operations/outbox.service';
 import { OrderContactProtectionService } from '../orders/order-contact-protection.service';
 import {
   PaymentGatewayService,
+  PaymentProviderRequestException,
   type ProviderPaymentResult,
 } from './payment-gateway.service';
 
 const TERMINAL_FAILURES = new Set(['failed', 'abandoned']);
 
+export interface SerializedPaymentAttempt {
+  reference: string;
+  state: string;
+  providerStatus: string | null;
+  displayText: string | null;
+  authorizationExpiresAt: string;
+}
+
+export interface InitializedPaymentAttempt extends SerializedPaymentAttempt {
+  accessCode: string;
+}
+
 @Injectable()
 export class PaymentProcessingService {
   private readonly logger = new Logger(PaymentProcessingService.name);
-  private readonly nodeEnvironment: AppEnvironment['NODE_ENV'];
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly contacts: OrderContactProtectionService,
     private readonly gateway: PaymentGatewayService,
     private readonly outbox: OutboxService,
-    config: ConfigService<AppEnvironment, true>,
-  ) {
-    this.nodeEnvironment = config.get('NODE_ENV', { infer: true });
-  }
+  ) {}
 
-  async initializePayment(providerReference: string) {
+  async initializePayment(
+    providerReference: string,
+  ): Promise<InitializedPaymentAttempt> {
     const attempt = await this.prisma.paymentAttempt.findUnique({
       where: { providerReference },
       include: { order: true },
     });
     if (!attempt) throw new NotFoundException('Payment attempt not found');
-    if (attempt.state !== 'CREATED') return this.serializeAttempt(attempt);
+    if (attempt.state !== 'CREATED') {
+      return this.serializeInitializedAttempt(attempt);
+    }
 
-    const result = await this.gateway.initialize({
-      reference: attempt.providerReference,
-      amountMinor: attempt.expectedAmountMinor,
-      currency: attempt.currency.trim(),
-      email: this.contacts.revealEmail(
-        attempt.syntheticEmailCiphertext,
-        'synthetic',
-      ),
-      phone: this.contacts.revealPhone(
-        attempt.order.payerPhoneCiphertext,
-        'payer',
-      ),
-      provider: supportedNetwork(attempt.order.payerNetwork),
-    });
+    let result: ProviderPaymentResult;
+    try {
+      result = await this.gateway.initialize({
+        reference: attempt.providerReference,
+        amountMinor: attempt.expectedAmountMinor,
+        currency: attempt.currency.trim(),
+        email: this.contacts.revealEmail(
+          attempt.syntheticEmailCiphertext,
+          'synthetic',
+        ),
+      });
+    } catch (error) {
+      if (!(error instanceof PaymentProviderRequestException)) throw error;
+      this.logInitializationFailure(attempt.providerReference, error);
+      if (error.kind === 'definitive') {
+        await this.releaseRejectedInitialization(attempt.id);
+        throw new UnprocessableEntityException(
+          'Paystack rejected payment setup. Please confirm your details and try again.',
+        );
+      }
+      const reconciling = await this.prisma.paymentAttempt.updateMany({
+        where: { id: attempt.id, state: 'CREATED' },
+        data: {
+          state: 'RECONCILING',
+          providerStatus: 'INITIATION_UNCONFIRMED',
+          authorizationDisplayText:
+            'We could not confirm whether Paystack sent a payment prompt. Do not submit again while we verify this payment.',
+          nextReconciliationAt: new Date(Date.now() + 60_000),
+          version: { increment: 1 },
+        },
+      });
+      if (reconciling.count !== 1) {
+        return this.initializePayment(providerReference);
+      }
+      throw new ConflictException(
+        'Paystack checkout could not be confirmed. Please refresh the page before trying again.',
+      );
+    }
+    if (!result.accessCode) {
+      throw new Error('Paystack did not return a checkout access code');
+    }
     const initializedAt = new Date();
     await this.prisma.paymentAttempt.updateMany({
       where: { id: attempt.id, state: 'CREATED' },
@@ -63,6 +102,7 @@ export class PaymentProcessingService {
         state: 'PENDING_AUTHORIZATION',
         providerStatus: result.status,
         providerTransactionId: result.transactionId,
+        providerAccessCode: result.accessCode,
         authorizationDisplayText: result.displayText,
         initializedAt,
         nextReconciliationAt: attempt.authorizationExpiresAt,
@@ -72,10 +112,11 @@ export class PaymentProcessingService {
     this.logger.log(
       `Payment initialized reference=${attempt.providerReference} mode=${this.gateway.mode}`,
     );
-    return this.serializeAttempt({
+    return this.serializeInitializedAttempt({
       ...attempt,
       state: 'PENDING_AUTHORIZATION',
       providerStatus: result.status,
+      providerAccessCode: result.accessCode,
       authorizationDisplayText: result.displayText,
     });
   }
@@ -149,13 +190,7 @@ export class PaymentProcessingService {
     return this.processProviderResult(providerReference, result);
   }
 
-  async completeLocalPayment(webSalesId: string, orderReference: string) {
-    if (
-      this.gateway.mode !== 'local' ||
-      this.nodeEnvironment === 'production'
-    ) {
-      throw new NotFoundException('Development payment control not found');
-    }
+  async verifyPublicPayment(webSalesId: string, orderReference: string) {
     const attempt = await this.prisma.paymentAttempt.findFirst({
       where: {
         order: {
@@ -164,20 +199,66 @@ export class PaymentProcessingService {
         },
       },
       orderBy: { attemptNumber: 'desc' },
+      select: { providerReference: true },
     });
     if (!attempt) throw new NotFoundException('Order not found');
-    if (attempt.state === 'CREATED') {
-      throw new ConflictException('Payment has not been initialized');
-    }
-    return this.processProviderResult(attempt.providerReference, {
-      reference: attempt.providerReference,
-      status: 'success',
-      amountMinor: attempt.expectedAmountMinor,
-      currency: attempt.currency.trim(),
-      transactionId: `local-${attempt.id}`,
-      displayText: null,
-      message: 'Local development payment completed',
+    await this.verifyPayment(attempt.providerReference);
+    return this.getPublicOrderStatus(webSalesId, orderReference);
+  }
+
+  private async releaseRejectedInitialization(paymentAttemptId: string) {
+    await this.prisma.$transaction(async (transaction) => {
+      const attempt = await transaction.paymentAttempt.findUniqueOrThrow({
+        where: { id: paymentAttemptId },
+        include: { reservation: { include: { items: true } } },
+      });
+      if (attempt.state !== 'CREATED') return;
+      await transaction.paymentAttempt.update({
+        where: { id: attempt.id },
+        data: {
+          state: 'FAILED',
+          providerStatus: 'INITIATION_REJECTED',
+          nextReconciliationAt: null,
+          version: { increment: 1 },
+        },
+      });
+      if (attempt.reservation?.state !== 'ACTIVE') return;
+      const voucherIds = attempt.reservation.items.map(
+        (item) => item.voucherId,
+      );
+      await transaction.inventoryReservation.update({
+        where: { id: attempt.reservation.id },
+        data: { state: 'RELEASED', version: { increment: 1 } },
+      });
+      await transaction.voucher.updateMany({
+        where: { id: { in: voucherIds }, availability: 'RESERVED' },
+        data: { availability: 'AVAILABLE', version: { increment: 1 } },
+      });
+      await transaction.inventoryEvent.createMany({
+        data: voucherIds.map((voucherId) => ({
+          voucherId,
+          eventType: 'PAYMENT_INITIALIZATION_REJECTED',
+          previousAvailability: 'RESERVED' as const,
+          resultingAvailability: 'AVAILABLE' as const,
+          sourceType: 'PAYMENT_INITIALIZATION',
+          sourceId: attempt.id,
+          safeMetadata: { reservationId: attempt.reservation!.id },
+        })),
+        skipDuplicates: true,
+      });
     });
+  }
+
+  private logInitializationFailure(
+    providerReference: string,
+    error: PaymentProviderRequestException,
+  ) {
+    const message = `Paystack initialization ${error.kind} reference=${providerReference} httpStatus=${error.providerStatusCode ?? 'none'} reason=${redactProviderMessage(error.providerMessage)}`;
+    if (error.kind === 'definitive') {
+      this.logger.warn(message);
+    } else {
+      this.logger.error(message);
+    }
   }
 
   private async processProviderResult(
@@ -546,21 +627,32 @@ export class PaymentProcessingService {
     providerStatus: string | null;
     authorizationDisplayText: string | null;
     authorizationExpiresAt: Date;
-  }) {
+  }): SerializedPaymentAttempt {
     return {
       reference: attempt.providerReference,
       state: attempt.state,
       providerStatus: attempt.providerStatus,
       displayText: attempt.authorizationDisplayText,
       authorizationExpiresAt: attempt.authorizationExpiresAt.toISOString(),
-      localDevelopment: this.gateway.mode === 'local',
     };
   }
-}
 
-function supportedNetwork(value: string): 'mtn' | 'atl' | 'vod' {
-  if (value === 'mtn' || value === 'atl' || value === 'vod') return value;
-  throw new BadRequestException('Unsupported Mobile Money network');
+  private serializeInitializedAttempt(attempt: {
+    providerReference: string;
+    providerAccessCode: string | null;
+    state: string;
+    providerStatus: string | null;
+    authorizationDisplayText: string | null;
+    authorizationExpiresAt: Date;
+  }): InitializedPaymentAttempt {
+    if (!attempt.providerAccessCode) {
+      throw new ConflictException('Paystack checkout is no longer available');
+    }
+    return {
+      ...this.serializeAttempt(attempt),
+      accessCode: attempt.providerAccessCode,
+    };
+  }
 }
 
 function parseWebhook(rawBody: Buffer): ProviderPaymentResult & {
@@ -587,6 +679,7 @@ function parseWebhook(rawBody: Buffer): ProviderPaymentResult & {
     amountMinor: bigintValue(data.amount),
     currency: stringValue(data.currency)?.toUpperCase() ?? null,
     transactionId: stringValue(data.id),
+    accessCode: null,
     displayText: null,
     message: stringValue(data.gateway_response) ?? stringValue(data.message),
   };
@@ -619,4 +712,12 @@ function bigintValue(value: unknown): bigint | null {
     return BigInt(value);
   if (typeof value === 'string' && /^\d+$/.test(value)) return BigInt(value);
   return null;
+}
+
+function redactProviderMessage(value: string): string {
+  return value
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[redacted-email]')
+    .replace(/\+?233\d{9}|\b0\d{9}\b/g, '[redacted-phone]')
+    .replace(/[\r\n\t]+/g, ' ')
+    .slice(0, 240);
 }

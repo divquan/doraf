@@ -1,32 +1,13 @@
 import { ConfigService } from '@nestjs/config';
 import { createHmac } from 'node:crypto';
 import type { AppEnvironment } from '../config/environment';
-import { PaymentGatewayService } from './payment-gateway.service';
+import {
+  PaymentGatewayService,
+  PaymentProviderRequestException,
+} from './payment-gateway.service';
 
 describe('PaymentGatewayService', () => {
   afterEach(() => jest.restoreAllMocks());
-
-  it('uses a no-network local adapter by default', async () => {
-    const fetchSpy = jest.spyOn(global, 'fetch');
-    const gateway = new PaymentGatewayService(
-      config({ PAYSTACK_MODE: 'local', PAYSTACK_SECRET_KEY: null }),
-    );
-
-    await expect(
-      gateway.initialize({
-        reference: 'DORAF-local-reference',
-        amountMinor: 2_000n,
-        currency: 'GHS',
-        email: '233241234567@guest.localhost',
-        phone: '233241234567',
-        provider: 'mtn',
-      }),
-    ).resolves.toMatchObject({
-      reference: 'DORAF-local-reference',
-      status: 'pay_offline',
-    });
-    expect(fetchSpy).not.toHaveBeenCalled();
-  });
 
   it('validates Paystack signatures against the exact raw body', () => {
     const secret = 'sk_test_signature-secret';
@@ -42,16 +23,15 @@ describe('PaymentGatewayService', () => {
     ).toThrow('Invalid Paystack signature');
   });
 
-  it('sends Ghana Mobile Money charges from the server', async () => {
+  it('initializes a hosted Mobile Money checkout from the server', async () => {
     const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue(
       new Response(
         JSON.stringify({
           status: true,
-          message: 'Charge attempted',
+          message: 'Authorization URL created',
           data: {
             reference: 'DORAF-sandbox-reference',
-            status: 'pay_offline',
-            display_text: 'Approve the prompt',
+            access_code: 'paystack-access-code',
           },
         }),
         { status: 200, headers: { 'content-type': 'application/json' } },
@@ -68,23 +48,83 @@ describe('PaymentGatewayService', () => {
       reference: 'DORAF-sandbox-reference',
       amountMinor: 2_000n,
       currency: 'GHS',
-      email: '233241234567@guest.localhost',
-      phone: '233241234567',
-      provider: 'mtn',
+      email: '233241234567@example.com',
     });
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
-    expect(fetchSpy.mock.calls[0]?.[0]).toBe('https://api.paystack.co/charge');
+    expect(fetchSpy.mock.calls[0]?.[0]).toBe(
+      'https://api.paystack.co/transaction/initialize',
+    );
     const request = fetchSpy.mock.calls[0]?.[1];
     if (typeof request?.body !== 'string') {
       throw new Error('Expected the Paystack request body to be JSON');
     }
     expect(JSON.parse(request.body)).toEqual({
-      email: '233241234567@guest.localhost',
+      email: '233241234567@example.com',
       amount: '2000',
       currency: 'GHS',
       reference: 'DORAF-sandbox-reference',
-      mobile_money: { phone: '+233241234567', provider: 'mtn' },
+    });
+  });
+
+  it('classifies a Paystack validation response as a definite rejection', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          status: false,
+          message: 'Invalid email address',
+        }),
+        { status: 400, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+    const gateway = new PaymentGatewayService(
+      config({
+        PAYSTACK_MODE: 'sandbox',
+        PAYSTACK_SECRET_KEY: 'sk_test_gateway-secret',
+      }),
+    );
+
+    await expect(
+      gateway.initialize({
+        reference: 'DORAF-sandbox-reference',
+        amountMinor: 2_000n,
+        currency: 'GHS',
+        email: '233241234567@example.com',
+      }),
+    ).rejects.toMatchObject<Partial<PaymentProviderRequestException>>({
+      kind: 'definitive',
+      providerStatusCode: 400,
+      providerMessage: 'Invalid email address',
+    });
+  });
+
+  it('does not release inventory for an unexpected charge-attempted response', async () => {
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({ status: false, message: 'Charge attempted' }),
+          { status: 400, headers: { 'content-type': 'application/json' } },
+        ),
+      );
+    const gateway = new PaymentGatewayService(
+      config({
+        PAYSTACK_MODE: 'sandbox',
+        PAYSTACK_SECRET_KEY: 'sk_test_gateway-secret',
+      }),
+    );
+
+    await expect(
+      gateway.initialize({
+        reference: 'DORAF-sandbox-reference',
+        amountMinor: 2_000n,
+        currency: 'GHS',
+        email: '233241234567@example.com',
+      }),
+    ).rejects.toMatchObject<Partial<PaymentProviderRequestException>>({
+      kind: 'ambiguous',
+      providerStatusCode: 400,
+      providerMessage: 'Charge attempted',
     });
   });
 });

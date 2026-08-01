@@ -10,13 +10,23 @@ import type {
   PaymentProviderMode,
 } from '../config/environment';
 
-export interface InitializeMobileMoneyPayment {
+export type PaymentProviderFailureKind = 'definitive' | 'ambiguous';
+
+export class PaymentProviderRequestException extends BadGatewayException {
+  constructor(
+    readonly kind: PaymentProviderFailureKind,
+    readonly providerStatusCode: number | null,
+    readonly providerMessage: string,
+  ) {
+    super('Paystack payment initialization failed');
+  }
+}
+
+export interface InitializeHostedCheckoutPayment {
   reference: string;
   amountMinor: bigint;
   currency: string;
   email: string;
-  phone: string;
-  provider: 'mtn' | 'atl' | 'vod';
 }
 
 export interface ProviderPaymentResult {
@@ -25,6 +35,7 @@ export interface ProviderPaymentResult {
   amountMinor: bigint | null;
   currency: string | null;
   transactionId: string | null;
+  accessCode: string | null;
   displayText: string | null;
   message: string | null;
 }
@@ -40,49 +51,21 @@ export class PaymentGatewayService {
   }
 
   async initialize(
-    input: InitializeMobileMoneyPayment,
+    input: InitializeHostedCheckoutPayment,
   ): Promise<ProviderPaymentResult> {
-    if (this.mode === 'local') {
-      return {
-        reference: input.reference,
-        status: 'pay_offline',
-        amountMinor: input.amountMinor,
-        currency: input.currency,
-        transactionId: null,
-        displayText:
-          'Local development payment is ready. Complete it with the development control below.',
-        message: 'Local payment initialized',
-      };
-    }
-
-    const payload = await this.request('/charge', {
+    const payload = await this.request('/transaction/initialize', {
       method: 'POST',
       body: JSON.stringify({
         email: input.email,
         amount: input.amountMinor.toString(),
         currency: input.currency,
         reference: input.reference,
-        mobile_money: {
-          phone: `+${input.phone}`,
-          provider: input.provider,
-        },
       }),
     });
-    return normalizeProviderResult(payload, input.reference);
+    return normalizeHostedCheckout(payload, input.reference);
   }
 
   async verify(reference: string): Promise<ProviderPaymentResult> {
-    if (this.mode === 'local') {
-      return {
-        reference,
-        status: 'pending',
-        amountMinor: null,
-        currency: null,
-        transactionId: null,
-        displayText: null,
-        message: 'Local payment awaits explicit completion',
-      };
-    }
     const payload = await this.request(
       `/transaction/verify/${encodeURIComponent(reference)}`,
       { method: 'GET' },
@@ -91,7 +74,7 @@ export class PaymentGatewayService {
   }
 
   assertWebhookSignature(rawBody: Buffer, signature: string | undefined) {
-    if (!this.secretKey || this.mode === 'local') {
+    if (!this.secretKey) {
       throw new UnauthorizedException('Paystack webhook is not configured');
     }
     if (!signature || !/^[a-f0-9]{128}$/i.test(signature)) {
@@ -124,15 +107,51 @@ export class PaymentGatewayService {
         },
         signal: AbortSignal.timeout(10_000),
       });
-    } catch {
-      throw new BadGatewayException('Paystack did not respond');
+    } catch (error) {
+      if (error instanceof PaymentProviderRequestException) throw error;
+      throw new PaymentProviderRequestException(
+        'ambiguous',
+        null,
+        error instanceof Error && error.name === 'TimeoutError'
+          ? 'Request timed out'
+          : 'Paystack did not respond',
+      );
     }
     const payload: unknown = await response.json().catch(() => null);
+    if (isRecord(payload) && payload.status === true) {
+      return payload;
+    }
     if (!response.ok || !isRecord(payload) || payload.status !== true) {
-      throw new BadGatewayException('Paystack rejected the request');
+      const providerMessage = providerResponseMessage(payload);
+      throw new PaymentProviderRequestException(
+        isDefinitiveProviderResponse(response.status) &&
+          !isChargeAttempted(providerMessage)
+          ? 'definitive'
+          : 'ambiguous',
+        response.status,
+        providerMessage,
+      );
     }
     return payload;
   }
+}
+
+function isDefinitiveProviderResponse(statusCode: number): boolean {
+  return (
+    statusCode >= 400 &&
+    statusCode < 500 &&
+    statusCode !== 408 &&
+    statusCode !== 429
+  );
+}
+
+function providerResponseMessage(payload: unknown): string {
+  if (!isRecord(payload)) return 'Paystack returned no structured error';
+  return stringValue(payload.message) ?? 'Paystack rejected the request';
+}
+
+function isChargeAttempted(message: string): boolean {
+  return message.trim().toLowerCase() === 'charge attempted';
 }
 
 function normalizeProviderResult(
@@ -155,11 +174,37 @@ function normalizeProviderResult(
     currency: stringValue(data.currency)?.toUpperCase() ?? null,
     transactionId:
       stringValue(data.id) ?? stringValue(data.transaction_id) ?? null,
+    accessCode: null,
     displayText: stringValue(data.display_text),
     message:
       stringValue(data.message) ??
       stringValue(data.gateway_response) ??
       stringValue(payload.message),
+  };
+}
+
+function normalizeHostedCheckout(
+  payload: unknown,
+  expectedReference: string,
+): ProviderPaymentResult {
+  if (!isRecord(payload) || !isRecord(payload.data)) {
+    throw new BadGatewayException('Paystack returned an invalid response');
+  }
+  const data = payload.data;
+  const reference = stringValue(data.reference);
+  const accessCode = stringValue(data.access_code);
+  if (!reference || !accessCode || reference !== expectedReference) {
+    throw new BadGatewayException('Paystack returned an invalid checkout');
+  }
+  return {
+    reference,
+    status: 'initialized',
+    amountMinor: null,
+    currency: null,
+    transactionId: null,
+    accessCode,
+    displayText: 'Continue securely in the Paystack checkout window.',
+    message: stringValue(payload.message),
   };
 }
 

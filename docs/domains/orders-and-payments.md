@@ -10,7 +10,6 @@ This domain owns:
 - durable orders,
 - payment attempts,
 - Paystack transaction references,
-- Mobile Money payer details,
 - payment status reconciliation, and
 - the trigger indicating that an order is eligible for fulfillment.
 
@@ -25,9 +24,7 @@ Checkout receives:
 - one checker product,
 - a quantity from one to five,
 - the required delivery number entered twice,
-- an optional delivery email entered twice,
-- the Mobile Money payer number, and
-- the payer's Mobile Money network.
+- an optional delivery email entered twice.
 
 Before the buyer confirms, Doraf displays:
 
@@ -54,8 +51,7 @@ The confirmed order stores at least:
 - retail unit price,
 - agent profit per unit and in total,
 - required delivery phone number,
-- optional delivery email,
-- Mobile Money payer number and network, and
+- optional delivery email, and
 - creation time.
 
 Payment success makes the pricing and delivery snapshot immutable. Whether a
@@ -67,9 +63,9 @@ USSD checkout creates the same order and payment-attempt records as web
 checkout. The source channel identifies USSD and preserves the resolved agent
 referral-code attribution.
 
-The USSD session phone number defaults both the required delivery number and
-Mobile Money payer number. The buyer can replace either value and selects the
-payer network. USSD does not collect optional delivery email.
+The USSD session phone number supplies the required delivery number. Paystack
+collects payment details in its own checkout. USSD does not collect optional
+delivery email.
 
 After payment initiation, the USSD session returns instructions and ends.
 Payment confirmation and all downstream work are asynchronous and must not
@@ -78,27 +74,27 @@ depend on session state remaining available.
 ## Guest payment identity
 
 Doraf does not require a guest buyer to provide an email address. The checkout
-collects the Mobile Money payer phone number required for payment, which may
-differ from the voucher delivery number. A buyer may optionally provide a real
-email address as a second voucher-delivery channel.
+collects the required voucher delivery phone number. A buyer may optionally
+provide a real email address as a second voucher-delivery channel.
 
 Paystack requires an email field when initializing a transaction. Doraf
 satisfies the integration requirement by generating a synthetic email:
 
 ```text
-<normalized-payer-number>@guest.<doraf-controlled-domain>
+<normalized-delivery-number>@<paystack-guest-email-domain>
 ```
 
 For example, the Ghana number `0241234567` may normalize to a digits-only
-international representation before being placed in the local part. The exact
-normalization format and production domain must be fixed before implementation.
+international representation before being placed in the local part. Local
+development uses `example.com`, which Paystack accepts for sandbox testing.
+Production must set `PAYSTACK_GUEST_EMAIL_DOMAIN` to a Doraf-controlled domain.
 
 ## Synthetic-email rules
 
 - Generate the value on Doraf's backend.
-- Derive it from the Mobile Money payer number, not the voucher delivery number.
+- Derive it from the required voucher delivery number.
 - Use a domain controlled by Doraf.
-- Store it on the payment-attempt record alongside the payer number.
+- Store it on the payment-attempt record alongside the delivery contact.
 - Pass it to Paystack as the required customer email.
 - Never describe it as a buyer-provided email.
 - Never display it as a buyer contact method.
@@ -111,6 +107,19 @@ normalization format and production domain must be fixed before implementation.
 Whether the guest subdomain rejects mail, accepts mail into a restricted
 sink, or is configured another way remains an operational decision. It must not
 create a mailbox accessible to another customer.
+
+## Payment initiation response handling
+
+Doraf initializes the transaction on its server, stores Paystack's access code,
+and opens the Paystack InlineJS checkout popup in the buyer's browser. The
+checkout displays the payment channels enabled for Doraf's Paystack account.
+The browser never receives the Paystack secret key. The buyer can use the built-in completion action to
+ask Doraf to verify a completed popup transaction; a signed webhook remains
+the asynchronous confirmation path.
+
+An uncertain initialization response is treated as potentially in-flight:
+inventory remains reserved while the payment is reconciled. Only a clear
+validation rejection releases inventory immediately.
 
 ## Optional delivery email
 
@@ -274,10 +283,10 @@ Uninitialized attempts may release after their 180-second reservation expires.
 Initialized or ambiguous attempts must use Paystack verification and the
 confirmed five-minute reconciliation grace period before release.
 
-The payment-processing slice initializes Ghana Mobile Money through a
-configuration-gated adapter after the order transaction commits. Local mode is
-a network-free development adapter; sandbox and live modes require the matching
-Paystack secret-key class, and live mode is unavailable outside production.
+The payment-processing slice initializes Ghana Mobile Money through the
+Paystack sandbox adapter after the order transaction commits. Sandbox requires
+an `sk_test_` key; live mode requires an `sk_live_` key and is unavailable
+outside production. There is no simulated local payment mode.
 
 Webhook signatures are validated over the exact raw request body. Paystack
 success notifications are verified server-side and matched against the stored
@@ -291,3 +300,9 @@ Continuous timeout verification, reconciliation retries, late-success fresh
 allocation, and excess-payment refund execution remain in the recovery and
 exception phase. The current late-success path records a paid fulfillment
 exception for operator recovery rather than losing the payment.
+
+When Paystack definitively rejects initialization, Doraf records the failed
+attempt and releases the complete reservation immediately. A network timeout or
+provider-side error is ambiguous, so the reservation remains held in
+reconciliation rather than risking a duplicate charge. Provider diagnostics are
+redacted before application logging.

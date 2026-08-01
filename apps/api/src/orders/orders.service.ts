@@ -13,8 +13,6 @@ import { OrderContactProtectionService } from './order-contact-protection.servic
 
 const PRICE_VALIDITY_MS = 15 * 60 * 1_000;
 const AUTHORIZATION_WINDOW_MS = 180 * 1_000;
-const PAYER_NETWORKS = new Set(['mtn', 'atl', 'vod']);
-
 interface CreateWebOrderInput {
   webSalesId: string;
   productId: string;
@@ -23,8 +21,6 @@ interface CreateWebOrderInput {
   deliveryPhoneConfirmation: string;
   deliveryEmail?: string;
   deliveryEmailConfirmation?: string;
-  payerPhone: string;
-  payerNetwork: string;
   idempotencyKey: string;
 }
 
@@ -65,12 +61,9 @@ export class OrdersService {
     ) {
       throw new BadRequestException('Delivery email addresses must match');
     }
-    const payerPhone = this.contacts.protectPhone(input.payerPhone, 'payer');
-    const syntheticEmail = this.contacts.syntheticEmail(payerPhone.normalized);
-    const payerNetwork = input.payerNetwork.trim().toLowerCase();
-    if (!PAYER_NETWORKS.has(payerNetwork)) {
-      throw new BadRequestException('Select a supported Mobile Money network');
-    }
+    const syntheticEmail = this.contacts.syntheticEmail(
+      deliveryPhone.normalized,
+    );
     const publicReference = randomReference('DRF', 12);
     const providerReference = randomReference('DORAF', 18);
     const now = new Date();
@@ -93,8 +86,6 @@ export class OrdersService {
                 quantity: input.quantity,
                 deliveryPhone: deliveryPhone.normalized,
                 deliveryEmail: deliveryEmail?.normalized ?? null,
-                payerPhone: payerPhone.normalized,
-                payerNetwork,
               }),
               expiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1_000),
             },
@@ -217,10 +208,6 @@ export class OrdersService {
                 ? prismaBytes(deliveryEmail.fingerprint)
                 : undefined,
               deliveryEmailMask: deliveryEmail?.mask,
-              payerPhoneCiphertext: prismaBytes(payerPhone.ciphertext),
-              payerPhoneFingerprint: prismaBytes(payerPhone.fingerprint),
-              payerPhoneMask: payerPhone.mask,
-              payerNetwork,
               contactEncryptionKeyId: deliveryPhone.encryptionKeyId,
               contactFormatVersion: deliveryPhone.formatVersion,
               priceExpiresAt,
@@ -401,8 +388,6 @@ export class OrdersService {
       retailTotalMinor: bigint;
       deliveryPhoneMask: string;
       deliveryEmailMask: string | null;
-      payerPhoneMask: string;
-      payerNetwork: string;
       priceExpiresAt: Date;
     },
     productName: string,
@@ -421,8 +406,6 @@ export class OrdersService {
       totalMinor: Number(order.retailTotalMinor),
       deliveryPhoneMask: order.deliveryPhoneMask,
       deliveryEmailMask: order.deliveryEmailMask,
-      payerPhoneMask: order.payerPhoneMask,
-      payerNetwork: order.payerNetwork,
       priceExpiresAt: order.priceExpiresAt.toISOString(),
       payment: {
         reference: attempt.providerReference,
