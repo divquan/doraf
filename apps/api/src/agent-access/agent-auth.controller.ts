@@ -1,7 +1,9 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
+  Headers,
   Param,
   ParseUUIDPipe,
   Post,
@@ -88,11 +90,28 @@ export class AgentAuthController {
     @Param('productId', new ParseUUIDPipe({ version: '4' })) productId: string,
     @Body() request: SetAgentRetailPriceRequest,
     @CurrentAgentPrincipal() principal: AgentPrincipal,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ) {
     return this.pricing.setRetailPrice({
       agentId: principal.agentId,
       productId,
       retailPriceMinor: request.retailPriceMinor,
+      idempotencyKey: requiredIdempotencyKey(idempotencyKey),
     });
   }
+
+  @Get('prices')
+  @UseGuards(AgentSessionGuard)
+  listPrices(@CurrentAgentPrincipal() principal: AgentPrincipal) {
+    return this.pricing.listForAgent(principal.agentId);
+  }
+}
+
+function requiredIdempotencyKey(value?: string): string {
+  if (!value || !/^[A-Za-z0-9._:-]{8,200}$/.test(value)) {
+    throw new BadRequestException(
+      'Idempotency-Key must contain 8 to 200 safe characters',
+    );
+  }
+  return value;
 }

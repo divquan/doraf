@@ -58,6 +58,12 @@ describe('AppController (e2e)', () => {
       .expect(401);
   });
 
+  it('denies anonymous pricing administration access', () => {
+    return request(app.getHttpServer())
+      .get('/v1/admin/products/pricing')
+      .expect(401);
+  });
+
   afterEach(async () => {
     await app.close();
   });

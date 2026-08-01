@@ -104,3 +104,10 @@ export function requireSameOrigin(request: NextRequest) {
     throw new ApiError(403, "Cross-site requests are not allowed")
   }
 }
+
+export function routeError(error: unknown, fallback: string) {
+  return noStoreJson(
+    { message: error instanceof Error ? error.message : fallback },
+    { status: error instanceof ApiError ? error.status : 500 }
+  )
+}

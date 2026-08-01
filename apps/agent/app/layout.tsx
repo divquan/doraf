@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { DM_Sans, Geist_Mono, Noto_Serif } from "next/font/google"
+import Script from "next/script"
 
 import "@workspace/ui/globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -43,7 +44,12 @@ export default function RootLayout({
     >
       <body>
         <ThemeProvider>{children}</ThemeProvider>
+        <Script id="doraf-theme" strategy="beforeInteractive">
+          {themeInitializer}
+        </Script>
       </body>
     </html>
   )
 }
+
+const themeInitializer = `(function(){try{var saved=localStorage.getItem("theme");var theme=saved==="dark"||saved==="light"?saved:(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");document.documentElement.classList.toggle("dark",theme==="dark");document.documentElement.style.colorScheme=theme}catch(error){}})()`

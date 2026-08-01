@@ -1,10 +1,17 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, type AgentProductPrice } from '../generated/prisma/client';
+import { createHash } from 'node:crypto';
+import {
+  AgentStatus,
+  Prisma,
+  type AgentProductPrice,
+} from '../generated/prisma/client';
 import type { InternalPrincipal } from '../internal-access/internal-access.types';
+import { IdempotencyService } from '../operations/idempotency.service';
 import { OutboxService } from '../operations/outbox.service';
 import { PrismaService } from '../database/prisma.service';
 
@@ -13,6 +20,7 @@ export class PricingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly outbox: OutboxService,
+    private readonly idempotency: IdempotencyService,
   ) {}
 
   async createDefaultPolicy(input: {
@@ -23,6 +31,7 @@ export class PricingService {
     reason: string;
     requestId: string;
     actor: InternalPrincipal;
+    idempotencyKey: string;
   }) {
     if (input.maximumRetailPriceMinor < input.basePriceMinor)
       throw new BadRequestException(
@@ -30,6 +39,32 @@ export class PricingService {
       );
     return this.prisma.$transaction(
       async (transaction) => {
+        const idempotency = await this.idempotency.acquireInTransaction(
+          transaction,
+          idempotencyInput({
+            scope: `internal:${input.actor.userId}:pricing-policy:${input.productId}`,
+            key: input.idempotencyKey,
+            operation: 'CREATE_PRODUCT_PRICING_POLICY',
+            request: {
+              productId: input.productId,
+              basePriceMinor: input.basePriceMinor,
+              maximumRetailPriceMinor: input.maximumRetailPriceMinor,
+              effectiveFrom: input.effectiveFrom.toISOString(),
+              reason: input.reason.trim(),
+            },
+          }),
+        );
+        if (!idempotency.acquired) {
+          const policy =
+            await transaction.productPricingPolicy.findUniqueOrThrow({
+              where: { id: idempotency.record.outcomeReference! },
+            });
+          return {
+            policy: serializePolicy(policy),
+            clampedPriceCount: 0,
+            replayed: true,
+          };
+        }
         const product = await transaction.product.findUnique({
           where: { id: input.productId },
           select: { id: true },
@@ -73,6 +108,16 @@ export class PricingService {
           aggregateVersion: 1,
           payload: { policyId: policy.id },
         });
+        if (input.effectiveFrom > new Date()) {
+          await this.outbox.enqueue(transaction, {
+            eventType: 'PRODUCT_PRICING_POLICY_ACTIVATION_DUE',
+            aggregateType: 'PRODUCT_PRICING_POLICY',
+            aggregateId: policy.id,
+            aggregateVersion: 1,
+            availableAt: input.effectiveFrom,
+            payload: { policyId: policy.id, requestId: input.requestId },
+          });
+        }
         const clampedPriceCount =
           input.effectiveFrom <= new Date()
             ? await this.clampAffectedPrices(transaction, {
@@ -84,7 +129,16 @@ export class PricingService {
                 actor: input.actor,
               })
             : 0;
-        return { policy, clampedPriceCount };
+        await this.idempotency.completeInTransaction(
+          transaction,
+          idempotency.record.id,
+          policy.id,
+        );
+        return {
+          policy: serializePolicy(policy),
+          clampedPriceCount,
+          replayed: false,
+        };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
@@ -99,6 +153,7 @@ export class PricingService {
     reason: string;
     requestId: string;
     actor: InternalPrincipal;
+    idempotencyKey: string;
   }) {
     if (
       input.basePriceMinor === undefined &&
@@ -115,6 +170,33 @@ export class PricingService {
       );
     return this.prisma.$transaction(
       async (transaction) => {
+        const idempotency = await this.idempotency.acquireInTransaction(
+          transaction,
+          idempotencyInput({
+            scope: `internal:${input.actor.userId}:agent-pricing-override:${input.productId}:${input.agentId}`,
+            key: input.idempotencyKey,
+            operation: 'CREATE_AGENT_PRICING_OVERRIDE',
+            request: {
+              productId: input.productId,
+              agentId: input.agentId,
+              basePriceMinor: input.basePriceMinor ?? null,
+              maximumRetailPriceMinor: input.maximumRetailPriceMinor ?? null,
+              effectiveFrom: input.effectiveFrom.toISOString(),
+              reason: input.reason.trim(),
+            },
+          }),
+        );
+        if (!idempotency.acquired) {
+          const override =
+            await transaction.agentPricingOverride.findUniqueOrThrow({
+              where: { id: idempotency.record.outcomeReference! },
+            });
+          return {
+            override: serializeOverride(override),
+            clampedPriceCount: 0,
+            replayed: true,
+          };
+        }
         const [agent, product] = await Promise.all([
           transaction.agent.findUnique({
             where: { id: input.agentId },
@@ -198,6 +280,16 @@ export class PricingService {
           aggregateVersion: 1,
           payload: { agentId: agent.id, productId: product.id },
         });
+        if (input.effectiveFrom > new Date()) {
+          await this.outbox.enqueue(transaction, {
+            eventType: 'AGENT_PRICING_OVERRIDE_ACTIVATION_DUE',
+            aggregateType: 'AGENT_PRICING_OVERRIDE',
+            aggregateId: override.id,
+            aggregateVersion: 1,
+            availableAt: input.effectiveFrom,
+            payload: { overrideId: override.id, requestId: input.requestId },
+          });
+        }
         const clampedPriceCount =
           input.effectiveFrom <= new Date()
             ? await this.clampAffectedPrices(transaction, {
@@ -211,7 +303,16 @@ export class PricingService {
                 actor: input.actor,
               })
             : 0;
-        return { override, clampedPriceCount };
+        await this.idempotency.completeInTransaction(
+          transaction,
+          idempotency.record.id,
+          override.id,
+        );
+        return {
+          override: serializeOverride(override),
+          clampedPriceCount,
+          replayed: false,
+        };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
@@ -221,22 +322,48 @@ export class PricingService {
     agentId: string;
     productId: string;
     retailPriceMinor: number;
+    idempotencyKey: string;
   }) {
-    const effective = await this.effectiveForAgent(
-      input.agentId,
-      input.productId,
-    );
-    const retailPriceMinor = BigInt(input.retailPriceMinor);
-    if (
-      retailPriceMinor < effective.basePriceMinor ||
-      retailPriceMinor > effective.maximumRetailPriceMinor
-    ) {
-      throw new BadRequestException(
-        'Retail price is outside the permitted range',
-      );
-    }
     return this.prisma.$transaction(
       async (transaction) => {
+        const idempotency = await this.idempotency.acquireInTransaction(
+          transaction,
+          idempotencyInput({
+            scope: `agent:${input.agentId}:retail-price:${input.productId}`,
+            key: input.idempotencyKey,
+            operation: 'SET_AGENT_RETAIL_PRICE',
+            request: input,
+          }),
+        );
+        if (!idempotency.acquired) {
+          const replay = await transaction.agentProductPrice.findUniqueOrThrow({
+            where: { id: idempotency.record.outcomeReference! },
+          });
+          return { price: serializePrice(replay), replayed: true };
+        }
+        const agent = await transaction.agent.findUnique({
+          where: { id: input.agentId },
+          select: { status: true },
+        });
+        if (!agent) throw new NotFoundException('Agent not found');
+        if (agent.status !== AgentStatus.ACTIVE)
+          throw new ForbiddenException(
+            'Suspended agents cannot change retail prices',
+          );
+        const effective = await this.effectiveForAgentInTransaction(
+          transaction,
+          input.agentId,
+          input.productId,
+        );
+        const retailPriceMinor = BigInt(input.retailPriceMinor);
+        if (
+          retailPriceMinor < effective.basePriceMinor ||
+          retailPriceMinor > effective.maximumRetailPriceMinor
+        ) {
+          throw new BadRequestException(
+            'Retail price is outside the permitted range',
+          );
+        }
         const existing = await transaction.agentProductPrice.findUnique({
           where: {
             agentId_productId: {
@@ -265,7 +392,12 @@ export class PricingService {
           aggregateVersion: price.version,
           payload: { agentId: input.agentId, productId: input.productId },
         });
-        return price;
+        await this.idempotency.completeInTransaction(
+          transaction,
+          idempotency.record.id,
+          price.id,
+        );
+        return { price: serializePrice(price), replayed: false };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
@@ -312,6 +444,206 @@ export class PricingService {
       policyId: policy.id,
       overrideId: override?.id ?? null,
     };
+  }
+
+  async listForAgent(agentId: string) {
+    const products = await this.prisma.product.findMany({
+      orderBy: { displayOrder: 'asc' },
+      include: {
+        agentProductPrices: { where: { agentId }, take: 1 },
+      },
+    });
+    const rows = await Promise.all(
+      products.map(async (product) => {
+        try {
+          const effective = await this.effectiveForAgent(agentId, product.id);
+          const current = product.agentProductPrices[0];
+          return {
+            product: {
+              id: product.id,
+              code: product.code,
+              name: product.name,
+              scopeDisclosure: product.scopeDisclosure,
+              status: product.status,
+            },
+            pricing: {
+              currency: effective.currency.trim(),
+              basePriceMinor: Number(effective.basePriceMinor),
+              maximumRetailPriceMinor: Number(
+                effective.maximumRetailPriceMinor,
+              ),
+              retailPriceMinor: current
+                ? Number(current.retailPriceMinor)
+                : null,
+              profitMinor: current
+                ? Number(current.retailPriceMinor - effective.basePriceMinor)
+                : null,
+              source: effective.overrideId ? 'AGENT_OVERRIDE' : 'DEFAULT',
+            },
+          };
+        } catch (error) {
+          if (!(error instanceof NotFoundException)) throw error;
+          return null;
+        }
+      }),
+    );
+    return rows.filter((row) => row !== null);
+  }
+
+  async listForAdministration() {
+    const now = new Date();
+    const [products, agents] = await Promise.all([
+      this.prisma.product.findMany({
+        orderBy: { displayOrder: 'asc' },
+        include: {
+          pricingPolicies: {
+            where: {
+              effectiveFrom: { lte: now },
+              OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
+            },
+            orderBy: { effectiveFrom: 'desc' },
+            take: 1,
+          },
+        },
+      }),
+      this.prisma.agent.findMany({
+        orderBy: { name: 'asc' },
+        select: { id: true, name: true, phoneMask: true, status: true },
+      }),
+    ]);
+    return {
+      products: products.map((product) => ({
+        id: product.id,
+        code: product.code,
+        name: product.name,
+        status: product.status,
+        policy: product.pricingPolicies[0]
+          ? serializePolicy(product.pricingPolicies[0])
+          : null,
+      })),
+      agents,
+    };
+  }
+
+  async applyScheduledDefaultPolicy(policyId: string): Promise<number> {
+    return this.prisma.$transaction(
+      async (transaction) => {
+        const policy = await transaction.productPricingPolicy.findUnique({
+          where: { id: policyId },
+        });
+        if (!policy) throw new NotFoundException('Pricing policy not found');
+        const now = new Date();
+        if (
+          policy.effectiveFrom > now ||
+          (policy.effectiveTo !== null && policy.effectiveTo <= now)
+        )
+          return 0;
+        const audit = await transaction.auditEvent.findFirstOrThrow({
+          where: {
+            entityType: 'PRODUCT_PRICING_POLICY',
+            entityId: policy.id,
+            action: 'PRODUCT_PRICING_POLICY_CREATED',
+          },
+          orderBy: { createdAt: 'asc' },
+        });
+        return this.clampAffectedPrices(transaction, {
+          productId: policy.productId,
+          defaultBasePriceMinor: policy.basePriceMinor,
+          defaultMaximumRetailPriceMinor: policy.maximumRetailPriceMinor,
+          reason: `Scheduled activation: ${policy.reason}`,
+          requestId: audit.requestId,
+          actor: auditActor(audit),
+        });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  }
+
+  async applyScheduledOverride(overrideId: string): Promise<number> {
+    return this.prisma.$transaction(
+      async (transaction) => {
+        const override = await transaction.agentPricingOverride.findUnique({
+          where: { id: overrideId },
+        });
+        if (!override)
+          throw new NotFoundException('Pricing override not found');
+        const now = new Date();
+        if (
+          override.effectiveFrom > now ||
+          (override.effectiveTo !== null && override.effectiveTo <= now)
+        )
+          return 0;
+        const [policy, audit] = await Promise.all([
+          transaction.productPricingPolicy.findFirst({
+            where: {
+              productId: override.productId,
+              effectiveFrom: { lte: now },
+              OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
+            },
+            orderBy: { effectiveFrom: 'desc' },
+          }),
+          transaction.auditEvent.findFirstOrThrow({
+            where: {
+              entityType: 'AGENT_PRICING_OVERRIDE',
+              entityId: override.id,
+              action: 'AGENT_PRICING_OVERRIDE_CREATED',
+            },
+            orderBy: { createdAt: 'asc' },
+          }),
+        ]);
+        if (!policy)
+          throw new NotFoundException(
+            'Active default pricing policy not found',
+          );
+        return this.clampAffectedPrices(transaction, {
+          productId: override.productId,
+          agentId: override.agentId,
+          defaultBasePriceMinor: policy.basePriceMinor,
+          defaultMaximumRetailPriceMinor: policy.maximumRetailPriceMinor,
+          reason: `Scheduled activation: ${override.reason}`,
+          requestId: audit.requestId,
+          actor: auditActor(audit),
+        });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  }
+
+  private async effectiveForAgentInTransaction(
+    transaction: Prisma.TransactionClient,
+    agentId: string,
+    productId: string,
+    now = new Date(),
+  ) {
+    const [policy, override] = await Promise.all([
+      transaction.productPricingPolicy.findFirst({
+        where: {
+          productId,
+          effectiveFrom: { lte: now },
+          OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
+        },
+        orderBy: { effectiveFrom: 'desc' },
+      }),
+      transaction.agentPricingOverride.findFirst({
+        where: {
+          agentId,
+          productId,
+          effectiveFrom: { lte: now },
+          OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
+        },
+        orderBy: { effectiveFrom: 'desc' },
+      }),
+    ]);
+    if (!policy)
+      throw new NotFoundException(
+        'No active pricing policy exists for this product',
+      );
+    const basePriceMinor = override?.basePriceMinor ?? policy.basePriceMinor;
+    const maximumRetailPriceMinor =
+      override?.maximumRetailPriceMinor ?? policy.maximumRetailPriceMinor;
+    if (maximumRetailPriceMinor < basePriceMinor)
+      throw new BadRequestException('Effective pricing policy is invalid');
+    return { basePriceMinor, maximumRetailPriceMinor };
   }
 
   private async closePreviousDefaultPolicy(
@@ -467,4 +799,83 @@ export function clampRetailPrice(
   if (current < minimum) return minimum;
   if (current > maximum) return maximum;
   return current;
+}
+
+function idempotencyInput(input: {
+  scope: string;
+  key: string;
+  operation: string;
+  request: unknown;
+}) {
+  return {
+    scope: input.scope,
+    key: input.key,
+    operation: input.operation,
+    requestFingerprint: createHash('sha256')
+      .update(JSON.stringify(input.request))
+      .digest(),
+    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+  };
+}
+
+function serializePolicy(policy: {
+  id: string;
+  productId: string;
+  basePriceMinor: bigint;
+  maximumRetailPriceMinor: bigint;
+  currency: string;
+  effectiveFrom: Date;
+  effectiveTo: Date | null;
+  reason: string;
+}) {
+  return {
+    ...policy,
+    basePriceMinor: Number(policy.basePriceMinor),
+    maximumRetailPriceMinor: Number(policy.maximumRetailPriceMinor),
+    currency: policy.currency.trim(),
+  };
+}
+
+function serializeOverride(override: {
+  id: string;
+  agentId: string;
+  productId: string;
+  basePriceMinor: bigint | null;
+  maximumRetailPriceMinor: bigint | null;
+  currency: string;
+  effectiveFrom: Date;
+  effectiveTo: Date | null;
+  reason: string;
+}) {
+  return {
+    ...override,
+    basePriceMinor:
+      override.basePriceMinor === null ? null : Number(override.basePriceMinor),
+    maximumRetailPriceMinor:
+      override.maximumRetailPriceMinor === null
+        ? null
+        : Number(override.maximumRetailPriceMinor),
+    currency: override.currency.trim(),
+  };
+}
+
+function serializePrice(price: AgentProductPrice) {
+  return { ...price, retailPriceMinor: Number(price.retailPriceMinor) };
+}
+
+function auditActor(audit: {
+  actorInternalUserId: string;
+  actorRole: InternalPrincipal['role'];
+  authenticationStrength: string;
+}): InternalPrincipal {
+  return {
+    userId: audit.actorInternalUserId,
+    sessionId: 'scheduled-pricing-activation',
+    displayName: 'Scheduled pricing activation',
+    role: audit.actorRole,
+    authenticationStrength:
+      audit.authenticationStrength as InternalPrincipal['authenticationStrength'],
+    authenticatedAt: new Date(),
+    stepUpAt: null,
+  };
 }

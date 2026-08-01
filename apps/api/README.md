@@ -96,7 +96,10 @@ not exposed until its documented evidence and withdrawal-hold policy is decided.
 Pricing policy and override writes are versioned by effective time. When a
 currently effective change makes an agent's active retail price invalid, the
 price is clamped to the nearest permitted boundary in the same transaction.
-Every automatic adjustment receives its own audit and outbox record.
+Every automatic adjustment receives its own audit and outbox record. All three
+pricing write commands require an `Idempotency-Key` header. Future-dated changes
+enqueue activation-due work for the separately deployed worker, whose pricing
+handler applies the same clamping rules when the event becomes available.
 
 `InventoryImportService` supports validation preview and atomic commit for CSV
 files with this exact header:
@@ -132,10 +135,6 @@ docker compose -f apps/api/compose.test.yml -p doraf-api-test up -d --wait
 
 DIRECT_URL=postgresql://doraf_test:doraf_test@127.0.0.1:55434/doraf_test \
   pnpm --filter @doraf/api db:migrate:deploy
-
-DIRECT_URL=postgresql://doraf_test:doraf_test@127.0.0.1:55434/doraf_test \
-DATABASE_URL=postgresql://doraf_test:doraf_test@127.0.0.1:55434/doraf_test \
-  pnpm --filter @doraf/api db:seed
 
 TEST_DATABASE_URL=postgresql://doraf_test:doraf_test@127.0.0.1:55434/doraf_test \
   pnpm --filter @doraf/api test:database

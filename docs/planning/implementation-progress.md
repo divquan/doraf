@@ -1,7 +1,7 @@
 # MVP implementation progress
 
 Status: Active tracker  
-Last updated: 2026-07-31
+Last updated: 2026-08-01
 
 This document records implementation state only. It does not redefine the MVP
 or duplicate its delivery plan. Requirements remain in
@@ -29,14 +29,9 @@ implemented. The administration application has a working passkey flow, and the
 agent application now has production-shaped registration, sign-in, and protected
 workspace screens.
 
-**Next slice:** verify agent registration, returning sign-in, logout, expired OTP,
-attempt-limit, and suspended read-only behavior in browser and database tests.
-The database suite now also asserts that agent OTP sessions are permitted, so a
-future migration cannot omit the required session-strength constraint update.
-
-After that, continue Phase 2 with pricing, permanent sales-channel identifiers,
-and agent retail-price configuration after resolving the documented identifier
-format and default-price questions.
+**Next slice:** complete permanent agent web-link and USSD referral identifiers,
+then expose inventory operations in the administration application. Manual
+browser verification remains an explicit product-owner handoff.
 
 ## Capability status
 
@@ -49,7 +44,7 @@ format and default-price questions.
 | Internal authorization and audit baseline | Partial | Administrator/Support RBAC, server-side session checks, append-only audit events for implemented sensitive actions | Extend policies and audit coverage to every later administration workflow |
 | Encrypted inventory import backend | Complete | Whole-batch CSV validation, duplicate fingerprints, envelope encryption under an application-held master key, atomic import and audit | Administration upload UI, inventory management, quarantine, reservations, low-stock alerts, and master-key recovery exercise |
 | Agent identity and tenancy | Partial | Encrypted/fingerprinted Ghana phone storage, individual tenant creation, attempt-limited SMS OTP registration and sign-in, revocable sessions, development SMS adapter, protected workspace UI, and audited Administrator suspension/restore API | Browser/database flow coverage, production SMS adapter, recovery evidence policy and implementation, suspension UI, and tenant authorization tests |
-| Pricing and agent sales channels | Partial | Pricing-policy, per-agent override, and agent-price schema; effective-price evaluation; Administrator policy/override APIs; agent retail-price API; transactional automatic clamping with audit/outbox records | Idempotency wiring and integration tests, agent/admin pricing UI, permanent web links, and USSD codes |
+| Pricing and agent sales channels | Partial | Complete pricing slice: effective policies and per-agent overrides, transactional idempotent writes, immediate and scheduled automatic clamping, audit/outbox records, PostgreSQL integration coverage, polished agent price/profit controls, and Administrator/Support pricing controls | Permanent web links and USSD referral codes |
 | Order and payment foundation | Not started | Confirmed requirements and state-machine documentation | Orders, snapshots, reservations, payment attempts/events, Paystack adapter, webhook handling, outbox, and idempotency |
 | Web storefront and fulfillment | Not started | Confirmed product and flow documentation | Storefront, guest checkout, allocation, SMS/email delivery, and end-to-end sandbox sale |
 | Exceptions, recovery, disputes, and refunds | Not started | Confirmed policies and flows | Reconciliation, late/duplicate/reversed payment handling, buyer recovery, replacements, and refunds |
@@ -88,7 +83,7 @@ external credentials and approvals.
 
 ## Latest verification evidence
 
-As of 2026-07-31, the implemented API slices pass lint, TypeScript checking,
+As of 2026-08-01, the implemented API slices pass lint, TypeScript checking,
 unit tests, HTTP end-to-end tests, PostgreSQL migration/constraint/integration
 tests, production build, and Prisma schema-drift detection.
 

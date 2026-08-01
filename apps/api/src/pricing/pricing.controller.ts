@@ -1,6 +1,8 @@
 import {
+  BadRequestException,
   Body,
   Controller,
+  Get,
   Headers,
   Param,
   ParseUUIDPipe,
@@ -24,12 +26,22 @@ import { PricingService } from './pricing.service';
 export class PricingController {
   constructor(private readonly pricing: PricingService) {}
 
+  @Get('pricing')
+  @InternalRoles(InternalRole.ADMINISTRATOR, InternalRole.SUPPORT)
+  async list(@CurrentInternalPrincipal() actor: InternalPrincipal) {
+    return {
+      ...(await this.pricing.listForAdministration()),
+      viewerRole: actor.role,
+    };
+  }
+
   @Post(':productId/pricing-policies')
   create(
     @Param('productId', new ParseUUIDPipe({ version: '4' })) productId: string,
     @Body() request: CreateProductPricingPolicyRequest,
     @CurrentInternalPrincipal() actor: InternalPrincipal,
     @Headers('x-request-id') requestId?: string,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ) {
     return this.pricing.createDefaultPolicy({
       productId,
@@ -37,6 +49,7 @@ export class PricingController {
       effectiveFrom: new Date(request.effectiveFrom),
       actor,
       requestId: requestId ?? randomUUID(),
+      idempotencyKey: requiredIdempotencyKey(idempotencyKey),
     });
   }
 
@@ -47,6 +60,7 @@ export class PricingController {
     @Body() request: CreateAgentPricingOverrideRequest,
     @CurrentInternalPrincipal() actor: InternalPrincipal,
     @Headers('x-request-id') requestId?: string,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ) {
     return this.pricing.createOverride({
       productId,
@@ -55,6 +69,16 @@ export class PricingController {
       effectiveFrom: new Date(request.effectiveFrom),
       actor,
       requestId: requestId ?? randomUUID(),
+      idempotencyKey: requiredIdempotencyKey(idempotencyKey),
     });
   }
+}
+
+function requiredIdempotencyKey(value?: string): string {
+  if (!value || !/^[A-Za-z0-9._:-]{8,200}$/.test(value)) {
+    throw new BadRequestException(
+      'Idempotency-Key must contain 8 to 200 safe characters',
+    );
+  }
+  return value;
 }

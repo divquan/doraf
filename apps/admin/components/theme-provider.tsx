@@ -1,23 +1,26 @@
 "use client"
 
 import * as React from "react"
-import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes"
 
-function ThemeProvider({
-  children,
-  ...props
-}: React.ComponentProps<typeof NextThemesProvider>) {
+function ThemeProvider({ children }: Readonly<{ children: React.ReactNode }>) {
+  React.useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)")
+
+    function followSystemTheme(event: MediaQueryListEvent) {
+      const savedTheme = localStorage.getItem("theme")
+      if (savedTheme !== null && savedTheme !== "system") return
+      applyTheme(event.matches ? "dark" : "light")
+    }
+
+    media.addEventListener("change", followSystemTheme)
+    return () => media.removeEventListener("change", followSystemTheme)
+  }, [])
+
   return (
-    <NextThemesProvider
-      attribute="class"
-      defaultTheme="system"
-      enableSystem
-      disableTransitionOnChange
-      {...props}
-    >
+    <>
       <ThemeHotkey />
       {children}
-    </NextThemesProvider>
+    </>
   )
 }
 
@@ -35,8 +38,6 @@ function isTypingTarget(target: EventTarget | null) {
 }
 
 function ThemeHotkey() {
-  const { resolvedTheme, setTheme } = useTheme()
-
   React.useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.defaultPrevented || event.repeat) {
@@ -47,7 +48,7 @@ function ThemeHotkey() {
         return
       }
 
-      if (event.key.toLowerCase() !== "d") {
+      if (typeof event.key !== "string" || event.key.toLowerCase() !== "d") {
         return
       }
 
@@ -55,7 +56,11 @@ function ThemeHotkey() {
         return
       }
 
-      setTheme(resolvedTheme === "dark" ? "light" : "dark")
+      const nextTheme = document.documentElement.classList.contains("dark")
+        ? "light"
+        : "dark"
+      localStorage.setItem("theme", nextTheme)
+      applyTheme(nextTheme)
     }
 
     window.addEventListener("keydown", onKeyDown)
@@ -63,9 +68,14 @@ function ThemeHotkey() {
     return () => {
       window.removeEventListener("keydown", onKeyDown)
     }
-  }, [resolvedTheme, setTheme])
+  }, [])
 
   return null
+}
+
+function applyTheme(theme: "light" | "dark") {
+  document.documentElement.classList.toggle("dark", theme === "dark")
+  document.documentElement.style.colorScheme = theme
 }
 
 export { ThemeProvider }

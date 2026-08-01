@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
-  ChartIncreaseIcon,
   CheckmarkCircle02Icon,
   Link01Icon,
   SecurityCheckIcon,
@@ -23,6 +22,7 @@ import {
 import { Separator } from "@workspace/ui/components/separator"
 import { DorafMark } from "@/components/doraf-mark"
 import { LogoutButton } from "@/components/logout-button"
+import { AgentPricingRow, PricingGrid } from "@/components/pricing-grid"
 import { apiJson, apiRequest } from "@/lib/agent-api"
 
 interface AgentSession {
@@ -42,11 +42,6 @@ const upcoming = [
     description: "A permanent web link and USSD referral code.",
   },
   {
-    icon: ChartIncreaseIcon,
-    title: "Checker pricing",
-    description: "Set buyer prices within Doraf’s approved range.",
-  },
-  {
     icon: Wallet01Icon,
     title: "Sales and earnings",
     description: "Track orders, agent profit, and wallet activity.",
@@ -54,11 +49,15 @@ const upcoming = [
 ]
 
 export default async function DashboardPage() {
-  const response = await apiRequest("/agent-auth/session", {}, true)
+  const [response, pricesResponse] = await Promise.all([
+    apiRequest("/agent-auth/session", {}, true),
+    apiRequest("/agent-auth/prices", {}, true),
+  ])
   if (response.status === 401) {
     redirect("/login")
   }
   const { agent } = (await apiJson(response)) as AgentSession
+  const prices = (await apiJson(pricesResponse)) as AgentPricingRow[]
   const firstName = agent.name.split(/\s+/)[0] ?? agent.name
 
   return (
@@ -86,8 +85,9 @@ export default async function DashboardPage() {
             Welcome, {firstName}.
           </h1>
           <p className="max-w-2xl text-base leading-7 text-pretty text-muted-foreground">
-            Your secure agent workspace is active. We&apos;ll guide you through
-            pricing and sales-channel setup as those tools become available.
+            Set the final prices buyers see. Every price stays within
+            Doraf&apos;s approved range, and your earnings update before you
+            save.
           </p>
         </section>
 
@@ -101,6 +101,18 @@ export default async function DashboardPage() {
             </AlertDescription>
           </Alert>
         ) : null}
+
+        <section className="space-y-4">
+          <div>
+            <h2 className="font-heading text-2xl font-semibold">
+              Checker pricing
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              One price per checker across your web and USSD sales channels.
+            </p>
+          </div>
+          <PricingGrid rows={prices} readOnly={agent.status === "SUSPENDED"} />
+        </section>
 
         <section className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
           <Card>
