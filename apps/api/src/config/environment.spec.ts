@@ -27,6 +27,11 @@ describe('validateEnvironment', () => {
       PORT: 3000,
       DATABASE_URL: 'postgresql://localhost:5432/doraf',
       ...keyMaterial,
+      ORDER_CONTACT_ENCRYPTION_KEY_BASE64:
+        keyMaterial.AGENT_PHONE_ENCRYPTION_KEY_BASE64,
+      ORDER_CONTACT_FINGERPRINT_KEY_BASE64:
+        keyMaterial.AGENT_PHONE_FINGERPRINT_KEY_BASE64,
+      PAYSTACK_GUEST_EMAIL_DOMAIN: 'guest.localhost',
       INTERNAL_AUTH_RP_NAME: 'Doraf Administration',
       INTERNAL_AUTH_RP_ID: 'localhost',
       INTERNAL_AUTH_ORIGIN: 'http://localhost:3001',

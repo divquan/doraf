@@ -260,4 +260,16 @@ At minimum, the system needs to distinguish:
 - available, reserved, and sold vouchers, and
 - pending, delivered, and failed delivery attempts.
 
-Exact state names will be finalized with the data model.
+The implemented schema keeps these dimensions in separate enums and records.
+
+## Implemented foundation
+
+The first web-checkout slice persists the order, itemized commercial snapshot,
+initial payment attempt, and complete voucher reservation atomically. Contact
+and synthetic-email values are encrypted and only masks leave the API. The
+payment attempt remains in `CREATED` until the Paystack adapter processes its
+durable initialization work; no provider call occurs inside the transaction.
+
+Uninitialized attempts may release after their 180-second reservation expires.
+Initialized or ambiguous attempts must use Paystack verification and the
+confirmed five-minute reconciliation grace period before release.

@@ -81,6 +81,15 @@ describe('AppController (e2e)', () => {
       .expect(404);
   });
 
+  it('validates public checkout input before creating an order', () => {
+    return request(app.getHttpServer())
+      .post('/v1/sales-channels/web/not-a-channel/orders')
+      .set('Idempotency-Key', 'checkout-test-key')
+      .send({})
+      .expect('Cache-Control', 'no-store')
+      .expect(400);
+  });
+
   afterEach(async () => {
     await app.close();
   });

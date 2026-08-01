@@ -22,6 +22,15 @@ process.env.AGENT_PHONE_FINGERPRINT_KEY_BASE64 ??= Buffer.alloc(
 process.env.OTP_FINGERPRINT_KEY_BASE64 ??= Buffer.alloc(32, 12).toString(
   'base64',
 );
+process.env.ORDER_CONTACT_ENCRYPTION_KEY_BASE64 ??= Buffer.alloc(
+  32,
+  13,
+).toString('base64');
+process.env.ORDER_CONTACT_FINGERPRINT_KEY_BASE64 ??= Buffer.alloc(
+  32,
+  14,
+).toString('base64');
+process.env.PAYSTACK_GUEST_EMAIL_DOMAIN ??= 'guest.localhost';
 process.env.AGENT_AUTH_OTP_TTL_SECONDS ??= '300';
 process.env.AGENT_AUTH_OTP_MAX_ATTEMPTS ??= '5';
 process.env.AGENT_AUTH_REGISTRATION_TTL_SECONDS ??= '900';

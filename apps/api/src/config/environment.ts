@@ -10,6 +10,9 @@ export interface AppEnvironment {
   INTERNAL_ENROLLMENT_FINGERPRINT_KEY_BASE64: string;
   AGENT_PHONE_ENCRYPTION_KEY_BASE64: string;
   AGENT_PHONE_FINGERPRINT_KEY_BASE64: string;
+  ORDER_CONTACT_ENCRYPTION_KEY_BASE64: string;
+  ORDER_CONTACT_FINGERPRINT_KEY_BASE64: string;
+  PAYSTACK_GUEST_EMAIL_DOMAIN: string;
   OTP_FINGERPRINT_KEY_BASE64: string;
   AGENT_AUTH_OTP_TTL_SECONDS: number;
   AGENT_AUTH_OTP_MAX_ATTEMPTS: number;
@@ -95,6 +98,29 @@ export function validateEnvironment(
     32,
     false,
   );
+  const orderContactEncryptionKey = optionalDevelopmentKey(
+    raw.ORDER_CONTACT_ENCRYPTION_KEY_BASE64,
+    agentPhoneEncryptionKey,
+    'ORDER_CONTACT_ENCRYPTION_KEY_BASE64',
+    nodeEnvironment as NodeEnvironment,
+    true,
+  );
+  const orderContactFingerprintKey = optionalDevelopmentKey(
+    raw.ORDER_CONTACT_FINGERPRINT_KEY_BASE64,
+    agentPhoneFingerprintKey,
+    'ORDER_CONTACT_FINGERPRINT_KEY_BASE64',
+    nodeEnvironment as NodeEnvironment,
+    false,
+  );
+  const guestEmailDomain = optionalDevelopmentString(
+    raw.PAYSTACK_GUEST_EMAIL_DOMAIN,
+    'guest.localhost',
+    'PAYSTACK_GUEST_EMAIL_DOMAIN',
+    nodeEnvironment as NodeEnvironment,
+  ).toLowerCase();
+  if (!isValidHostname(guestEmailDomain)) {
+    throw new Error('PAYSTACK_GUEST_EMAIL_DOMAIN must be a hostname');
+  }
 
   const relyingPartyName = requiredString(
     raw.INTERNAL_AUTH_RP_NAME,
@@ -162,6 +188,9 @@ export function validateEnvironment(
     AGENT_PHONE_ENCRYPTION_KEY_BASE64: agentPhoneEncryptionKey,
     AGENT_PHONE_FINGERPRINT_KEY_BASE64: agentPhoneFingerprintKey,
     OTP_FINGERPRINT_KEY_BASE64: otpFingerprintKey,
+    ORDER_CONTACT_ENCRYPTION_KEY_BASE64: orderContactEncryptionKey,
+    ORDER_CONTACT_FINGERPRINT_KEY_BASE64: orderContactFingerprintKey,
+    PAYSTACK_GUEST_EMAIL_DOMAIN: guestEmailDomain,
     AGENT_AUTH_OTP_TTL_SECONDS: agentOtpTtlSeconds,
     AGENT_AUTH_OTP_MAX_ATTEMPTS: agentOtpMaxAttempts,
     AGENT_AUTH_REGISTRATION_TTL_SECONDS: agentRegistrationTtlSeconds,
@@ -173,6 +202,31 @@ export function validateEnvironment(
     INTERNAL_AUTH_SESSION_TTL_SECONDS: sessionTtlSeconds,
     INTERNAL_ENROLLMENT_TTL_SECONDS: enrollmentTtlSeconds,
   };
+}
+
+function optionalDevelopmentKey(
+  value: unknown,
+  developmentFallback: string,
+  name: string,
+  environment: NodeEnvironment,
+  exact: boolean,
+): string {
+  if (value === undefined && environment !== 'production') {
+    return developmentFallback;
+  }
+  return requiredBase64Key(value, name, 32, exact);
+}
+
+function optionalDevelopmentString(
+  value: unknown,
+  developmentFallback: string,
+  name: string,
+  environment: NodeEnvironment,
+): string {
+  if (value === undefined && environment !== 'production') {
+    return developmentFallback;
+  }
+  return requiredString(value, name);
 }
 
 function requiredBase64Key(
@@ -217,6 +271,17 @@ function isValidRelyingPartyId(value: string): boolean {
   }
   return (
     value.length <= 253 &&
+    value
+      .split('.')
+      .every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label))
+  );
+}
+
+function isValidHostname(value: string): boolean {
+  if (value === 'localhost' || value.endsWith('.localhost')) return true;
+  return (
+    value.length <= 253 &&
+    value.includes('.') &&
     value
       .split('.')
       .every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label))

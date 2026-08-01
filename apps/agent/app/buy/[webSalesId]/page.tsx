@@ -14,19 +14,23 @@ import {
   CardHeader,
   CardTitle,
 } from "@workspace/ui/components/card"
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@workspace/ui/components/empty"
 import { DorafMark } from "@/components/doraf-mark"
+import {
+  StorefrontCheckout,
+  type StorefrontProduct,
+} from "@/components/storefront-checkout"
 import { ApiError, apiJson, apiRequest } from "@/lib/agent-api"
 
 interface Storefront {
   agent: { displayName: string }
-  products: Array<{
-    id: string
-    code: string
-    name: string
-    scopeDisclosure: string
-    retailPriceMinor: number
-    currency: string
-  }>
+  products: StorefrontProduct[]
 }
 
 export default async function StorefrontPage(
@@ -70,43 +74,47 @@ export default async function StorefrontPage(
         </section>
 
         {storefront.products.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="flex min-h-48 flex-col items-center justify-center gap-2 text-center">
-              <div className="flex size-11 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+          <Empty className="min-h-56 border">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
                 <HugeiconsIcon icon={ShoppingBag01Icon} strokeWidth={1.7} />
-              </div>
-              <p className="mt-2 font-medium">
-                No checkers available right now
-              </p>
-              <p className="max-w-md text-sm leading-6 text-muted-foreground">
+              </EmptyMedia>
+              <EmptyTitle>No checkers available right now</EmptyTitle>
+              <EmptyDescription>
                 This store is active, but its checker products are currently
                 unavailable. Please check again later.
-              </p>
-            </CardContent>
-          </Card>
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         ) : (
-          <section className="grid gap-5 md:grid-cols-3">
-            {storefront.products.map((product) => (
-              <Card key={product.id}>
-                <CardHeader>
-                  <CardTitle>{product.name}</CardTitle>
-                  <CardDescription className="leading-6">
-                    {product.scopeDisclosure}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-3">
-                  <p className="font-heading text-2xl font-semibold">
-                    {money(product.retailPriceMinor, product.currency)}
-                  </p>
-                </CardContent>
-                <CardFooter>
-                  <Button className="w-full" disabled>
-                    Online purchasing coming soon
-                  </Button>
-                </CardFooter>
-              </Card>
-            ))}
-          </section>
+          <>
+            <section className="grid gap-5 md:grid-cols-3">
+              {storefront.products.map((product) => (
+                <Card key={product.id}>
+                  <CardHeader>
+                    <CardTitle>{product.name}</CardTitle>
+                    <CardDescription className="leading-6">
+                      {product.scopeDisclosure}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex flex-col gap-3">
+                    <p className="font-heading text-2xl font-semibold">
+                      {money(product.retailPriceMinor, product.currency)}
+                    </p>
+                  </CardContent>
+                  <CardFooter>
+                    <Button className="w-full" render={<a href="#checkout" />}>
+                      Begin checkout
+                    </Button>
+                  </CardFooter>
+                </Card>
+              ))}
+            </section>
+            <StorefrontCheckout
+              products={storefront.products}
+              webSalesId={webSalesId}
+            />
+          </>
         )}
       </div>
     </main>

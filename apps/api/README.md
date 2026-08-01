@@ -54,6 +54,7 @@ The current HTTP surface is:
 - `POST /v1/agent-auth/prices/:productId`
 - `GET /v1/agent-auth/sales-channel`
 - `GET /v1/sales-channels/web/:webSalesId` (public active-agent resolution)
+- `POST /v1/sales-channels/web/:webSalesId/orders` (public idempotent checkout)
 
 Products are seeded as `UNAVAILABLE`; checkout must not expose them until valid
 pricing and inventory exist.
@@ -127,6 +128,29 @@ secret used to store only HMAC fingerprints of opaque session tokens, never the
 bearer tokens.
 `INTERNAL_ENROLLMENT_FINGERPRINT_KEY_BASE64` separately protects one-time
 operator enrollment tokens.
+
+## Web checkout foundation
+
+Public checkout creates a durable order, one immutable item snapshot per unit,
+the first Paystack-shaped payment attempt, and an all-or-nothing voucher
+reservation in one serializable transaction. Voucher selection uses
+deterministic PostgreSQL row locking with `SKIP LOCKED`; a checkout never
+receives a partial quantity. Repeating the same safe `Idempotency-Key` and body
+returns the existing order.
+
+Delivery phone, optional delivery email, payer phone, and synthetic Paystack
+email are encrypted before persistence. API responses contain masks only.
+Development can temporarily fall back to the agent contact keys and
+`guest.localhost`; production requires independent
+`ORDER_CONTACT_ENCRYPTION_KEY_BASE64`,
+`ORDER_CONTACT_FINGERPRINT_KEY_BASE64`, and a controlled
+`PAYSTACK_GUEST_EMAIL_DOMAIN`.
+
+The current payment attempt remains `CREATED` and queues initialization and
+reservation-expiry work. It does not call Paystack yet. Expired attempts that
+were never initialized are safely abandoned and released before stock is
+reallocated; the next slice adds the continuously running handler plus provider
+verification before any initialized attempt can be released.
 
 ## Verification
 

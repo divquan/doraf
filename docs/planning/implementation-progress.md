@@ -29,7 +29,8 @@ implemented. The administration application has a working passkey flow, and the
 agent application now has production-shaped registration, sign-in, and protected
 workspace screens.
 
-**Next slice:** begin the order, reservation, and payment foundations. Manual
+**Next slice:** connect the durable payment-attempt foundation to Paystack
+Mobile Money initialization, authenticated webhooks, and verification. Manual
 browser verification remains an explicit product-owner handoff.
 
 ## Capability status
@@ -44,8 +45,8 @@ browser verification remains an explicit product-owner handoff.
 | Encrypted inventory intake | Complete | Structured manual batch validation, duplicate fingerprints, envelope encryption under an application-held master key, atomic import and audit, an Administrator preview/confirm form, authoritative per-product stock counts, recent batch history, and masked batch detail for Administrator and Support | Quarantine operations, reservations, configurable low-stock alerts, and master-key recovery exercise |
 | Agent identity and tenancy | Partial | Encrypted/fingerprinted Ghana phone storage, individual tenant creation, attempt-limited SMS OTP registration and sign-in, revocable sessions, development SMS adapter, protected workspace UI, and audited Administrator suspension/restore API and UI | Browser/database flow coverage, production SMS adapter, recovery evidence policy and implementation, and tenant authorization tests |
 | Pricing and agent sales channels | Complete | Effective pricing and overrides; transactional idempotent writes; immediate and scheduled clamping; agent/admin pricing UI; permanent opaque web identifiers; active-agent attribution API; copy/share controls; public storefront route; PostgreSQL coverage | Checkout is owned by the later web-sale phase; USSD is deferred post-MVP |
-| Order and payment foundation | Not started | Confirmed requirements and state-machine documentation | Orders, snapshots, reservations, payment attempts/events, Paystack adapter, webhook handling, outbox, and idempotency |
-| Web storefront and fulfillment | Not started | Confirmed product and flow documentation | Storefront, guest checkout, allocation, SMS/email delivery, and end-to-end sandbox sale |
+| Order and payment foundation | Partial | Prisma-managed order, item, payment-attempt, and reservation schema; database constraints; protected guest contacts; immutable commercial snapshots; idempotent all-or-nothing reservation; expiry work; and concurrency coverage | Paystack adapter, authenticated webhook/verification processing, payment events, accepted-payment transaction, and retry/reconciliation handling |
+| Web storefront and fulfillment | Partial | Agent-attributed public storefront plus guest checkout/review form for product, quantity, delivery, payer, and network; local order/reservation confirmation | Paystack authorization UI, successful allocation, SMS/email delivery, buyer status/recovery, and end-to-end sandbox sale |
 | Exceptions, recovery, disputes, and refunds | Not started | Confirmed policies and flows | Reconciliation, late/duplicate/reversed payment handling, buyer recovery, replacements, and refunds |
 | Agent wallet and withdrawals | Not started | Confirmed append-only ledger decision and withdrawal policy | Ledger, balances, holds, requests, approvals, Paystack transfers, and reconciliation |
 | USSD purchase channel | Deferred | Removed from MVP by product-owner decision on 2026-08-01 | Reassess after MVP launch evidence |
