@@ -36,6 +36,13 @@ The current HTTP surface is:
 - `POST /v1/internal-auth/logout`
 - `POST /v1/admin/internal-users` (Administrator)
 - `POST /v1/admin/internal-users/:userId/enrollment-tokens` (Administrator)
+- `POST /v1/agent-auth/registration/otp`
+- `POST /v1/agent-auth/registration/verify`
+- `POST /v1/agent-auth/registration/complete`
+- `POST /v1/agent-auth/login/otp`
+- `POST /v1/agent-auth/login/verify`
+- `GET /v1/agent-auth/session`
+- `POST /v1/agent-auth/logout`
 
 Products are seeded as `UNAVAILABLE`; checkout must not expose them until valid
 pricing and inventory exist.
@@ -68,6 +75,13 @@ The command refuses to run once any internal user exists and prints one
 endpoint, complete the browser WebAuthn ceremony, and send the result to the
 registration-verification endpoint. Later operators are invited through the
 Administrator-only internal-user endpoint.
+
+Agents register and sign in with Ghana phone numbers and six-digit SMS OTPs.
+Phone values are encrypted, indexed only through a keyed fingerprint, and never
+returned by the API. In development, sent OTPs are written only to the API
+terminal; they are not included in API responses. Production refuses OTP
+delivery until a provider-backed SMS adapter is configured. Registration
+completion and authenticated sessions use separate short-lived opaque tokens.
 
 `InventoryImportService` supports validation preview and atomic commit for CSV
 files with this exact header:

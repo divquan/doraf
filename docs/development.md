@@ -26,17 +26,16 @@ pnpm --filter @doraf/api db:migrate:deploy
 pnpm --filter @doraf/api db:seed
 ```
 
-Generate separate local encryption and fingerprint keys, then place both values
-in `apps/api/.env` before starting the API:
+Generate a separate value for every placeholder key in `apps/api/.env` before
+starting the API. Run this once per key:
 
 ```sh
 openssl rand -base64 32
-openssl rand -base64 32
 ```
 
-Use the first output for `VOUCHER_MASTER_KEY_BASE64` and the second for
-`VOUCHER_FINGERPRINT_KEY_BASE64`. They are local development secrets; never
-commit them. Real voucher imports require the recovery procedure in
+The voucher, session, enrollment, agent-phone, and OTP keys must remain distinct.
+They are local development secrets; never commit them. Real voucher imports
+require the recovery procedure in
 [ADR-0012](decisions/ADR-0012-use-an-application-held-voucher-master-key.md).
 
 Then start all application development servers:
@@ -56,6 +55,12 @@ token is one-time and short-lived. After enrollment, use
 http://localhost:3001/login. The bootstrap command deliberately refuses to run
 after an internal user exists; create later operators through the authenticated
 Administration dashboard.
+
+The agent portal runs at http://localhost:3002. In development, sent OTPs are
+written only to the API terminal so registration and sign-in can be tested
+without an SMS account. They are never returned to or displayed by the agent
+application. Production OTP requests fail closed until the selected SMS provider
+adapter is configured.
 
 ## Reset local data
 

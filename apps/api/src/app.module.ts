@@ -5,6 +5,7 @@ import { validateEnvironment } from './config/environment';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
 import { InventoryModule } from './inventory/inventory.module';
+import { AgentAccessModule } from './agent-access/agent-access.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { InventoryModule } from './inventory/inventory.module';
     DatabaseModule,
     HealthModule,
     CatalogModule,
+    AgentAccessModule,
     InventoryModule.registerMasterKey(),
   ],
 })

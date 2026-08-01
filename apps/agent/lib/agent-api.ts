@@ -1,0 +1,125 @@
+import "server-only"
+
+import { cookies } from "next/headers"
+import { NextRequest, NextResponse } from "next/server"
+import { agentSessionCookie, registrationCookie } from "@/lib/agent-session"
+
+export { agentSessionCookie, registrationCookie } from "@/lib/agent-session"
+
+function apiBaseUrl() {
+  return (process.env.DORAF_API_URL ?? "http://localhost:3000/v1").replace(
+    /\/$/,
+    ""
+  )
+}
+
+export async function apiRequest(
+  path: string,
+  init: RequestInit = {},
+  withSession = false
+) {
+  const headers = new Headers(init.headers)
+  headers.set("content-type", "application/json")
+  headers.set("cache-control", "no-store")
+  if (withSession) {
+    const token = (await cookies()).get(agentSessionCookie)?.value
+    if (!token) {
+      return Response.json(
+        { message: "Authentication required" },
+        { status: 401 }
+      )
+    }
+    headers.set("authorization", `Bearer ${token}`)
+  }
+  return fetch(`${apiBaseUrl()}${path}`, {
+    ...init,
+    headers,
+    cache: "no-store",
+  })
+}
+
+export async function apiJson(response: Response) {
+  const body: unknown = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    const message =
+      typeof body === "object" && body !== null && "message" in body
+        ? Array.isArray(body.message)
+          ? body.message.join(". ")
+          : String(body.message)
+        : "The request could not be completed"
+    throw new ApiError(response.status, message)
+  }
+  return body
+}
+
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    message: string
+  ) {
+    super(message)
+  }
+}
+
+export function noStoreJson(body: unknown, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: { ...init?.headers, "cache-control": "no-store" },
+  })
+}
+
+export function setAgentSession(
+  response: NextResponse,
+  token: string,
+  expiresAt: string
+) {
+  setSecureCookie(response, agentSessionCookie, token, expiresAt)
+}
+
+export function setRegistrationSession(
+  response: NextResponse,
+  token: string,
+  expiresAt: string
+) {
+  setSecureCookie(response, registrationCookie, token, expiresAt)
+}
+
+function setSecureCookie(
+  response: NextResponse,
+  name: string,
+  value: string,
+  expiresAt: string
+) {
+  const expires = new Date(expiresAt)
+  response.cookies.set(name, value, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    expires: Number.isNaN(expires.getTime()) ? undefined : expires,
+  })
+}
+
+export function clearCookie(response: NextResponse, name: string) {
+  response.cookies.set(name, "", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 0,
+  })
+}
+
+export function requireSameOrigin(request: NextRequest) {
+  const origin = request.headers.get("origin")
+  if (origin && origin !== request.nextUrl.origin) {
+    throw new ApiError(403, "Cross-site requests are not allowed")
+  }
+}
+
+export function routeError(error: unknown, fallback: string) {
+  return noStoreJson(
+    { message: error instanceof Error ? error.message : fallback },
+    { status: error instanceof ApiError ? error.status : 500 }
+  )
+}

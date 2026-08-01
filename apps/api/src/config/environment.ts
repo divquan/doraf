@@ -8,6 +8,13 @@ export interface AppEnvironment {
   VOUCHER_FINGERPRINT_KEY_BASE64: string;
   SESSION_FINGERPRINT_KEY_BASE64: string;
   INTERNAL_ENROLLMENT_FINGERPRINT_KEY_BASE64: string;
+  AGENT_PHONE_ENCRYPTION_KEY_BASE64: string;
+  AGENT_PHONE_FINGERPRINT_KEY_BASE64: string;
+  OTP_FINGERPRINT_KEY_BASE64: string;
+  AGENT_AUTH_OTP_TTL_SECONDS: number;
+  AGENT_AUTH_OTP_MAX_ATTEMPTS: number;
+  AGENT_AUTH_REGISTRATION_TTL_SECONDS: number;
+  AGENT_AUTH_SESSION_TTL_SECONDS: number;
   INTERNAL_AUTH_RP_NAME: string;
   INTERNAL_AUTH_RP_ID: string;
   INTERNAL_AUTH_ORIGIN: string;
@@ -70,6 +77,24 @@ export function validateEnvironment(
     32,
     false,
   );
+  const agentPhoneEncryptionKey = requiredBase64Key(
+    raw.AGENT_PHONE_ENCRYPTION_KEY_BASE64,
+    'AGENT_PHONE_ENCRYPTION_KEY_BASE64',
+    32,
+    true,
+  );
+  const agentPhoneFingerprintKey = requiredBase64Key(
+    raw.AGENT_PHONE_FINGERPRINT_KEY_BASE64,
+    'AGENT_PHONE_FINGERPRINT_KEY_BASE64',
+    32,
+    false,
+  );
+  const otpFingerprintKey = requiredBase64Key(
+    raw.OTP_FINGERPRINT_KEY_BASE64,
+    'OTP_FINGERPRINT_KEY_BASE64',
+    32,
+    false,
+  );
 
   const relyingPartyName = requiredString(
     raw.INTERNAL_AUTH_RP_NAME,
@@ -109,6 +134,22 @@ export function validateEnvironment(
     raw.INTERNAL_ENROLLMENT_TTL_SECONDS ?? 900,
     'INTERNAL_ENROLLMENT_TTL_SECONDS',
   );
+  const agentOtpTtlSeconds = positiveInteger(
+    raw.AGENT_AUTH_OTP_TTL_SECONDS ?? 300,
+    'AGENT_AUTH_OTP_TTL_SECONDS',
+  );
+  const agentOtpMaxAttempts = positiveInteger(
+    raw.AGENT_AUTH_OTP_MAX_ATTEMPTS ?? 5,
+    'AGENT_AUTH_OTP_MAX_ATTEMPTS',
+  );
+  const agentRegistrationTtlSeconds = positiveInteger(
+    raw.AGENT_AUTH_REGISTRATION_TTL_SECONDS ?? 900,
+    'AGENT_AUTH_REGISTRATION_TTL_SECONDS',
+  );
+  const agentSessionTtlSeconds = positiveInteger(
+    raw.AGENT_AUTH_SESSION_TTL_SECONDS ?? 2_592_000,
+    'AGENT_AUTH_SESSION_TTL_SECONDS',
+  );
 
   return {
     NODE_ENV: nodeEnvironment as NodeEnvironment,
@@ -118,6 +159,13 @@ export function validateEnvironment(
     VOUCHER_FINGERPRINT_KEY_BASE64: voucherFingerprintKey,
     SESSION_FINGERPRINT_KEY_BASE64: sessionFingerprintKey,
     INTERNAL_ENROLLMENT_FINGERPRINT_KEY_BASE64: enrollmentFingerprintKey,
+    AGENT_PHONE_ENCRYPTION_KEY_BASE64: agentPhoneEncryptionKey,
+    AGENT_PHONE_FINGERPRINT_KEY_BASE64: agentPhoneFingerprintKey,
+    OTP_FINGERPRINT_KEY_BASE64: otpFingerprintKey,
+    AGENT_AUTH_OTP_TTL_SECONDS: agentOtpTtlSeconds,
+    AGENT_AUTH_OTP_MAX_ATTEMPTS: agentOtpMaxAttempts,
+    AGENT_AUTH_REGISTRATION_TTL_SECONDS: agentRegistrationTtlSeconds,
+    AGENT_AUTH_SESSION_TTL_SECONDS: agentSessionTtlSeconds,
     INTERNAL_AUTH_RP_NAME: relyingPartyName,
     INTERNAL_AUTH_RP_ID: relyingPartyId,
     INTERNAL_AUTH_ORIGIN: origin,

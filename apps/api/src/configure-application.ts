@@ -5,6 +5,7 @@ import {
   VersioningType,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { HttpRequestLoggingInterceptor } from './http-request-logging.interceptor';
 
 export function configureApplication(app: INestApplication): void {
   const server = app.getHttpAdapter().getInstance() as {
@@ -23,5 +24,8 @@ export function configureApplication(app: INestApplication): void {
       transform: true,
     }),
   );
-  app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
+  app.useGlobalInterceptors(
+    new HttpRequestLoggingInterceptor(),
+    new ClassSerializerInterceptor(app.get(Reflector)),
+  );
 }

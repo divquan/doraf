@@ -23,17 +23,18 @@ complete when its exit criteria in `delivery-phases.md` pass.
 
 ## Current position
 
-The API foundation, product catalog, encrypted inventory import backend, and
-internal passkey authentication backend are implemented. The administration
-application now has the initial passkey flow; the agent web application remains
-a scaffold.
+The API foundation, product catalog, encrypted inventory import backend, internal
+passkey authentication backend, and first agent OTP authentication slice are
+implemented. The administration application has a working passkey flow, and the
+agent application now has production-shaped registration, sign-in, and protected
+workspace screens.
 
-**Next slice:** run browser-level passkey enrollment and authentication tests
-against a configured API/test database, including session expiry and invitation
-authorization cases.
+**Next slice:** verify agent registration, returning sign-in, logout, expired OTP,
+attempt-limit, and suspended read-only behavior in browser and database tests.
 
-After that, continue Phase 2 with agent onboarding, SMS OTP, pricing,
-permanent sales-channel identifiers, and agent retail-price configuration.
+After that, continue Phase 2 with pricing, permanent sales-channel identifiers,
+and agent retail-price configuration after resolving the documented identifier
+format and default-price questions.
 
 ## Capability status
 
@@ -42,10 +43,10 @@ permanent sales-channel identifiers, and agent retail-price configuration.
 | API and PostgreSQL foundation | Complete | NestJS modular API, Prisma migrations, health/readiness endpoints, PostgreSQL constraint tests | Continue applying these conventions to later domains |
 | Three-product catalog | Complete | Stable `BECE`, `WASSCE`, and `NOVDEC_PRIVATE` seed records and catalog endpoint | Products remain unavailable until pricing and stock are configured |
 | Internal operator authentication backend | Complete | Passkey enrollment/authentication ceremonies, opaque revocable sessions, logout, bootstrap command, invitation endpoints, rate limits | Shared/edge production rate limiting |
-| Administration passkey UI | Partial | Passkey enrollment/login screens, same-origin gateway with HttpOnly session cookie, logout, protected dashboard navigation, and Administrator invitation UI | Browser-level passkey ceremony tests against configured API/test database; session-expiry and invitation-authorization coverage |
+| Administration passkey UI | Partial | Passkey enrollment/login screens, same-origin gateway with HttpOnly session cookie, logout, protected dashboard navigation, Administrator invitation UI, and successful manual enrollment/authentication/invitation testing | Session-expiry and Support invitation-authorization coverage |
 | Internal authorization and audit baseline | Partial | Administrator/Support RBAC, server-side session checks, append-only audit events for implemented sensitive actions | Extend policies and audit coverage to every later administration workflow |
 | Encrypted inventory import backend | Complete | Whole-batch CSV validation, duplicate fingerprints, envelope encryption under an application-held master key, atomic import and audit | Administration upload UI, inventory management, quarantine, reservations, low-stock alerts, and master-key recovery exercise |
-| Agent identity and tenancy | Partial | Agent-tenant schema and protected phone-storage foundation | Registration, SMS OTP, sessions, recovery, suspension behavior, and authorization tests |
+| Agent identity and tenancy | Partial | Encrypted/fingerprinted Ghana phone storage, individual tenant creation, attempt-limited SMS OTP registration and sign-in, revocable sessions, development SMS adapter, and polished agent auth/protected-workspace UI | Browser/database flow coverage, production SMS adapter, recovery, suspension administration, and tenant authorization tests |
 | Pricing and agent sales channels | Partial | Pricing-policy, per-agent override, and agent-price schema foundation | Commands/APIs, effective-price evaluation, clamping, audit, permanent web links, and USSD codes |
 | Order and payment foundation | Not started | Confirmed requirements and state-machine documentation | Orders, snapshots, reservations, payment attempts/events, Paystack adapter, webhook handling, outbox, and idempotency |
 | Web storefront and fulfillment | Not started | Confirmed product and flow documentation | Storefront, guest checkout, allocation, SMS/email delivery, and end-to-end sandbox sale |

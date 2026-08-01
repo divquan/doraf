@@ -16,6 +16,13 @@ enum AgentStatus {
   @@map("agent_status")
 }
 
+enum OtpPurpose {
+  AGENT_REGISTRATION
+  AGENT_SIGN_IN
+
+  @@map("otp_purpose")
+}
+
 enum ProductStatus {
   ACTIVE
   UNAVAILABLE
@@ -93,9 +100,35 @@ model Agent {
   pricingOverrides AgentPricingOverride[]
   productPrices    AgentProductPrice[]
   sessions         Session[]
+  otpChallenges    OtpChallenge[]
 
   @@index([status])
   @@map("agent")
+}
+
+model OtpChallenge {
+  id                         String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  purpose                    OtpPurpose
+  agentId                    String?    @map("agent_id") @db.Uuid
+  phoneCiphertext            Bytes      @map("phone_ciphertext")
+  phoneFingerprint           Bytes      @map("phone_fingerprint")
+  phoneMask                  String     @map("phone_mask") @db.VarChar(32)
+  encryptionKeyId            String     @map("encryption_key_id") @db.VarChar(100)
+  formatVersion              Int        @default(1) @map("format_version")
+  verifierFingerprint        Bytes      @map("verifier_fingerprint")
+  attemptCount               Int        @default(0) @map("attempt_count")
+  maxAttempts                Int        @map("max_attempts")
+  expiresAt                  DateTime   @map("expires_at") @db.Timestamptz(6)
+  consumedAt                 DateTime?  @map("consumed_at") @db.Timestamptz(6)
+  completionTokenFingerprint Bytes?     @unique @map("completion_token_fingerprint")
+  completionExpiresAt        DateTime?  @map("completion_expires_at") @db.Timestamptz(6)
+  completedAt                DateTime?  @map("completed_at") @db.Timestamptz(6)
+  createdAt                  DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  agent                      Agent?     @relation(fields: [agentId], references: [id], onDelete: Restrict)
+
+  @@index([phoneFingerprint, purpose, expiresAt])
+  @@index([agentId, purpose, expiresAt])
+  @@map("otp_challenge")
 }
 
 model InternalUser {
