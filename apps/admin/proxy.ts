@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
 const sessionCookieName = "doraf_internal_session"
-const protectedPaths = ["/dashboard"]
+const protectedPaths = ["/dashboard", "/inventory"]
 
 export function proxy(request: NextRequest) {
   if (
@@ -13,4 +13,4 @@ export function proxy(request: NextRequest) {
   return NextResponse.next()
 }
 
-export const config = { matcher: ["/dashboard/:path*"] }
+export const config = { matcher: ["/dashboard/:path*", "/inventory/:path*"] }

@@ -1,6 +1,7 @@
 "use client"
 
 import { FormEvent, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import {
   Alert,
   AlertDescription,
@@ -61,6 +62,7 @@ export function ManualInventoryForm({
 }: {
   products: ProductOption[]
 }) {
+  const router = useRouter()
   const nextEntryId = useRef(2)
   const [entries, setEntries] = useState<VoucherEntry[]>([
     { id: 1, serialNumber: "", pin: "" },
@@ -181,6 +183,7 @@ export function ManualInventoryForm({
         setMessage(
           `${importedCount} voucher ${importedCount === 1 ? "was" : "were"} encrypted and added to available inventory.`
         )
+        router.refresh()
       }
     } catch (error) {
       setMessage(

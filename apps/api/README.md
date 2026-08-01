@@ -29,6 +29,8 @@ The current HTTP surface is:
 - `GET /v1/catalog/products`
 - `POST /v1/admin/inventory/imports/preview` (Administrator)
 - `POST /v1/admin/inventory/imports` (Administrator)
+- `GET /v1/admin/inventory` (Administrator and Support)
+- `GET /v1/admin/inventory/batches/:batchId` (Administrator and Support)
 - `POST /v1/internal-auth/passkeys/registration/options`
 - `POST /v1/internal-auth/passkeys/registration/verify`
 - `POST /v1/internal-auth/passkeys/authentication/options`
@@ -109,6 +111,13 @@ handler applies the same clamping rules when the event becomes available.
 structured manual entries containing `serialNumber` and `pin`. The complete set
 is rejected when any entry is invalid or duplicates existing inventory. CSV
 upload is outside the MVP.
+
+The inventory overview reports authoritative voucher counts by product and
+state plus the 25 most recent committed batches. Batch detail returns only
+masked serial numbers and PINs with operational state; voucher ciphertext,
+fingerprints, and encryption-key material are never projected into these read
+responses. Both read routes require an Administrator or Support session and
+disable response caching.
 
 Inventory registration uses `InventoryModule.registerMasterKey()` and requires
 independent `VOUCHER_MASTER_KEY_BASE64` and `VOUCHER_FINGERPRINT_KEY_BASE64`

@@ -32,6 +32,10 @@ describe('AppController (e2e)', () => {
       .expect(401);
   });
 
+  it('denies anonymous inventory read access', () => {
+    return request(app.getHttpServer()).get('/v1/admin/inventory').expect(401);
+  });
+
   it('validates passkey enrollment input before accessing persistence', () => {
     return request(app.getHttpServer())
       .post('/v1/internal-auth/passkeys/registration/options')

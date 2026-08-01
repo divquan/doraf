@@ -84,8 +84,14 @@ cannot bypass it. CSV upload is outside the MVP.
 
 Only successfully committed batches are stored in `InventoryBatch`; therefore
 the presence of a batch means the import completed. A failed preview creates no
-batch or vouchers. The future authenticated administration/audit slice records
-the attempted action without treating a rejected file as inventory.
+batch or vouchers. Authenticated commit attempts are audited without treating a
+rejected batch as inventory.
+
+Administrator and Support inventory views derive product totals from voucher
+state, rather than from a separately maintained counter. Recent batch history
+and batch detail expose masked serial numbers and PINs only. Ciphertext,
+fingerprints, wrapped data keys, and key versions remain outside the inventory
+read model.
 
 Commit creates the batch, all encrypted vouchers, and one append-only import
 event per voucher in a single serializable transaction. Database uniqueness is

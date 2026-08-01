@@ -7,6 +7,7 @@ import { AesGcmVoucherCrypto } from '../src/inventory/aes-gcm-voucher.crypto';
 import { CsvInventoryParser } from '../src/inventory/csv-inventory.parser';
 import { InventoryImportValidationError } from '../src/inventory/inventory.errors';
 import { InventoryImportService } from '../src/inventory/inventory-import.service';
+import { InventoryReadService } from '../src/inventory/inventory-read.service';
 import {
   INVENTORY_REPOSITORY,
   VOUCHER_CRYPTO,
@@ -57,6 +58,7 @@ describe('inventory import transaction', () => {
         },
         { provide: VOUCHER_CRYPTO, useValue: crypto },
         InventoryImportService,
+        InventoryReadService,
       ],
     }).compile();
     service = module.get(InventoryImportService);
@@ -142,6 +144,43 @@ describe('inventory import transaction', () => {
     ).rejects.toBeInstanceOf(InventoryImportValidationError);
 
     await expect(prisma.inventoryBatch.count()).resolves.toBe(before);
+  });
+
+  it('reports authoritative counts and returns only masked batch credentials', async () => {
+    const readService = module.get(InventoryReadService);
+    const serialNumber = `READ${randomUUID().replaceAll('-', '')}`;
+    const pin = randomPin();
+    const result = await service.importEntries({
+      productId,
+      vendorName: 'Read Model Test Vendor',
+      vendorReference: `READ-${randomUUID()}`,
+      acquisitionDate: new Date('2026-07-31T00:00:00Z'),
+      unitAcquisitionCostMinor: 1_600n,
+      uploadedByActorId: administratorId,
+      actorRole: 'ADMINISTRATOR',
+      authenticationStrength: 'PHISHING_RESISTANT',
+      reason: 'Integration test read model import',
+      requestId: randomUUID(),
+      entries: [{ serialNumber, pin }],
+    });
+
+    const overview = await readService.getOverview();
+    const product = overview.products.find((item) => item.id === productId);
+    expect(product?.counts.available).toBeGreaterThanOrEqual(1);
+    expect(overview.batches.some((batch) => batch.id === result.batchId)).toBe(
+      true,
+    );
+
+    const detail = await readService.getBatch(result.batchId);
+    expect(detail.vouchers).toHaveLength(1);
+    expect(detail.vouchers[0]?.serialMask).not.toBe(serialNumber);
+    expect(detail.vouchers[0]?.pinMask).not.toBe(pin);
+    const serialized = JSON.stringify(detail);
+    expect(serialized).not.toContain(serialNumber);
+    expect(serialized).not.toContain(pin);
+    expect(serialized).not.toMatch(
+      /ciphertext|fingerprint|encryptedDataKey|keyVersion/i,
+    );
   });
 });
 

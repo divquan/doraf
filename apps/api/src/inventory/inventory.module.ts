@@ -7,6 +7,8 @@ import { CsvInventoryParser } from './csv-inventory.parser';
 import { MasterKeyVoucherKeyProvider } from './master-key-voucher-key.provider';
 import { InventoryImportService } from './inventory-import.service';
 import { InventoryImportController } from './inventory-import.controller';
+import { InventoryReadController } from './inventory-read.controller';
+import { InventoryReadService } from './inventory-read.service';
 import { InventoryImportExceptionFilter } from './inventory-import-exception.filter';
 import {
   INVENTORY_REPOSITORY,
@@ -55,7 +57,7 @@ export class InventoryModule {
     return {
       module: InventoryModule,
       imports: [InternalAccessModule],
-      controllers: [InventoryImportController],
+      controllers: [InventoryImportController, InventoryReadController],
       providers: [
         CsvInventoryParser,
         PrismaInventoryRepository,
@@ -65,6 +67,7 @@ export class InventoryModule {
         },
         cryptoProvider,
         InventoryImportService,
+        InventoryReadService,
         InventoryImportExceptionFilter,
       ],
       exports: [InventoryImportService],

@@ -52,6 +52,7 @@ import { NoStoreInterceptor } from './no-store.interceptor';
     INTERNAL_SESSION_REPOSITORY,
     InternalSessionGuard,
     InternalRolesGuard,
+    NoStoreInterceptor,
   ],
 })
 export class InternalAccessModule {}

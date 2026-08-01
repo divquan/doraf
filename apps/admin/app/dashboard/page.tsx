@@ -3,16 +3,26 @@ import { AgentManagement } from "@/components/agent-management"
 import { InviteInternalUserForm } from "@/components/invite-internal-user-form"
 import { LogoutButton } from "@/components/logout-button"
 import { ManualInventoryForm } from "@/components/manual-inventory-form"
+import {
+  InventoryOverview,
+  type InventoryOverviewData,
+} from "@/components/inventory-overview"
 import { PricingControls } from "@/components/pricing-controls"
 import { ProductAvailability } from "@/components/product-availability"
 import { apiJson, apiRequest } from "@/lib/internal-api"
 
 export default async function DashboardPage() {
-  const response = await apiRequest("/admin/products/pricing", {}, true)
-  if (response.status === 401) redirect("/login")
-  const pricing = (await apiJson(response)) as Parameters<
+  const [pricingResponse, inventoryResponse] = await Promise.all([
+    apiRequest("/admin/products/pricing", {}, true),
+    apiRequest("/admin/inventory", {}, true),
+  ])
+  if (pricingResponse.status === 401 || inventoryResponse.status === 401) {
+    redirect("/login")
+  }
+  const pricing = (await apiJson(pricingResponse)) as Parameters<
     typeof PricingControls
   >[0]["data"]
+  const inventory = (await apiJson(inventoryResponse)) as InventoryOverviewData
   return (
     <main className="mx-auto flex min-h-svh max-w-5xl flex-col gap-10 p-6 md:p-10">
       <header className="flex items-center justify-between gap-4">
@@ -24,17 +34,19 @@ export default async function DashboardPage() {
         </div>
         <LogoutButton />
       </header>
-      {pricing.viewerRole === "ADMINISTRATOR" ? (
-        <section className="flex flex-col gap-4">
-          <div>
-            <h2 className="text-2xl font-semibold">Inventory intake</h2>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Validate and securely add checker credentials to available stock.
-            </p>
-          </div>
+      <section className="flex flex-col gap-4">
+        <div>
+          <h2 className="text-2xl font-semibold">Inventory operations</h2>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
+            Monitor authoritative stock counts and review securely masked batch
+            history.
+          </p>
+        </div>
+        <InventoryOverview data={inventory} />
+        {pricing.viewerRole === "ADMINISTRATOR" ? (
           <ManualInventoryForm products={pricing.products} />
-        </section>
-      ) : null}
+        ) : null}
+      </section>
       <section className="space-y-4">
         <div>
           <h2 className="text-2xl font-semibold">Pricing operations</h2>
