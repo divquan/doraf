@@ -1,7 +1,7 @@
 # Platform brief
 
-Status: Discovery  
-Last updated: 2026-07-30
+Status: Confirmed MVP scope
+Last updated: 2026-08-01
 
 ## Product summary
 
@@ -10,7 +10,8 @@ WAEC result-checking PINs for a profit.
 
 The platform operates as a multi-tenant agent system. An agent signs up, sets a
 retail price, and distributes personalized sales channels to prospective
-buyers. The currently identified channels are a web sales link and a USSD code.
+buyers. The MVP sales channel is a permanent personalized web link. USSD is
+deferred until after the MVP.
 
 When a buyer purchases through an agent's channel:
 
@@ -41,8 +42,8 @@ yet defined.
 
 ### PF-004 — Agent-attributed sales channels
 
-Each agent can distribute a personalized web sales link and USSD code. Purchases
-through either channel must be attributed to the correct agent.
+Each agent can distribute one permanent personalized web sales link. Purchases
+through that link must be attributed to the correct active agent.
 
 ### PF-005 — Mobile Money collection
 
@@ -167,7 +168,7 @@ margin.
 
 An agent selects a retail price at or above the effective base price and at or
 below the effective retail-price maximum. Each agent has one active retail
-price per PIN product across web and USSD channels.
+price per PIN product across the web channel.
 
 ### PF-027 — Agent profit
 
@@ -364,42 +365,11 @@ reference, and fresh inventory reservation.
 The time for which the order's original pricing snapshot remains payable is
 still to be defined.
 
-### PF-050 — Shared USSD service and agent codes
+### PF-050 through PF-054 — USSD purchase
 
-Doraf uses one shared USSD service code. Each agent receives a short, unique
-referral code.
-
-When supported by the USSD provider, an agent can share a direct dial string
-containing the referral code. Otherwise, the buyer dials the shared service code
-and enters the agent code during the session.
-
-### PF-051 — USSD phone-number defaults
-
-The phone number supplied by the USSD session is the default SMS delivery number
-and Mobile Money payer number. The buyer can replace either value and selects
-the payer's Mobile Money network.
-
-### PF-052 — SMS-only USSD checkout
-
-USSD checkout does not collect an optional delivery email. Successfully
-purchased vouchers are delivered by SMS. Optional email delivery remains
-available through web checkout.
-
-### PF-053 — Asynchronous USSD payment
-
-After the buyer confirms, Doraf creates the order, reserves inventory, and
-initiates Paystack payment. The USSD response tells the buyer to authorize the
-Mobile Money prompt and expect voucher delivery by SMS.
-
-The USSD session ends without waiting for payment confirmation. Webhooks,
-verification, inventory sale, wallet credit, and delivery use the same core
-lifecycle as web checkout.
-
-### PF-054 — USSD failure and recovery messaging
-
-A terminal payment failure sends an SMS containing a safe web retry link.
-Status, failure, and voucher-delivery messages include the order reference
-needed for support and buyer recovery.
+Deferred until after the MVP by product-owner decision on 2026-08-01. These
+requirements are retained as post-MVP discovery history and are not launch
+criteria.
 
 ### PF-055 — Payment reversal to agent wallet
 
@@ -608,10 +578,10 @@ and resulting inventory and wallet movements are audited.
 
 ### PF-083 — Permanent agent sales channels
 
-Each agent receives one permanent personalized web sales link and one permanent
-USSD referral code. The portal provides copy and share actions for both.
+Each agent receives one permanent personalized web sales link. The portal
+provides copy and device-share actions.
 
-Retired agent referral codes are never assigned to another agent.
+Permanent web identifiers are never assigned to another agent.
 
 ### PF-084 — Agent pricing controls
 
@@ -804,7 +774,7 @@ details, or age.
 ### PF-111 — Provider data controls
 
 Doraf maintains written processing and security terms with payment, SMS, email,
-USSD, hosting, monitoring, and support providers. Data locations and
+hosting, monitoring, and support providers. Data locations and
 cross-border processing are documented and reviewed.
 
 ### PF-112 — Data rights and retention
@@ -852,7 +822,7 @@ Production launch is blocked until Doraf completes:
 ### PF-117 — Confirmed MVP boundary
 
 The MVP includes the complete controlled lifecycle from individual agent
-registration through attributed web and USSD sales, payment, encrypted
+registration through attributed web sales, payment, encrypted
 inventory allocation, delivery, recovery, ledger credit, withdrawal, disputes,
 reconciliation, and internal operations.
 
@@ -887,6 +857,6 @@ These are proposed and require measurable targets:
 
 - Whether wallet funds may be spent inside the platform
 - Whether refunds or PIN replacements are supported
-- Whether a single agent receives one or multiple web links and USSD identifiers
+- Whether post-MVP campaign links or USSD identifiers are introduced
 - The acceptable evidence an Administrator must collect before account recovery
 - The production domain used for synthetic Paystack customer emails

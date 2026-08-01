@@ -50,15 +50,12 @@ needed to operate real money and secret voucher inventory.
 ### Sales channels
 
 - One permanent personalized web link per agent
-- One permanent USSD referral code per agent
-- Shared USSD service
 - Immutable agent and channel attribution
-- Codes never reassigned
+- Web identifiers never reassigned
 
 ### Buyer checkout
 
 - Guest web checkout
-- Guest USSD checkout
 - One checker product per order
 - Quantity from one to five
 - Required SMS delivery number
@@ -178,7 +175,8 @@ needed to operate real money and secret voucher inventory.
 - Coupons, promotions, or quantity discounts
 - Custom domains
 - Custom storefront branding
-- Multiple campaign links or USSD codes
+- Multiple campaign links
+- USSD purchase and referral codes
 - Customer lists, CRM, or buyer marketing
 
 ### Applications and automation

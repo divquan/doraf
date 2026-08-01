@@ -142,7 +142,10 @@ design.
 The delivery and dispute policies now define recoverable delivery and qualifying
 replacement behavior.
 
-## Resolved in Topic 5 — USSD purchase
+## Superseded Topic 5 — USSD purchase
+
+USSD was removed from the MVP by product-owner decision on 2026-08-01. The
+items below are retained as post-MVP discovery history.
 
 - Doraf uses one shared USSD service code and one short unique referral code per
   agent.
@@ -160,7 +163,7 @@ replacement behavior.
 - Terminal failure sends an SMS with the order reference and safe retry link.
 - Successful delivery includes the order reference.
 
-## Open after Topic 5
+## Deferred until after MVP
 
 1. Which USSD provider and shared code will Doraf use?
 2. Does the provider support agent codes in the initial dial string?
@@ -262,9 +265,9 @@ replacement behavior.
 
 ## Resolved in Topic 9 — Agent portal
 
-- Agents receive one permanent web link and USSD referral code.
-- Retired referral codes are never reassigned.
-- Agents can copy and share both channels.
+- Agents receive one permanent web link.
+- Permanent web identifiers are never reassigned.
+- Agents can copy and share the web link.
 - Agents manage one retail price per product within their effective range.
 - Product availability is binary; central quantities and costs are hidden.
 - Dashboard summaries cover today, 7 days, 30 days, and lifetime.
@@ -285,7 +288,9 @@ replacement behavior.
 
 1. Which agent events use in-portal notification, SMS, or both?
 2. Does Doraf assign a default retail price before an agent sets one?
-3. What exact web-link and USSD-code formats will providers and branding use?
+3. Resolved 2026-08-01: the MVP web link is `/buy/{public-id}` using a
+   non-sequential lowercase 24-character hexadecimal identifier. USSD is
+   deferred until after the MVP.
 
 ## Resolved in Topic 10 — Administration portal
 

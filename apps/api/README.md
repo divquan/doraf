@@ -40,14 +40,18 @@ The current HTTP surface is:
 - `POST /v1/admin/agents/:agentId/restore` (Administrator)
 - `POST /v1/admin/products/:productId/pricing-policies` (Administrator)
 - `POST /v1/admin/products/:productId/agent-overrides/:agentId` (Administrator)
+- `POST /v1/admin/products/:productId/status` (Administrator)
 - `POST /v1/agent-auth/registration/otp`
 - `POST /v1/agent-auth/registration/verify`
 - `POST /v1/agent-auth/registration/complete`
 - `POST /v1/agent-auth/login/otp`
 - `POST /v1/agent-auth/login/verify`
 - `GET /v1/agent-auth/session`
+- `GET /v1/agent-auth/prices`
 - `POST /v1/agent-auth/logout`
 - `POST /v1/agent-auth/prices/:productId`
+- `GET /v1/agent-auth/sales-channel`
+- `GET /v1/sales-channels/web/:webSalesId` (public active-agent resolution)
 
 Products are seeded as `UNAVAILABLE`; checkout must not expose them until valid
 pricing and inventory exist.

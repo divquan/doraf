@@ -2,7 +2,6 @@ import { redirect } from "next/navigation"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   CheckmarkCircle02Icon,
-  Link01Icon,
   SecurityCheckIcon,
   Wallet01Icon,
 } from "@hugeicons/core-free-icons"
@@ -23,6 +22,7 @@ import { Separator } from "@workspace/ui/components/separator"
 import { DorafMark } from "@/components/doraf-mark"
 import { LogoutButton } from "@/components/logout-button"
 import { AgentPricingRow, PricingGrid } from "@/components/pricing-grid"
+import { SalesLinkCard } from "@/components/sales-link-card"
 import { apiJson, apiRequest } from "@/lib/agent-api"
 
 interface AgentSession {
@@ -35,12 +35,13 @@ interface AgentSession {
   }
 }
 
+interface SalesChannel {
+  publicId: string
+  path: string
+  type: "WEB"
+}
+
 const upcoming = [
-  {
-    icon: Link01Icon,
-    title: "Your sales channels",
-    description: "A permanent web link and USSD referral code.",
-  },
   {
     icon: Wallet01Icon,
     title: "Sales and earnings",
@@ -49,15 +50,21 @@ const upcoming = [
 ]
 
 export default async function DashboardPage() {
-  const [response, pricesResponse] = await Promise.all([
+  const [response, pricesResponse, channelResponse] = await Promise.all([
     apiRequest("/agent-auth/session", {}, true),
     apiRequest("/agent-auth/prices", {}, true),
+    apiRequest("/agent-auth/sales-channel", {}, true),
   ])
   if (response.status === 401) {
     redirect("/login")
   }
   const { agent } = (await apiJson(response)) as AgentSession
   const prices = (await apiJson(pricesResponse)) as AgentPricingRow[]
+  const channel = (await apiJson(channelResponse)) as SalesChannel
+  const salesUrl = new URL(
+    channel.path,
+    process.env.DORAF_AGENT_WEB_URL ?? "http://localhost:3002"
+  ).toString()
   const firstName = agent.name.split(/\s+/)[0] ?? agent.name
 
   return (
@@ -112,6 +119,13 @@ export default async function DashboardPage() {
             </p>
           </div>
           <PricingGrid rows={prices} readOnly={agent.status === "SUSPENDED"} />
+        </section>
+
+        <section>
+          <SalesLinkCard
+            readOnly={agent.status === "SUSPENDED"}
+            salesUrl={salesUrl}
+          />
         </section>
 
         <section className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">

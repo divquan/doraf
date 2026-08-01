@@ -87,7 +87,7 @@ function PriceCard({
     parsedMinor <= row.pricing.maximumRetailPriceMinor
   const profit = valid ? parsedMinor - row.pricing.basePriceMinor : null
 
-  async function submit(event: FormEvent) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!valid || readOnly) return
     setPending(true)
@@ -181,7 +181,11 @@ function PriceCard({
           ) : null}
         </CardContent>
         <CardFooter className="border-t bg-muted/15 pt-4">
-          <Button className="w-full" disabled={!valid || readOnly || pending}>
+          <Button
+            className="w-full"
+            disabled={!valid || readOnly || pending}
+            type="submit"
+          >
             {pending
               ? "Saving…"
               : row.pricing.retailPriceMinor === null

@@ -12,11 +12,11 @@ blocked until every required gate is complete.
 ### Outcomes
 
 - Confirm product and vendor authority.
-- Select and engage Paystack, SMS, email, and USSD providers.
+- Select and engage Paystack, SMS, and email providers.
 - Obtain sandbox credentials and current integration specifications.
 - Begin data-protection, payment-regulatory, tax, accounting, and minor-related
   reviews.
-- Confirm production domains, sender identities, and USSD feasibility.
+- Confirm production domains and sender identities.
 
 ### Exit criteria
 
@@ -55,7 +55,7 @@ blocking provider or legal issue must not be ignored.
 - Three-product catalog
 - Default and per-agent pricing policies
 - Individual agent onboarding
-- Permanent web links and USSD referral codes
+- Permanent personalized web links
 - Agent retail-price setup
 - Encrypted inventory batch validation and import
 - Inventory state management and low-stock alerts
@@ -127,7 +127,10 @@ blocking provider or legal issue must not be ignored.
 - Sale reversals can create and recover from negative balances correctly.
 - Agent reports reconcile to canonical orders and ledger entries.
 
-## Phase 6 — USSD channel
+## Deferred post-MVP — USSD channel
+
+This phase is not part of the MVP following the product-owner decision on
+2026-08-01.
 
 ### Outcomes
 

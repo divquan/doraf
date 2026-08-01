@@ -46,7 +46,7 @@ authorization and data-exposure rules.
 - authentication and authorization,
 - product and financial business rules,
 - database transactions,
-- web and USSD checkout behavior,
+- web checkout behavior,
 - provider integrations and webhooks,
 - administration commands,
 - audit records, and
@@ -87,8 +87,8 @@ provides private object storage, Cloud Run, Cloud Tasks, Pub/Sub, Secret
 Manager, and Cloud Logging. Voucher key wrapping uses the application-held
 master-key design in ADR-0012. See
 [Lean Supabase and Google Cloud infrastructure](lean-infrastructure-and-costs.md).
-The earlier AWS baseline is superseded. Specific SMS, email, and USSD providers
-remain open.
+The earlier AWS baseline is superseded. Specific SMS and email providers remain
+open.
 
 ## Context diagram
 
@@ -96,13 +96,11 @@ remain open.
 flowchart LR
     Agent[Agent] --> AgentWeb[Agent Web]
     Buyer[Guest Buyer] --> AgentWeb
-    Buyer --> USSD[USSD Provider]
     Admin[Administrator] --> AdminWeb[Admin Web]
     Support[Support] --> AdminWeb
 
     AgentWeb --> API[NestJS API]
     AdminWeb --> API
-    USSD --> API
 
     API --> DB[(PostgreSQL)]
     API --> Queue[Durable Queue]
@@ -119,7 +117,7 @@ flowchart LR
 
 ## Trust boundaries
 
-- Browsers and USSD requests are untrusted.
+- Browser requests are untrusted.
 - Provider webhooks are untrusted until authenticated and matched to expected
   records.
 - Next.js applications cannot bypass API authorization.

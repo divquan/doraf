@@ -20,6 +20,7 @@ import { VerifyAgentOtpRequest } from './dto/verify-agent-otp.request';
 import { AgentNoStoreInterceptor } from './agent-no-store.interceptor';
 import { PricingService } from '../pricing/pricing.service';
 import { SetAgentRetailPriceRequest } from '../pricing/dto/set-agent-retail-price.request';
+import { SalesChannelService } from './sales-channel.service';
 
 @Controller('agent-auth')
 @UseInterceptors(AgentNoStoreInterceptor)
@@ -27,6 +28,7 @@ export class AgentAuthController {
   constructor(
     private readonly authentication: AgentAuthService,
     private readonly pricing: PricingService,
+    private readonly salesChannels: SalesChannelService,
   ) {}
 
   @Post('registration/otp')
@@ -104,6 +106,12 @@ export class AgentAuthController {
   @UseGuards(AgentSessionGuard)
   listPrices(@CurrentAgentPrincipal() principal: AgentPrincipal) {
     return this.pricing.listForAgent(principal.agentId);
+  }
+
+  @Get('sales-channel')
+  @UseGuards(AgentSessionGuard)
+  salesChannel(@CurrentAgentPrincipal() principal: AgentPrincipal) {
+    return this.salesChannels.getForAgent(principal.agentId);
   }
 }
 

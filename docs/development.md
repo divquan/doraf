@@ -56,7 +56,9 @@ http://localhost:3001/login. The bootstrap command deliberately refuses to run
 after an internal user exists; create later operators through the authenticated
 Administration dashboard.
 
-The agent portal runs at http://localhost:3002. In development, sent OTPs are
+The agent portal and public attributed storefront run at http://localhost:3002.
+Set `DORAF_AGENT_WEB_URL=http://localhost:3002` in `apps/agent/.env` when
+overriding the example environment. In development, sent OTPs are
 written only to the API terminal so registration and sign-in can be tested
 without an SMS account. They are never returned to or displayed by the agent
 application. Production OTP requests fail closed until the selected SMS provider

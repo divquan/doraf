@@ -29,8 +29,8 @@ implemented. The administration application has a working passkey flow, and the
 agent application now has production-shaped registration, sign-in, and protected
 workspace screens.
 
-**Next slice:** complete permanent agent web-link and USSD referral identifiers,
-then expose inventory operations in the administration application. Manual
+**Next slice:** expose inventory operations in the administration application,
+then begin order, reservation, and payment foundations. Manual
 browser verification remains an explicit product-owner handoff.
 
 ## Capability status
@@ -43,13 +43,13 @@ browser verification remains an explicit product-owner handoff.
 | Administration passkey UI | Partial | Passkey enrollment/login screens, same-origin gateway with HttpOnly session cookie, logout, protected dashboard navigation, Administrator invitation UI, and successful manual enrollment/authentication/invitation testing | Session-expiry and Support invitation-authorization coverage |
 | Internal authorization and audit baseline | Partial | Administrator/Support RBAC, server-side session checks, append-only audit events for implemented sensitive actions | Extend policies and audit coverage to every later administration workflow |
 | Encrypted inventory import backend | Complete | Whole-batch CSV validation, duplicate fingerprints, envelope encryption under an application-held master key, atomic import and audit | Administration upload UI, inventory management, quarantine, reservations, low-stock alerts, and master-key recovery exercise |
-| Agent identity and tenancy | Partial | Encrypted/fingerprinted Ghana phone storage, individual tenant creation, attempt-limited SMS OTP registration and sign-in, revocable sessions, development SMS adapter, protected workspace UI, and audited Administrator suspension/restore API | Browser/database flow coverage, production SMS adapter, recovery evidence policy and implementation, suspension UI, and tenant authorization tests |
-| Pricing and agent sales channels | Partial | Complete pricing slice: effective policies and per-agent overrides, transactional idempotent writes, immediate and scheduled automatic clamping, audit/outbox records, PostgreSQL integration coverage, polished agent price/profit controls, and Administrator/Support pricing controls | Permanent web links and USSD referral codes |
+| Agent identity and tenancy | Partial | Encrypted/fingerprinted Ghana phone storage, individual tenant creation, attempt-limited SMS OTP registration and sign-in, revocable sessions, development SMS adapter, protected workspace UI, and audited Administrator suspension/restore API and UI | Browser/database flow coverage, production SMS adapter, recovery evidence policy and implementation, and tenant authorization tests |
+| Pricing and agent sales channels | Complete | Effective pricing and overrides; transactional idempotent writes; immediate and scheduled clamping; agent/admin pricing UI; permanent opaque web identifiers; active-agent attribution API; copy/share controls; public storefront route; PostgreSQL coverage | Checkout is owned by the later web-sale phase; USSD is deferred post-MVP |
 | Order and payment foundation | Not started | Confirmed requirements and state-machine documentation | Orders, snapshots, reservations, payment attempts/events, Paystack adapter, webhook handling, outbox, and idempotency |
 | Web storefront and fulfillment | Not started | Confirmed product and flow documentation | Storefront, guest checkout, allocation, SMS/email delivery, and end-to-end sandbox sale |
 | Exceptions, recovery, disputes, and refunds | Not started | Confirmed policies and flows | Reconciliation, late/duplicate/reversed payment handling, buyer recovery, replacements, and refunds |
 | Agent wallet and withdrawals | Not started | Confirmed append-only ledger decision and withdrawal policy | Ledger, balances, holds, requests, approvals, Paystack transfers, and reconciliation |
-| USSD purchase channel | Not started | Confirmed shared-code flow | Provider adapter, menus, replay protection, timeout handling, and shared purchase lifecycle |
+| USSD purchase channel | Deferred | Removed from MVP by product-owner decision on 2026-08-01 | Reassess after MVP launch evidence |
 | Reporting and operations | Not started | Confirmed metric and reconciliation requirements | Dashboards, queues, invariant checks, daily reconciliation, cases, exports, alerts, and runbooks |
 | Production readiness | External | Infrastructure and launch requirements are documented | Provider approvals, compliance evidence, security testing, recovery exercise, training, and go-live sign-off |
 
@@ -63,7 +63,7 @@ browser verification remains an explicit product-owner handoff.
 | Phase 3 — Web sale | Not started | A sandbox Mobile Money purchase fulfills and credits exactly once |
 | Phase 4 — Recovery and exception handling | Not started | Confirmed exception and recovery flows pass integration tests |
 | Phase 5 — Agent finance and portal | Not started | Wallet and withdrawal concurrency and reconciliation criteria pass |
-| Phase 6 — USSD channel | Not started | Provider-shaped replay, timeout, and attribution tests pass |
+| Phase 6 — USSD channel | Deferred post-MVP | Reassess after MVP launch evidence |
 | Phase 7 — Reporting and operations | Not started | A full test period reconciles with owned operational queues |
 | Phase 8 — Production readiness and launch | External | Every applicable launch gate has evidence and operator sign-off |
 
@@ -71,9 +71,9 @@ browser verification remains an explicit product-owner handoff.
 
 - Confirm WAEC vendor/resale and electronic-delivery authority.
 - Obtain Paystack sandbox and production onboarding evidence.
-- Select SMS, email, and USSD providers and obtain sandbox specifications.
+- Select SMS and email providers and obtain sandbox specifications.
 - Confirm the production domain, WebAuthn relying-party configuration, sender
-  identities, and USSD code feasibility.
+  identities.
 - Progress data-protection, payment-regulatory, tax, accounting, minors, and
   consumer-obligation reviews.
 

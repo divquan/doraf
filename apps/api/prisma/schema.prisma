@@ -99,6 +99,7 @@ model Agent {
   phoneCiphertext  Bytes                  @map("phone_ciphertext")
   phoneFingerprint Bytes                  @unique @map("phone_fingerprint")
   phoneMask        String                 @map("phone_mask") @db.VarChar(32)
+  webSalesId       String                 @unique @default(dbgenerated("lower(encode(gen_random_bytes(12), 'hex'::text))")) @map("web_sales_id") @db.VarChar(24)
   encryptionKeyId  String                 @map("encryption_key_id") @db.VarChar(100)
   formatVersion    Int                    @default(1) @map("format_version")
   status           AgentStatus            @default(ACTIVE)
@@ -279,7 +280,7 @@ model OutboxEvent {
 
 model IdempotencyRecord {
   id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  scope              String   @db.VarChar(100)
+  scope              String   @db.VarChar(200)
   key                String   @db.VarChar(200)
   operation          String   @db.VarChar(100)
   requestFingerprint Bytes    @map("request_fingerprint")

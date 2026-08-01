@@ -207,4 +207,58 @@ describe('pricing transactions', () => {
       }),
     ).resolves.toBe(1);
   });
+
+  it('creates an agent override with a fully scoped idempotency identity', async () => {
+    const product = await prisma.product.create({
+      data: {
+        code: `OVR_${randomUUID().replaceAll('-', '').toUpperCase()}`,
+        name: 'Agent Override Database Product',
+        scopeDisclosure: 'Integration-test override product.',
+        displayOrder: 97,
+      },
+    });
+    await pricing.createDefaultPolicy({
+      productId: product.id,
+      basePriceMinor: 2_000,
+      maximumRetailPriceMinor: 3_000,
+      effectiveFrom: new Date(Date.now() - 60_000),
+      reason: 'Default policy for agent override regression coverage',
+      requestId: randomUUID(),
+      actor,
+      idempotencyKey: randomUUID(),
+    });
+
+    await expect(
+      pricing.createOverride({
+        productId: product.id,
+        agentId,
+        basePriceMinor: 2_100,
+        maximumRetailPriceMinor: 2_900,
+        effectiveFrom: new Date(),
+        reason: 'Agent override regression coverage',
+        requestId: randomUUID(),
+        actor,
+        idempotencyKey: randomUUID(),
+      }),
+    ).resolves.toMatchObject({ replayed: false });
+
+    await expect(
+      pricing.changeProductStatus({
+        productId: product.id,
+        status: 'ACTIVE',
+        reason: 'Publish product after pricing and inventory review',
+        requestId: randomUUID(),
+        actor,
+      }),
+    ).resolves.toMatchObject({ id: product.id, status: 'ACTIVE' });
+    await expect(
+      prisma.auditEvent.findFirstOrThrow({
+        where: {
+          entityType: 'PRODUCT',
+          entityId: product.id,
+          action: 'PRODUCT_MADE_AVAILABLE',
+        },
+      }),
+    ).resolves.toBeDefined();
+  });
 });

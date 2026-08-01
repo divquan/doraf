@@ -149,6 +149,36 @@ describe('foundation database constraints', () => {
     );
   });
 
+  it('assigns a permanent opaque and unique web sales identifier', async () => {
+    const first = await pool.query<{ web_sales_id: string }>(
+      'SELECT web_sales_id FROM agent WHERE id = $1',
+      [agentId],
+    );
+    const webSalesId = first.rows[0]?.web_sales_id;
+    expect(webSalesId).toMatch(/^[a-f0-9]{24}$/);
+
+    const tenantId = randomUUID();
+    await pool.query('INSERT INTO agent_tenant (id) VALUES ($1)', [tenantId]);
+    await expectDatabaseError(
+      pool.query(
+        `INSERT INTO agent (
+          tenant_id, name, phone_ciphertext, phone_fingerprint, phone_mask,
+          web_sales_id, encryption_key_id, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+        [
+          tenantId,
+          'Duplicate Web Channel Agent',
+          randomBytes(48),
+          randomBytes(32),
+          '020****456',
+          webSalesId,
+          'test-key-v1',
+        ],
+      ),
+      '23505',
+    );
+  });
+
   it('rejects a maximum retail price below the base price', async () => {
     await expectDatabaseError(
       pool.query(

@@ -38,16 +38,13 @@ the previous twenty-nine days.
 
 ## Sales channels
 
-Each agent receives:
-
-- one permanent personalized web sales link, and
-- one permanent USSD referral code.
+Each agent receives one permanent personalized web sales link.
 
 The portal provides copy and device-share actions. It clearly identifies which
-checker prices buyers will see.
+checker prices buyers will see. USSD is deferred until after the MVP.
 
-Agents cannot customize the URL, code, domain, or branding in the MVP. Retired
-USSD referral codes are never assigned to another agent.
+Agents cannot customize the URL, identifier, domain, or branding in the MVP.
+Permanent web identifiers are never assigned to another agent.
 
 ## Pricing
 
@@ -84,7 +81,7 @@ Order history includes:
 
 - order reference,
 - creation date and time,
-- channel: web or USSD,
+- channel: web,
 - checker product,
 - quantity,
 - retail total,
@@ -173,7 +170,8 @@ withdrawal.
 - Custom storefront branding
 - Custom domains
 - Custom or multiple sales links
-- Multiple USSD or campaign codes
+- USSD purchase and referral codes
+- Multiple campaign links
 - Customer lists or contact-management tools
 - Agent staff accounts
 - Invitations, team roles, or delegated access

@@ -18,6 +18,7 @@ import { InternalSessionGuard } from '../internal-access/internal-session.guard'
 import type { InternalPrincipal } from '../internal-access/internal-access.types';
 import { CreateProductPricingPolicyRequest } from './dto/create-product-pricing-policy.request';
 import { CreateAgentPricingOverrideRequest } from './dto/create-agent-pricing-override.request';
+import { ChangeProductStatusRequest } from './dto/change-product-status.request';
 import { PricingService } from './pricing.service';
 
 @Controller('admin/products')
@@ -70,6 +71,22 @@ export class PricingController {
       actor,
       requestId: requestId ?? randomUUID(),
       idempotencyKey: requiredIdempotencyKey(idempotencyKey),
+    });
+  }
+
+  @Post(':productId/status')
+  changeStatus(
+    @Param('productId', new ParseUUIDPipe({ version: '4' })) productId: string,
+    @Body() request: ChangeProductStatusRequest,
+    @CurrentInternalPrincipal() actor: InternalPrincipal,
+    @Headers('x-request-id') requestId?: string,
+  ) {
+    return this.pricing.changeProductStatus({
+      productId,
+      status: request.status,
+      reason: request.reason,
+      actor,
+      requestId: requestId ?? randomUUID(),
     });
   }
 }

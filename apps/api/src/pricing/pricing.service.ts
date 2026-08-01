@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -8,6 +9,7 @@ import { createHash } from 'node:crypto';
 import {
   AgentStatus,
   Prisma,
+  ProductStatus,
   type AgentProductPrice,
 } from '../generated/prisma/client';
 import type { InternalPrincipal } from '../internal-access/internal-access.types';
@@ -508,7 +510,13 @@ export class PricingService {
       }),
       this.prisma.agent.findMany({
         orderBy: { name: 'asc' },
-        select: { id: true, name: true, phoneMask: true, status: true },
+        select: {
+          id: true,
+          name: true,
+          phoneMask: true,
+          status: true,
+          webSalesId: true,
+        },
       }),
     ]);
     return {
@@ -523,6 +531,57 @@ export class PricingService {
       })),
       agents,
     };
+  }
+
+  async changeProductStatus(input: {
+    productId: string;
+    status: ProductStatus;
+    reason: string;
+    requestId: string;
+    actor: InternalPrincipal;
+  }) {
+    return this.prisma.$transaction(
+      async (transaction) => {
+        const product = await transaction.product.findUnique({
+          where: { id: input.productId },
+          select: { id: true, code: true, name: true, status: true },
+        });
+        if (!product) throw new NotFoundException('Product not found');
+        if (product.status === input.status) {
+          throw new ConflictException(
+            input.status === ProductStatus.ACTIVE
+              ? 'Product is already available'
+              : 'Product is already unavailable',
+          );
+        }
+        const updated = await transaction.product.update({
+          where: { id: product.id },
+          data: { status: input.status },
+          select: { id: true, code: true, name: true, status: true },
+        });
+        await transaction.auditEvent.create({
+          data: {
+            actorInternalUserId: input.actor.userId,
+            actorRole: input.actor.role,
+            action:
+              input.status === ProductStatus.ACTIVE
+                ? 'PRODUCT_MADE_AVAILABLE'
+                : 'PRODUCT_MADE_UNAVAILABLE',
+            entityType: 'PRODUCT',
+            entityId: product.id,
+            reason: input.reason.trim(),
+            authenticationStrength: input.actor.authenticationStrength,
+            requestId: input.requestId,
+            safeMetadata: {
+              previousStatus: product.status,
+              resultingStatus: updated.status,
+            },
+          },
+        });
+        return updated;
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
   }
 
   async applyScheduledDefaultPolicy(policyId: string): Promise<number> {

@@ -64,6 +64,19 @@ describe('AppController (e2e)', () => {
       .expect(401);
   });
 
+  it('denies anonymous access to an agent sales-channel record', () => {
+    return request(app.getHttpServer())
+      .get('/v1/agent-auth/sales-channel')
+      .expect(401);
+  });
+
+  it('does not distinguish malformed public sales-channel identifiers', () => {
+    return request(app.getHttpServer())
+      .get('/v1/sales-channels/web/not-a-channel')
+      .expect('Cache-Control', 'no-store')
+      .expect(404);
+  });
+
   afterEach(async () => {
     await app.close();
   });
