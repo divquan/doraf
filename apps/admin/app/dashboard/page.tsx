@@ -15,18 +15,32 @@ import {
   WithdrawalOperations,
 } from "@/components/withdrawal-operations"
 
+import {
+  AdminReportingOverviewData,
+  OperationsDashboard,
+} from "@/components/operations-dashboard"
+
 export default async function DashboardPage() {
-  const [pricingResponse, inventoryResponse] = await Promise.all([
-    apiRequest("/admin/products/pricing", {}, true),
-    apiRequest("/admin/inventory", {}, true),
-  ])
-  if (pricingResponse.status === 401 || inventoryResponse.status === 401) {
+  const [pricingResponse, inventoryResponse, reportingResponse] =
+    await Promise.all([
+      apiRequest("/admin/products/pricing", {}, true),
+      apiRequest("/admin/inventory", {}, true),
+      apiRequest("/admin/reporting/overview", {}, true),
+    ])
+  if (
+    pricingResponse.status === 401 ||
+    inventoryResponse.status === 401 ||
+    reportingResponse.status === 401
+  ) {
     redirect("/login")
   }
   const pricing = (await apiJson(pricingResponse)) as Parameters<
     typeof PricingControls
   >[0]["data"]
   const inventory = (await apiJson(inventoryResponse)) as InventoryOverviewData
+  const reporting = (await apiJson(
+    reportingResponse
+  )) as AdminReportingOverviewData
   const withdrawals =
     pricing.viewerRole === "ADMINISTRATOR"
       ? ((await apiJson(
@@ -44,6 +58,17 @@ export default async function DashboardPage() {
         </div>
         <LogoutButton />
       </header>
+
+      <section className="flex flex-col gap-4">
+        <div>
+          <h2 className="text-2xl font-semibold">Executive overview</h2>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
+            Live financial performance, fulfillment status, and operational
+            queue metrics.
+          </p>
+        </div>
+        <OperationsDashboard data={reporting} />
+      </section>
       <section className="flex flex-col gap-4">
         <div>
           <h2 className="text-2xl font-semibold">Inventory operations</h2>

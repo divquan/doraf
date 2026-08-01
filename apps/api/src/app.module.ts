@@ -14,6 +14,7 @@ import { RefundsModule } from './refunds/refunds.module';
 import { RecoveryModule } from './recovery/recovery.module';
 import { WalletModule } from './wallet/wallet.module';
 import { PaystackWebhooksModule } from './paystack-webhooks/paystack-webhooks.module';
+import { ReportingModule } from './reporting/reporting.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { PaystackWebhooksModule } from './paystack-webhooks/paystack-webhooks.mo
     RecoveryModule,
     WalletModule,
     PaystackWebhooksModule,
+    ReportingModule,
   ],
 })
 export class AppModule {}
