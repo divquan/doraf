@@ -75,6 +75,15 @@ enum VoucherDisputeDisposition {
   @@map("voucher_dispute_disposition")
 }
 
+enum OutboxState {
+  PENDING
+  CLAIMED
+  DISPATCHED
+  FAILED
+
+  @@map("outbox_state")
+}
+
 model AgentTenant {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -244,6 +253,43 @@ model AuditEvent {
   @@index([entityType, entityId, createdAt])
   @@index([actorInternalUserId, createdAt])
   @@map("audit_event")
+}
+
+model OutboxEvent {
+  id               String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventType        String      @map("event_type") @db.VarChar(100)
+  aggregateType    String      @map("aggregate_type") @db.VarChar(80)
+  aggregateId      String      @map("aggregate_id") @db.VarChar(160)
+  aggregateVersion Int         @map("aggregate_version")
+  payload          Json        @default("{}")
+  state            OutboxState @default(PENDING)
+  attemptCount     Int         @default(0) @map("attempt_count")
+  availableAt      DateTime    @default(now()) @map("available_at") @db.Timestamptz(6)
+  claimedAt        DateTime?   @map("claimed_at") @db.Timestamptz(6)
+  claimToken       String?     @map("claim_token") @db.Uuid
+  dispatchedAt     DateTime?   @map("dispatched_at") @db.Timestamptz(6)
+  lastError        String?     @map("last_error") @db.VarChar(1000)
+  createdAt        DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([aggregateType, aggregateId, aggregateVersion, eventType])
+  @@index([state, availableAt])
+  @@index([aggregateType, aggregateId])
+  @@map("outbox_event")
+}
+
+model IdempotencyRecord {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  scope              String   @db.VarChar(100)
+  key                String   @db.VarChar(200)
+  operation          String   @db.VarChar(100)
+  requestFingerprint Bytes    @map("request_fingerprint")
+  outcomeReference   String?  @map("outcome_reference") @db.VarChar(160)
+  expiresAt          DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([scope, key])
+  @@index([expiresAt])
+  @@map("idempotency_record")
 }
 
 model Product {

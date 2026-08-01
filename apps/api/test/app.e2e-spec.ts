@@ -51,6 +51,13 @@ describe('AppController (e2e)', () => {
       .expect(401);
   });
 
+  it('denies anonymous agent suspension', () => {
+    return request(app.getHttpServer())
+      .post('/v1/admin/agents/00000000-0000-4000-8000-000000000000/suspend')
+      .send({ reason: 'Repeated policy violation' })
+      .expect(401);
+  });
+
   afterEach(async () => {
     await app.close();
   });

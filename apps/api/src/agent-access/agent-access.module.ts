@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AgentAuthController } from './agent-auth.controller';
+import { AgentAdministrationController } from './agent-administration.controller';
+import { AgentAdministrationService } from './agent-administration.service';
 import { AgentAuthService } from './agent-auth.service';
 import { AgentNoStoreInterceptor } from './agent-no-store.interceptor';
 import { AgentSessionGuard } from './agent-session.guard';
@@ -11,9 +13,10 @@ import { InternalAccessModule } from '../internal-access/internal-access.module'
 
 @Module({
   imports: [InternalAccessModule],
-  controllers: [AgentAuthController],
+  controllers: [AgentAuthController, AgentAdministrationController],
   providers: [
     AgentAuthService,
+    AgentAdministrationService,
     AgentSessionGuard,
     AgentNoStoreInterceptor,
     PhoneProtectionService,

@@ -31,6 +31,8 @@ workspace screens.
 
 **Next slice:** verify agent registration, returning sign-in, logout, expired OTP,
 attempt-limit, and suspended read-only behavior in browser and database tests.
+The database suite now also asserts that agent OTP sessions are permitted, so a
+future migration cannot omit the required session-strength constraint update.
 
 After that, continue Phase 2 with pricing, permanent sales-channel identifiers,
 and agent retail-price configuration after resolving the documented identifier
@@ -46,7 +48,7 @@ format and default-price questions.
 | Administration passkey UI | Partial | Passkey enrollment/login screens, same-origin gateway with HttpOnly session cookie, logout, protected dashboard navigation, Administrator invitation UI, and successful manual enrollment/authentication/invitation testing | Session-expiry and Support invitation-authorization coverage |
 | Internal authorization and audit baseline | Partial | Administrator/Support RBAC, server-side session checks, append-only audit events for implemented sensitive actions | Extend policies and audit coverage to every later administration workflow |
 | Encrypted inventory import backend | Complete | Whole-batch CSV validation, duplicate fingerprints, envelope encryption under an application-held master key, atomic import and audit | Administration upload UI, inventory management, quarantine, reservations, low-stock alerts, and master-key recovery exercise |
-| Agent identity and tenancy | Partial | Encrypted/fingerprinted Ghana phone storage, individual tenant creation, attempt-limited SMS OTP registration and sign-in, revocable sessions, development SMS adapter, and polished agent auth/protected-workspace UI | Browser/database flow coverage, production SMS adapter, recovery, suspension administration, and tenant authorization tests |
+| Agent identity and tenancy | Partial | Encrypted/fingerprinted Ghana phone storage, individual tenant creation, attempt-limited SMS OTP registration and sign-in, revocable sessions, development SMS adapter, protected workspace UI, and audited Administrator suspension/restore API | Browser/database flow coverage, production SMS adapter, recovery evidence policy and implementation, suspension UI, and tenant authorization tests |
 | Pricing and agent sales channels | Partial | Pricing-policy, per-agent override, and agent-price schema foundation | Commands/APIs, effective-price evaluation, clamping, audit, permanent web links, and USSD codes |
 | Order and payment foundation | Not started | Confirmed requirements and state-machine documentation | Orders, snapshots, reservations, payment attempts/events, Paystack adapter, webhook handling, outbox, and idempotency |
 | Web storefront and fulfillment | Not started | Confirmed product and flow documentation | Storefront, guest checkout, allocation, SMS/email delivery, and end-to-end sandbox sale |

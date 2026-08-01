@@ -293,6 +293,16 @@ describe('foundation database constraints', () => {
     );
   });
 
+  it('allows an OTP-authenticated session for an agent', async () => {
+    await pool.query(
+      `INSERT INTO session (
+        agent_id, token_fingerprint, authentication_strength,
+        authenticated_at, expires_at
+      ) VALUES ($1, $2, 'OTP', NOW(), NOW() + INTERVAL '1 hour')`,
+      [agentId, randomBytes(32)],
+    );
+  });
+
   it('allows only one unconsumed enrollment token per internal user', async () => {
     await pool.query(
       `INSERT INTO internal_enrollment_token (

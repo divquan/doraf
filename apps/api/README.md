@@ -36,6 +36,8 @@ The current HTTP surface is:
 - `POST /v1/internal-auth/logout`
 - `POST /v1/admin/internal-users` (Administrator)
 - `POST /v1/admin/internal-users/:userId/enrollment-tokens` (Administrator)
+- `POST /v1/admin/agents/:agentId/suspend` (Administrator)
+- `POST /v1/admin/agents/:agentId/restore` (Administrator)
 - `POST /v1/agent-auth/registration/otp`
 - `POST /v1/agent-auth/registration/verify`
 - `POST /v1/agent-auth/registration/complete`
@@ -82,6 +84,11 @@ returned by the API. In development, sent OTPs are written only to the API
 terminal; they are not included in API responses. Production refuses OTP
 delivery until a provider-backed SMS adapter is configured. Registration
 completion and authenticated sessions use separate short-lived opaque tokens.
+
+Agent suspension and restoration require an Administrator session and a recorded
+reason. Each action is serializable and appends an immutable audit event. A
+suspended agent can still sign in to their read-only portal; account recovery is
+not exposed until its documented evidence and withdrawal-hold policy is decided.
 
 `InventoryImportService` supports validation preview and atomic commit for CSV
 files with this exact header:
