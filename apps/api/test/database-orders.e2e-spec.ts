@@ -427,6 +427,33 @@ describe('order creation and inventory reservation', () => {
         where: { id: fixture.voucherIds[0], availability: 'AVAILABLE' },
       }),
     ).resolves.toBe(1);
+
+    paymentGateway.verify.mockResolvedValueOnce({
+      reference: created.payment.reference,
+      status: 'success',
+      amountMinor: attempt.expectedAmountMinor,
+      currency: attempt.currency,
+      transactionId: 'late-success-transaction',
+      accessCode: null,
+      displayText: null,
+      message: 'Late payment confirmed',
+    });
+    await payments.reconcileDuePayment(created.payment.reference);
+
+    const fulfilled = await prisma.order.findUniqueOrThrow({
+      where: { id: reservation.orderId },
+      include: { items: { include: { allocation: true } } },
+    });
+    expect(fulfilled).toMatchObject({
+      paymentState: 'PAID',
+      fulfillmentState: 'COMPLETE',
+    });
+    expect(fulfilled.items[0]?.allocation).not.toBeNull();
+    await expect(
+      prisma.voucher.count({
+        where: { id: fixture.voucherIds[0], availability: 'SOLD' },
+      }),
+    ).resolves.toBe(1);
   });
 
   it('keeps inventory reserved and schedules another verification after a provider timeout', async () => {

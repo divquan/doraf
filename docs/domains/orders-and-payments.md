@@ -302,9 +302,12 @@ second charge. It first verifies at the authorization deadline, retains an
 active reservation through the confirmed five-minute grace period, and then
 releases that reservation while continuing background verification. A provider
 timeout retains the reservation and schedules another verification. A late
-success after release follows the existing paid fulfillment-exception path for
-operator recovery rather than losing the payment. Fresh late-success allocation
-and excess-payment refund execution remain in the recovery and exception phase.
+success after release first claims a complete fresh allocation under the same
+payment transaction. If that is unavailable, Doraf records a paid fulfillment
+exception for Administrator recovery rather than losing the payment. An
+additional successful payment attempt creates a `REQUESTED` excess-payment
+refund queue entry; it does not initiate a provider refund or alter agent profit
+until an Administrator approves it.
 
 When Paystack definitively rejects initialization, Doraf records the failed
 attempt and releases the complete reservation immediately. A network timeout or

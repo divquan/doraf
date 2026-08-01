@@ -511,12 +511,25 @@ export class PaymentProcessingService {
               version: { increment: 1 },
             },
           });
+          const refund = await transaction.refund.create({
+            data: {
+              paymentAttemptId: attempt.id,
+              orderId: attempt.orderId,
+              amountMinor: attempt.expectedAmountMinor,
+              currency: attempt.currency,
+              reason: 'EXCESS_PAYMENT',
+              safeMetadata: {
+                providerReference: attempt.providerReference,
+                providerTransactionId: result.transactionId,
+              },
+            },
+          });
           await this.outbox.enqueue(transaction, {
-            eventType: 'EXCESS_PAYMENT_REFUND_REQUIRED',
-            aggregateType: 'PAYMENT_ATTEMPT',
-            aggregateId: attempt.id,
-            aggregateVersion: attempt.version + 1,
-            payload: { paymentAttemptId: attempt.id },
+            eventType: 'REFUND_APPROVAL_REQUIRED',
+            aggregateType: 'REFUND',
+            aggregateId: refund.id,
+            aggregateVersion: 1,
+            payload: { refundId: refund.id, kind: 'EXCESS_PAYMENT' },
           });
           return {
             state: 'SUCCESS' as const,
@@ -524,7 +537,20 @@ export class PaymentProcessingService {
           };
         }
         const reservation = attempt.reservation;
-        if (!reservation || reservation.state !== 'ACTIVE') {
+        const useOriginalReservation = reservation?.state === 'ACTIVE';
+        let voucherIds = reservation?.items.map((item) => item.voucherId) ?? [];
+        if (!useOriginalReservation) {
+          const available = await transaction.$queryRaw<Array<{ id: string }>>`
+            SELECT id FROM voucher
+            WHERE product_id = ${attempt.order.productId}::uuid
+              AND availability = 'AVAILABLE'
+            ORDER BY created_at, id
+            LIMIT ${attempt.order.quantity}
+            FOR UPDATE SKIP LOCKED
+          `;
+          voucherIds = available.map((voucher) => voucher.id);
+        }
+        if (voucherIds.length !== attempt.order.quantity) {
           await transaction.paymentAttempt.update({
             where: { id: attempt.id },
             data: {
@@ -557,8 +583,6 @@ export class PaymentProcessingService {
             classification: 'ACCEPTED' as const,
           };
         }
-
-        const voucherIds = reservation.items.map((item) => item.voucherId);
         if (
           attempt.order.items.length !== attempt.order.quantity ||
           voucherIds.length !== attempt.order.quantity
@@ -566,7 +590,10 @@ export class PaymentProcessingService {
           throw new ConflictException('Order allocation is incomplete');
         }
         const sold = await transaction.voucher.updateMany({
-          where: { id: { in: voucherIds }, availability: 'RESERVED' },
+          where: {
+            id: { in: voucherIds },
+            availability: useOriginalReservation ? 'RESERVED' : 'AVAILABLE',
+          },
           data: { availability: 'SOLD', version: { increment: 1 } },
         });
         if (sold.count !== attempt.order.quantity) {
@@ -581,10 +608,12 @@ export class PaymentProcessingService {
           })),
           skipDuplicates: true,
         });
-        await transaction.inventoryReservation.update({
-          where: { id: reservation.id },
-          data: { state: 'CONSUMED', version: { increment: 1 } },
-        });
+        if (useOriginalReservation && reservation) {
+          await transaction.inventoryReservation.update({
+            where: { id: reservation.id },
+            data: { state: 'CONSUMED', version: { increment: 1 } },
+          });
+        }
         await transaction.orderItem.updateMany({
           where: { orderId: attempt.orderId, fulfillmentState: 'PENDING' },
           data: { fulfillmentState: 'COMPLETE' },
@@ -633,12 +662,21 @@ export class PaymentProcessingService {
         await transaction.inventoryEvent.createMany({
           data: voucherIds.map((voucherId) => ({
             voucherId,
-            eventType: 'VOUCHER_SOLD',
-            previousAvailability: 'RESERVED' as const,
+            eventType: useOriginalReservation
+              ? 'VOUCHER_SOLD'
+              : 'VOUCHER_LATE_PAYMENT_SOLD',
+            previousAvailability: useOriginalReservation
+              ? ('RESERVED' as const)
+              : ('AVAILABLE' as const),
             resultingAvailability: 'SOLD' as const,
-            sourceType: 'PAYMENT_SUCCESS',
+            sourceType: useOriginalReservation
+              ? 'PAYMENT_SUCCESS'
+              : 'LATE_PAYMENT_SUCCESS',
             sourceId: attempt.id,
-            safeMetadata: { orderId: attempt.orderId },
+            safeMetadata: {
+              orderId: attempt.orderId,
+              freshAllocation: !useOriginalReservation,
+            },
           })),
           skipDuplicates: true,
         });

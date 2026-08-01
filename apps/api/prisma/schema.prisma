@@ -137,6 +137,17 @@ enum PaymentAttemptClassification {
   @@map("payment_attempt_classification")
 }
 
+enum RefundState {
+  REQUESTED
+  SUBMITTED
+  PENDING
+  SUCCESS
+  FAILED
+  CANCELLED
+
+  @@map("refund_state")
+}
+
 enum PaymentEventProcessingState {
   RECEIVED
   PROCESSED
@@ -273,6 +284,7 @@ model InternalUser {
   enrollmentTokens        InternalEnrollmentToken[] @relation("EnrollmentTokenTarget")
   createdEnrollmentTokens InternalEnrollmentToken[] @relation("EnrollmentTokenCreator")
   authCeremonies          InternalAuthCeremony[]
+  refunds                 Refund[]
 
   @@index([status, role])
   @@map("internal_user")
@@ -585,6 +597,7 @@ model Order {
   reservations             InventoryReservation[]
   ledgerEntries            LedgerEntry[]
   deliveryMessages         DeliveryMessage[]
+  refunds                  Refund[]
 
   @@index([agentId, createdAt])
   @@index([tenantId, createdAt])
@@ -641,6 +654,7 @@ model PaymentAttempt {
   reservation              InventoryReservation?
   providerEvents           PaymentEvent[]
   ledgerEntries            LedgerEntry[]
+  refunds                  Refund[]
 
   @@unique([orderId, attemptNumber])
   @@index([state, nextReconciliationAt])
@@ -700,6 +714,30 @@ model PaymentEvent {
   @@index([paymentAttemptId, receivedAt])
   @@index([processingState, receivedAt])
   @@map("payment_event")
+}
+
+model Refund {
+  id                String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  paymentAttemptId  String         @unique @map("payment_attempt_id") @db.Uuid
+  orderId           String         @map("order_id") @db.Uuid
+  amountMinor       BigInt         @map("amount_minor")
+  currency          String         @default("GHS") @db.Char(3)
+  reason            String         @db.VarChar(80)
+  state             RefundState    @default(REQUESTED)
+  providerReference String?        @unique @map("provider_reference") @db.VarChar(160)
+  safeMetadata      Json           @default("{}") @map("safe_metadata")
+  requestedAt       DateTime       @default(now()) @map("requested_at") @db.Timestamptz(6)
+  approvedAt        DateTime?      @map("approved_at") @db.Timestamptz(6)
+  approvedById      String?        @map("approved_by_id") @db.Uuid
+  createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  paymentAttempt    PaymentAttempt @relation(fields: [paymentAttemptId], references: [id], onDelete: Restrict)
+  order             Order          @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  approvedBy        InternalUser?  @relation(fields: [approvedById], references: [id], onDelete: Restrict)
+
+  @@index([state, requestedAt])
+  @@index([orderId, createdAt])
+  @@map("refund")
 }
 
 model VoucherAllocation {
