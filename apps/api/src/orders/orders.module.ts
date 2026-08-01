@@ -5,6 +5,7 @@ import { InternalAccessModule } from '../internal-access/internal-access.module'
 import { PaymentsModule } from '../payments/payments.module';
 import { OrderProtectionModule } from './order-protection.module';
 import { OrdersController } from './orders.controller';
+import { OrderExceptionsController } from './order-exceptions.controller';
 import { OrdersService } from './orders.service';
 
 @Module({
@@ -15,7 +16,7 @@ import { OrdersService } from './orders.service';
     PaymentsModule,
     ThrottlerModule.forRoot([{ name: 'checkout', ttl: 60_000, limit: 10 }]),
   ],
-  controllers: [OrdersController],
+  controllers: [OrdersController, OrderExceptionsController],
   providers: [OrdersService],
   exports: [OrdersService],
 })

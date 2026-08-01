@@ -1,0 +1,23 @@
+import { NextRequest } from "next/server"
+import {
+  apiJson,
+  apiRequest,
+  noStoreJson,
+  requireSameOrigin,
+  routeError,
+} from "@/lib/agent-api"
+
+export async function POST(request: NextRequest) {
+  try {
+    requireSameOrigin(request)
+    const result = await apiJson(
+      await apiRequest("/buyer-recovery/verify", {
+        method: "POST",
+        body: JSON.stringify(await request.json()),
+      })
+    )
+    return noStoreJson(result)
+  } catch (error) {
+    return routeError(error, "The verification code could not be confirmed")
+  }
+}

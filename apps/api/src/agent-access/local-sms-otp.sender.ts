@@ -15,7 +15,6 @@ export class LocalSmsOtpSender implements SmsOtpSender {
 
   send(destination: string, code: string): Promise<void> {
     const environment = this.config.get('NODE_ENV', { infer: true });
-    console.log('ENV: ', environment);
     if (environment === 'production') {
       throw new ServiceUnavailableException(
         'SMS delivery is not configured for production',

@@ -101,4 +101,19 @@ describe('AppController (e2e)', () => {
   afterEach(async () => {
     await app.close();
   });
+
+  it('validates buyer recovery references before persistence access', () => {
+    return request(app.getHttpServer())
+      .post('/v1/buyer-recovery/request')
+      .send({ orderReference: 'guessable-reference' })
+      .expect('Cache-Control', 'no-store')
+      .expect(400);
+  });
+
+  it('requires a recovery token before revealing vouchers', () => {
+    return request(app.getHttpServer())
+      .get('/v1/buyer-recovery/vouchers')
+      .expect('Cache-Control', 'no-store')
+      .expect(401);
+  });
 });

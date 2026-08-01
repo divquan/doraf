@@ -146,6 +146,23 @@ export class PaymentProcessingService {
   async processPaystackWebhook(rawBody: Buffer, signature?: string) {
     this.gateway.assertWebhookSignature(rawBody, signature);
     const payload = parseWebhook(rawBody);
+    if (payload.eventType.startsWith('refund.')) {
+      const refundReference = payload.transactionId;
+      if (refundReference) {
+        await this.prisma.refund.updateMany({
+          where: { providerReference: refundReference },
+          data: {
+            state:
+              payload.status === 'processed' || payload.status === 'success'
+                ? 'SUCCESS'
+                : payload.status === 'failed'
+                  ? 'FAILED'
+                  : 'PENDING',
+          },
+        });
+      }
+      return { accepted: true };
+    }
     const identity = createHash('sha256').update(rawBody).digest('hex');
     const fingerprint = createHash('sha256').update(rawBody).digest();
     const attempt = payload.reference

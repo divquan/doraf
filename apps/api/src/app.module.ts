@@ -11,6 +11,7 @@ import { PricingModule } from './pricing/pricing.module';
 import { OrdersModule } from './orders/orders.module';
 import { DeliveryModule } from './delivery/delivery.module';
 import { RefundsModule } from './refunds/refunds.module';
+import { RecoveryModule } from './recovery/recovery.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { RefundsModule } from './refunds/refunds.module';
     OrdersModule,
     DeliveryModule,
     RefundsModule,
+    RecoveryModule,
   ],
 })
 export class AppModule {}

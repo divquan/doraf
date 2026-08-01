@@ -127,6 +127,15 @@ committed:
 Recovery does not expose agent identity, payer information, other orders, or
 internal pricing. It does not permit the buyer to change a delivery destination.
 
+This flow is implemented through the public `/recover` page and three no-store,
+rate-limited API operations. Recovery requests create indistinguishable real or
+decoy challenges. A successful OTP verification creates a fingerprinted
+ten-minute recovery session scoped to exactly one order; the raw recovery token
+is kept in browser memory only while the result is fetched. Challenge request,
+verification, and voucher reveal events are persisted without contact data or
+voucher values. Production use remains dependent on a provider-backed SMS
+adapter.
+
 ## Manual resend
 
 Support can inspect masked delivery destinations, attempt history, and safe

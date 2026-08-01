@@ -55,6 +55,9 @@ The current HTTP surface is:
 - `GET /v1/agent-auth/sales-channel`
 - `GET /v1/sales-channels/web/:webSalesId` (public active-agent resolution)
 - `POST /v1/sales-channels/web/:webSalesId/orders` (public idempotent checkout)
+- `POST /v1/buyer-recovery/request` (public, generic recovery challenge)
+- `POST /v1/buyer-recovery/verify` (public, delivery-phone OTP verification)
+- `GET /v1/buyer-recovery/vouchers` (short-lived recovery bearer token)
 
 Products are seeded as `UNAVAILABLE`; checkout must not expose them until valid
 pricing and inventory exist.
@@ -168,6 +171,26 @@ and a redacted provider reason alongside the payment reference.
 Initialized attempts still need the continuously running timeout verification
 and reconciliation worker. Delivery provider calls are also a later slice; the
 current transaction commits durable delivery messages and outbox work only.
+
+## Buyer voucher recovery
+
+The buyer-facing `/recover` flow accepts the high-entropy order reference from a
+completed paid order and sends a one-time code to the immutable SMS delivery
+number. The request response is deliberately generic and has the same shape for
+known and unknown references. Successful verification issues a ten-minute,
+single-order bearer token that can reveal only that order's checker product and
+decrypted serial-number/PIN pairs.
+
+Recovery challenges have expiry and attempt limits. Requests, successful
+verification, and voucher reveals are audited without voucher secrets or buyer
+contact data. All recovery routes disable caching and are rate-limited. The web
+application keeps the short-lived bearer token only in component memory and
+never puts it in storage or a URL.
+
+In development, the recovery code is written only to the API terminal by the
+development SMS adapter. Production recovery requires a provider-backed SMS
+adapter; if delivery is unavailable, the public request still returns its
+generic response and logs only a safe challenge identifier.
 
 To use the Paystack sandbox locally, obtain a test secret key from the Paystack
 dashboard and set:

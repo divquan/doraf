@@ -15,6 +15,10 @@ import {
   PaymentProviderRequestException,
 } from '../src/payments/payment-gateway.service';
 import { PaymentProcessingService } from '../src/payments/payment-processing.service';
+import { SMS_OTP_SENDER } from '../src/agent-access/agent-access.types';
+import { BuyerRecoveryService } from '../src/recovery/buyer-recovery.service';
+import { BuyerRecoveryTokenService } from '../src/recovery/buyer-recovery-token.service';
+import { VoucherRevealService } from '../src/recovery/voucher-reveal.service';
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
 if (!databaseUrl)
@@ -26,6 +30,8 @@ describe('order creation and inventory reservation', () => {
   let orders: OrdersService;
   let payments: PaymentProcessingService;
   let delivery: DeliveryOutboxHandler;
+  let recovery: BuyerRecoveryService;
+  let recoverySms: { send: jest.Mock };
   let paymentGateway: {
     mode: 'sandbox';
     initialize: jest.Mock;
@@ -45,6 +51,9 @@ describe('order creation and inventory reservation', () => {
       PAYSTACK_MODE: 'sandbox',
       PAYSTACK_SECRET_KEY: 'sk_test_database-payment-secret',
       NODE_ENV: 'test',
+      OTP_FINGERPRINT_KEY_BASE64: Buffer.alloc(32, 33).toString('base64'),
+      AGENT_AUTH_OTP_TTL_SECONDS: 300,
+      AGENT_AUTH_OTP_MAX_ATTEMPTS: 5,
     };
     const initializedPayments = new Map<
       string,
@@ -55,6 +64,13 @@ describe('order creation and inventory reservation', () => {
         provider: 'test-delivery',
         providerMessageReference: `test-${input.stableClientReference}`,
         safeMetadata: { adapter: 'test' },
+      })),
+    };
+    recoverySms = { send: jest.fn(() => Promise.resolve()) };
+    const voucherReveal = {
+      reveal: jest.fn(() => ({
+        serialNumber: 'RECOVERY-SERIAL',
+        pin: '012345678912',
       })),
     };
     paymentGateway = {
@@ -116,12 +132,17 @@ describe('order creation and inventory reservation', () => {
         OrdersService,
         { provide: PaymentGatewayService, useValue: paymentGateway },
         PaymentProcessingService,
+        BuyerRecoveryTokenService,
+        BuyerRecoveryService,
+        { provide: SMS_OTP_SENDER, useValue: recoverySms },
+        { provide: VoucherRevealService, useValue: voucherReveal },
       ],
     }).compile();
     prisma = module.get(PrismaService);
     orders = module.get(OrdersService);
     payments = module.get(PaymentProcessingService);
     delivery = module.get(DeliveryOutboxHandler);
+    recovery = module.get(BuyerRecoveryService);
   });
 
   afterAll(async () => module.close());
@@ -488,6 +509,50 @@ describe('order creation and inventory reservation', () => {
     expect(attempt.providerStatus).toBe('VERIFICATION_UNCONFIRMED');
     expect(attempt.nextReconciliationAt?.getTime()).toBeGreaterThan(Date.now());
     expect(attempt.reservation?.state).toBe('ACTIVE');
+  });
+
+  it('recovers only a paid order after delivery-phone OTP verification', async () => {
+    const fixture = await createCheckoutFixture(prisma, 1);
+    const created = await orders.createWebOrder(
+      checkoutCommand(fixture, randomUUID(), 1),
+    );
+    await payments.initializePayment(created.payment.reference);
+    await payments.verifyPayment(created.payment.reference);
+
+    const requested = await recovery.request(created.orderReference);
+    expect(requested).toMatchObject({ accepted: true });
+    expect(JSON.stringify(requested)).not.toContain('0241234567');
+    const sent = recoverySms.send.mock.calls.at(-1) as [string, string];
+    expect(sent[0]).toBe('+233241234567');
+
+    await expect(
+      recovery.verify(requested.challengeId, '999999'),
+    ).rejects.toThrow('verification code is invalid');
+    const verified = await recovery.verify(requested.challengeId, sent[1]);
+    const result = await recovery.reveal(verified.recoveryToken);
+
+    expect(result).toMatchObject({
+      orderReference: created.orderReference,
+      vouchers: [
+        { position: 1, serialNumber: 'RECOVERY-SERIAL', pin: '012345678912' },
+      ],
+    });
+    await expect(
+      prisma.buyerRecoveryEvent.count({
+        where: { challengeId: requested.challengeId },
+      }),
+    ).resolves.toBe(3);
+  });
+
+  it('returns the same recovery request shape for an unknown order without sending OTP', async () => {
+    const sendsBefore = recoverySms.send.mock.calls.length;
+    const result = await recovery.request(`DRF-${'f'.repeat(24)}`);
+    expect(result).toMatchObject({ accepted: true });
+    expect(result.challengeId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(recoverySms.send).toHaveBeenCalledTimes(sendsBefore);
+    await expect(recovery.verify(result.challengeId, '000000')).rejects.toThrow(
+      'verification code is invalid',
+    );
   });
 });
 

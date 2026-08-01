@@ -90,4 +90,22 @@ export class RefundsService {
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
   }
+
+  async recordProviderOutcome(input: {
+    providerReference: string;
+    status: string;
+  }) {
+    const state = input.status.toLowerCase();
+    return this.prisma.refund.updateMany({
+      where: { providerReference: input.providerReference },
+      data: {
+        state:
+          state === 'processed' || state === 'success'
+            ? RefundState.SUCCESS
+            : state === 'failed'
+              ? RefundState.FAILED
+              : RefundState.PENDING,
+      },
+    });
+  }
 }

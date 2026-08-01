@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation"
+import Link from "next/link"
 import Script from "next/script"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
@@ -58,10 +59,15 @@ export default async function StorefrontPage(
       <header className="border-b bg-background/90">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-4 sm:px-8">
           <DorafMark />
-          <Badge variant="secondary">
-            <HugeiconsIcon icon={SecurityCheckIcon} />
-            Secure checkout
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Button render={<Link href="/recover" />} size="sm" variant="ghost">
+              Recover purchase
+            </Button>
+            <Badge className="hidden sm:flex" variant="secondary">
+              <HugeiconsIcon icon={SecurityCheckIcon} />
+              Secure checkout
+            </Badge>
+          </div>
         </div>
       </header>
       <div className="mx-auto flex max-w-5xl flex-col gap-8 px-5 py-10 sm:px-8 sm:py-14">

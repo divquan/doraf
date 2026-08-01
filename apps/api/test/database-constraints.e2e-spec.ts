@@ -452,6 +452,35 @@ describe('foundation database constraints', () => {
       '42501',
     );
   });
+
+  it('keeps buyer recovery events append-only', async () => {
+    const challengeId = randomUUID();
+    const eventId = randomUUID();
+    await pool.query(
+      `INSERT INTO buyer_recovery_challenge (
+        id, verifier_fingerprint, max_attempts, expires_at
+      ) VALUES ($1, $2, 5, NOW() + INTERVAL '5 minutes')`,
+      [challengeId, randomBytes(32)],
+    );
+    await pool.query(
+      `INSERT INTO buyer_recovery_event (
+        id, challenge_id, event_type
+      ) VALUES ($1, $2, 'RECOVERY_REQUESTED')`,
+      [eventId, challengeId],
+    );
+
+    await expectDatabaseError(
+      pool.query(
+        'UPDATE buyer_recovery_event SET event_type = $1 WHERE id = $2',
+        ['ALTERED', eventId],
+      ),
+      '42501',
+    );
+    await expectDatabaseError(
+      pool.query('DELETE FROM buyer_recovery_event WHERE id = $1', [eventId]),
+      '42501',
+    );
+  });
 });
 
 interface VoucherFixture {
