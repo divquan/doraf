@@ -31,6 +31,7 @@ process.env.ORDER_CONTACT_FINGERPRINT_KEY_BASE64 ??= Buffer.alloc(
   14,
 ).toString('base64');
 process.env.PAYSTACK_GUEST_EMAIL_DOMAIN ??= 'guest.localhost';
+process.env.PAYSTACK_MODE ??= 'local';
 process.env.AGENT_AUTH_OTP_TTL_SECONDS ??= '300';
 process.env.AGENT_AUTH_OTP_MAX_ATTEMPTS ??= '5';
 process.env.AGENT_AUTH_REGISTRATION_TTL_SECONDS ??= '900';

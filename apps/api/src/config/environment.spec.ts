@@ -32,6 +32,8 @@ describe('validateEnvironment', () => {
       ORDER_CONTACT_FINGERPRINT_KEY_BASE64:
         keyMaterial.AGENT_PHONE_FINGERPRINT_KEY_BASE64,
       PAYSTACK_GUEST_EMAIL_DOMAIN: 'guest.localhost',
+      PAYSTACK_MODE: 'local',
+      PAYSTACK_SECRET_KEY: null,
       INTERNAL_AUTH_RP_NAME: 'Doraf Administration',
       INTERNAL_AUTH_RP_ID: 'localhost',
       INTERNAL_AUTH_ORIGIN: 'http://localhost:3001',
@@ -43,6 +45,34 @@ describe('validateEnvironment', () => {
       AGENT_AUTH_REGISTRATION_TTL_SECONDS: 900,
       AGENT_AUTH_SESSION_TTL_SECONDS: 2_592_000,
     });
+  });
+
+  it('requires a test key in Paystack sandbox mode', () => {
+    expect(() =>
+      validateEnvironment({
+        DATABASE_URL: 'postgresql://localhost:5432/doraf',
+        ...keyMaterial,
+        PAYSTACK_MODE: 'sandbox',
+        PAYSTACK_SECRET_KEY: 'sk_live_wrong-environment',
+        INTERNAL_AUTH_RP_NAME: 'Doraf Administration',
+        INTERNAL_AUTH_RP_ID: 'localhost',
+        INTERNAL_AUTH_ORIGIN: 'http://localhost:3001',
+      }),
+    ).toThrow('sk_test_');
+  });
+
+  it('does not allow live payment mode outside production', () => {
+    expect(() =>
+      validateEnvironment({
+        DATABASE_URL: 'postgresql://localhost:5432/doraf',
+        ...keyMaterial,
+        PAYSTACK_MODE: 'live',
+        PAYSTACK_SECRET_KEY: 'sk_live_example',
+        INTERNAL_AUTH_RP_NAME: 'Doraf Administration',
+        INTERNAL_AUTH_RP_ID: 'localhost',
+        INTERNAL_AUTH_ORIGIN: 'http://localhost:3001',
+      }),
+    ).toThrow('only allowed in production');
   });
 
   it('rejects a missing database URL', () => {

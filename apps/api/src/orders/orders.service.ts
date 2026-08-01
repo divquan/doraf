@@ -452,7 +452,7 @@ export class OrdersService {
 }
 
 function randomReference(prefix: string, bytes: number): string {
-  return `${prefix}-${randomBytes(bytes).toString('base64url')}`;
+  return `${prefix}-${randomBytes(bytes).toString('hex')}`;
 }
 
 function requestFingerprint(value: Record<string, unknown>): Buffer {

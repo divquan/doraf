@@ -29,9 +29,10 @@ implemented. The administration application has a working passkey flow, and the
 agent application now has production-shaped registration, sign-in, and protected
 workspace screens.
 
-**Next slice:** connect the durable payment-attempt foundation to Paystack
-Mobile Money initialization, authenticated webhooks, and verification. Manual
-browser verification remains an explicit product-owner handoff.
+**Next slice:** dispatch the durable voucher-delivery work through development
+SMS/email adapters with retry-safe attempt history, then add timeout payment
+verification and reconciliation workers. Manual browser verification remains an
+explicit product-owner handoff.
 
 ## Capability status
 
@@ -45,10 +46,10 @@ browser verification remains an explicit product-owner handoff.
 | Encrypted inventory intake | Complete | Structured manual batch validation, duplicate fingerprints, envelope encryption under an application-held master key, atomic import and audit, an Administrator preview/confirm form, authoritative per-product stock counts, recent batch history, and masked batch detail for Administrator and Support | Quarantine operations, reservations, configurable low-stock alerts, and master-key recovery exercise |
 | Agent identity and tenancy | Partial | Encrypted/fingerprinted Ghana phone storage, individual tenant creation, attempt-limited SMS OTP registration and sign-in, revocable sessions, development SMS adapter, protected workspace UI, and audited Administrator suspension/restore API and UI | Browser/database flow coverage, production SMS adapter, recovery evidence policy and implementation, and tenant authorization tests |
 | Pricing and agent sales channels | Complete | Effective pricing and overrides; transactional idempotent writes; immediate and scheduled clamping; agent/admin pricing UI; permanent opaque web identifiers; active-agent attribution API; copy/share controls; public storefront route; PostgreSQL coverage | Checkout is owned by the later web-sale phase; USSD is deferred post-MVP |
-| Order and payment foundation | Partial | Prisma-managed order, item, payment-attempt, and reservation schema; database constraints; protected guest contacts; immutable commercial snapshots; idempotent all-or-nothing reservation; expiry work; and concurrency coverage | Paystack adapter, authenticated webhook/verification processing, payment events, accepted-payment transaction, and retry/reconciliation handling |
-| Web storefront and fulfillment | Partial | Agent-attributed public storefront plus guest checkout/review form for product, quantity, delivery, payer, and network; local order/reservation confirmation | Paystack authorization UI, successful allocation, SMS/email delivery, buyer status/recovery, and end-to-end sandbox sale |
+| Order and payment foundation | Partial | Prisma-managed order, item, payment-attempt, payment-event, reservation, allocation, wallet-ledger, and delivery-work schema; protected guest contacts; immutable snapshots; all-or-nothing reservation; configuration-gated Paystack/local adapters; raw-body webhook authentication; provider verification; and idempotent accepted/failed payment transactions | Scheduled timeout verification, reconciliation retries, late-success fresh allocation, excess-payment refund execution, and sandbox evidence |
+| Web storefront and fulfillment | Partial | Agent-attributed public storefront; guest checkout/review; Paystack authorization messaging; safe status polling; development-only payment completion; atomic voucher sale/allocation; exactly-once agent credit; and durable SMS/email work | SMS/email provider dispatch and retry history, buyer recovery, and end-to-end sandbox sale |
 | Exceptions, recovery, disputes, and refunds | Not started | Confirmed policies and flows | Reconciliation, late/duplicate/reversed payment handling, buyer recovery, replacements, and refunds |
-| Agent wallet and withdrawals | Not started | Confirmed append-only ledger decision and withdrawal policy | Ledger, balances, holds, requests, approvals, Paystack transfers, and reconciliation |
+| Agent wallet and withdrawals | Partial | Wallet account and append-only, source-unique sale-credit ledger entries are created by accepted payments | Agent balance/history UI, holds, requests, approvals, Paystack transfers, reversals, and reconciliation |
 | USSD purchase channel | Deferred | Removed from MVP by product-owner decision on 2026-08-01 | Reassess after MVP launch evidence |
 | Reporting and operations | Not started | Confirmed metric and reconciliation requirements | Dashboards, queues, invariant checks, daily reconciliation, cases, exports, alerts, and runbooks |
 | Production readiness | External | Infrastructure and launch requirements are documented | Provider approvals, compliance evidence, security testing, recovery exercise, training, and go-live sign-off |
@@ -60,7 +61,7 @@ browser verification remains an explicit product-owner handoff.
 | Phase 0 — External readiness | External, in progress | Provider feasibility, sandbox access, WAEC authority, and compliance work have owners and evidence |
 | Phase 1 — Core foundation | Partial | Agent authentication, tenant authorization, outbox/idempotency, and remaining production controls pass the phase exit criteria |
 | Phase 2 — Supply, catalog, and agent configuration | Partial | Agent onboarding, pricing, channels, inventory operations, and concurrent allocation are complete |
-| Phase 3 — Web sale | Not started | A sandbox Mobile Money purchase fulfills and credits exactly once |
+| Phase 3 — Web sale | Partial | A sandbox Mobile Money purchase fulfills and credits exactly once |
 | Phase 4 — Recovery and exception handling | Not started | Confirmed exception and recovery flows pass integration tests |
 | Phase 5 — Agent finance and portal | Not started | Wallet and withdrawal concurrency and reconciliation criteria pass |
 | Phase 6 — USSD channel | Deferred post-MVP | Reassess after MVP launch evidence |

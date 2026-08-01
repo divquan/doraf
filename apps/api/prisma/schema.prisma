@@ -137,6 +137,50 @@ enum PaymentAttemptClassification {
   @@map("payment_attempt_classification")
 }
 
+enum PaymentEventProcessingState {
+  RECEIVED
+  PROCESSED
+  IGNORED
+  INVESTIGATION
+
+  @@map("payment_event_processing_state")
+}
+
+enum VoucherAllocationType {
+  ORIGINAL
+  REPLACEMENT
+
+  @@map("voucher_allocation_type")
+}
+
+enum LedgerEntryType {
+  SALE_CREDIT
+  SALE_REVERSAL_DEBIT
+  PAYOUT_DEBIT
+  PAYOUT_FEE_DEBIT
+  ADJUSTMENT_CREDIT
+  ADJUSTMENT_DEBIT
+
+  @@map("ledger_entry_type")
+}
+
+enum DeliveryChannel {
+  SMS
+  EMAIL
+
+  @@map("delivery_channel")
+}
+
+enum DeliveryMessageState {
+  PENDING
+  SUBMITTED
+  DELIVERED
+  FAILED
+  UNKNOWN
+
+  @@map("delivery_message_state")
+}
+
 enum OutboxState {
   PENDING
   CLAIMED
@@ -175,6 +219,7 @@ model Agent {
   sessions         Session[]
   otpChallenges    OtpChallenge[]
   orders           Order[]
+  wallet           WalletAccount?
 
   @@index([status])
   @@map("agent")
@@ -483,6 +528,7 @@ model Voucher {
   product            Product                    @relation(fields: [productId], references: [id], onDelete: Restrict)
   events             InventoryEvent[]
   reservationItems   InventoryReservationItem[]
+  allocations        VoucherAllocation[]
 
   @@index([productId, availability, batchId, createdAt])
   @@index([batchId])
@@ -528,6 +574,8 @@ model Order {
   paymentAttempts          PaymentAttempt[]       @relation("OrderPaymentAttempts")
   acceptedPaymentAttempt   PaymentAttempt?        @relation("AcceptedPaymentAttempt", fields: [acceptedPaymentAttemptId], references: [id], onDelete: Restrict)
   reservations             InventoryReservation[]
+  ledgerEntries            LedgerEntry[]
+  deliveryMessages         DeliveryMessage[]
 
   @@index([agentId, createdAt])
   @@index([tenantId, createdAt])
@@ -548,6 +596,8 @@ model OrderItem {
   updatedAt            DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(6)
   order                Order                     @relation(fields: [orderId], references: [id], onDelete: Restrict)
   product              Product                   @relation(fields: [productId], references: [id], onDelete: Restrict)
+  allocation           VoucherAllocation?
+  deliveryMessages     DeliveryMessage[]
 
   @@unique([orderId, position])
   @@index([productId, createdAt])
@@ -567,6 +617,10 @@ model PaymentAttempt {
   state                    PaymentAttemptState          @default(CREATED)
   classification           PaymentAttemptClassification @default(PENDING)
   providerTransactionId    String?                      @map("provider_transaction_id") @db.VarChar(120)
+  providerStatus           String?                      @map("provider_status") @db.VarChar(80)
+  authorizationDisplayText String?                      @map("authorization_display_text") @db.VarChar(500)
+  initializedAt            DateTime?                    @map("initialized_at") @db.Timestamptz(6)
+  lastVerifiedAt           DateTime?                    @map("last_verified_at") @db.Timestamptz(6)
   authorizationExpiresAt   DateTime                     @map("authorization_expires_at") @db.Timestamptz(6)
   nextReconciliationAt     DateTime?                    @map("next_reconciliation_at") @db.Timestamptz(6)
   version                  Int                          @default(1)
@@ -575,6 +629,8 @@ model PaymentAttempt {
   order                    Order                        @relation("OrderPaymentAttempts", fields: [orderId], references: [id], onDelete: Restrict)
   acceptedByOrder          Order?                       @relation("AcceptedPaymentAttempt")
   reservation              InventoryReservation?
+  providerEvents           PaymentEvent[]
+  ledgerEntries            LedgerEntry[]
 
   @@unique([orderId, attemptNumber])
   @@index([state, nextReconciliationAt])
@@ -612,6 +668,98 @@ model InventoryReservationItem {
   @@unique([reservationId, voucherId])
   @@index([voucherId])
   @@map("inventory_reservation_item")
+}
+
+model PaymentEvent {
+  id                    String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  paymentAttemptId      String?                     @map("payment_attempt_id") @db.Uuid
+  provider              String                      @default("PAYSTACK") @db.VarChar(40)
+  providerEventIdentity String                      @unique @map("provider_event_identity") @db.VarChar(128)
+  eventType             String                      @map("event_type") @db.VarChar(100)
+  providerReference     String?                     @map("provider_reference") @db.VarChar(80)
+  providerTransactionId String?                     @map("provider_transaction_id") @db.VarChar(120)
+  reportedAmountMinor   BigInt?                     @map("reported_amount_minor")
+  reportedCurrency      String?                     @map("reported_currency") @db.Char(3)
+  payloadFingerprint    Bytes                       @map("payload_fingerprint")
+  safeMetadata          Json                        @default("{}") @map("safe_metadata")
+  processingState       PaymentEventProcessingState @default(RECEIVED) @map("processing_state")
+  processedAt           DateTime?                   @map("processed_at") @db.Timestamptz(6)
+  receivedAt            DateTime                    @default(now()) @map("received_at") @db.Timestamptz(6)
+  paymentAttempt        PaymentAttempt?             @relation(fields: [paymentAttemptId], references: [id], onDelete: Restrict)
+
+  @@index([paymentAttemptId, receivedAt])
+  @@index([processingState, receivedAt])
+  @@map("payment_event")
+}
+
+model VoucherAllocation {
+  id          String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderItemId String                @unique @map("order_item_id") @db.Uuid
+  voucherId   String                @unique @map("voucher_id") @db.Uuid
+  type        VoucherAllocationType @default(ORIGINAL)
+  allocatedAt DateTime              @default(now()) @map("allocated_at") @db.Timestamptz(6)
+  orderItem   OrderItem             @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+  voucher     Voucher               @relation(fields: [voucherId], references: [id], onDelete: Restrict)
+
+  @@map("voucher_allocation")
+}
+
+model WalletAccount {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  agentId       String        @unique @map("agent_id") @db.Uuid
+  currency      String        @default("GHS") @db.Char(3)
+  version       Int           @default(1)
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  agent         Agent         @relation(fields: [agentId], references: [id], onDelete: Restrict)
+  ledgerEntries LedgerEntry[]
+
+  @@map("wallet_account")
+}
+
+model LedgerEntry {
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  walletAccountId  String          @map("wallet_account_id") @db.Uuid
+  orderId          String?         @map("order_id") @db.Uuid
+  paymentAttemptId String?         @map("payment_attempt_id") @db.Uuid
+  type             LedgerEntryType
+  amountMinor      BigInt          @map("amount_minor")
+  currency         String          @default("GHS") @db.Char(3)
+  sourceType       String          @map("source_type") @db.VarChar(80)
+  sourceId         String          @map("source_id") @db.VarChar(160)
+  safeMetadata     Json            @default("{}") @map("safe_metadata")
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  walletAccount    WalletAccount   @relation(fields: [walletAccountId], references: [id], onDelete: Restrict)
+  order            Order?          @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  paymentAttempt   PaymentAttempt? @relation(fields: [paymentAttemptId], references: [id], onDelete: Restrict)
+
+  @@unique([walletAccountId, sourceType, sourceId])
+  @@index([walletAccountId, createdAt])
+  @@index([orderId])
+  @@map("ledger_entry")
+}
+
+model DeliveryMessage {
+  id                     String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId                String               @map("order_id") @db.Uuid
+  orderItemId            String?              @map("order_item_id") @db.Uuid
+  channel                DeliveryChannel
+  state                  DeliveryMessageState @default(PENDING)
+  destinationCiphertext  Bytes                @map("destination_ciphertext")
+  destinationMask        String               @map("destination_mask") @db.VarChar(160)
+  contactEncryptionKeyId String               @map("contact_encryption_key_id") @db.VarChar(100)
+  contactFormatVersion   Int                  @default(1) @map("contact_format_version")
+  stableClientReference  String               @unique @map("stable_client_reference") @db.VarChar(100)
+  attemptCount           Int                  @default(0) @map("attempt_count")
+  nextAttemptAt          DateTime?            @map("next_attempt_at") @db.Timestamptz(6)
+  createdAt              DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  order                  Order                @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  orderItem              OrderItem?           @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+
+  @@index([state, nextAttemptAt])
+  @@index([orderId, channel])
+  @@map("delivery_message")
 }
 
 model InventoryEvent {

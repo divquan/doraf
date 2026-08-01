@@ -12,25 +12,33 @@ import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { NoStoreInterceptor } from '../internal-access/no-store.interceptor';
 import { CreateWebOrderRequest } from './dto/create-web-order.request';
 import { OrdersService } from './orders.service';
+import { PaymentProcessingService } from '../payments/payment-processing.service';
 
 @Controller('sales-channels/web/:webSalesId/orders')
 @UseGuards(ThrottlerGuard)
 @UseInterceptors(NoStoreInterceptor)
 export class OrdersController {
-  constructor(private readonly orders: OrdersService) {}
+  constructor(
+    private readonly orders: OrdersService,
+    private readonly payments: PaymentProcessingService,
+  ) {}
 
   @Post()
   @Throttle({ checkout: { limit: 10, ttl: 60_000 } })
-  create(
+  async create(
     @Param('webSalesId') webSalesId: string,
     @Body() request: CreateWebOrderRequest,
     @Headers('idempotency-key') idempotencyKey?: string,
   ) {
-    return this.orders.createWebOrder({
+    const order = await this.orders.createWebOrder({
       webSalesId,
       ...request,
       idempotencyKey: requiredIdempotencyKey(idempotencyKey),
     });
+    const payment = await this.payments.initializePayment(
+      order.payment.reference,
+    );
+    return { ...order, payment };
   }
 }
 

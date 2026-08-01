@@ -1,6 +1,6 @@
 "use client"
 
-import { FormEvent, useMemo, useState } from "react"
+import { FormEvent, useEffect, useMemo, useState } from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   CheckmarkCircle02Icon,
@@ -60,7 +60,29 @@ interface CreatedOrder {
   deliveryEmailMask: string | null
   payerPhoneMask: string
   payerNetwork: string
-  payment: { reference: string; state: string }
+  payment: PaymentStatus
+}
+
+interface PaymentStatus {
+  reference: string
+  state: string
+  providerStatus: string | null
+  displayText: string | null
+  authorizationExpiresAt: string
+  localDevelopment: boolean
+}
+
+interface OrderStatus {
+  orderReference: string
+  paymentState: string
+  fulfillmentState: string
+  payment: PaymentStatus | null
+  delivery: {
+    total: number
+    pending: number
+    delivered: number
+    channels: string[]
+  }
 }
 
 export function StorefrontCheckout({
@@ -75,10 +97,37 @@ export function StorefrontCheckout({
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [order, setOrder] = useState<CreatedOrder | null>(null)
+  const [status, setStatus] = useState<OrderStatus | null>(null)
+  const [paymentPending, setPaymentPending] = useState(false)
   const product = useMemo(
     () => products.find((item) => item.id === productId) ?? products[0],
     [productId, products]
   )
+
+  useEffect(() => {
+    if (!order) return
+    const orderReference = order.orderReference
+    let cancelled = false
+    async function refresh() {
+      try {
+        const response = await fetch(
+          `/api/checkout/${webSalesId}/${orderReference}`,
+          { cache: "no-store" }
+        )
+        if (!response.ok) return
+        const next = (await response.json()) as OrderStatus
+        if (!cancelled) setStatus(next)
+      } catch {
+        // A transient status request must not discard the confirmed order.
+      }
+    }
+    void refresh()
+    const timer = window.setInterval(() => void refresh(), 3_000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [order, webSalesId])
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -119,6 +168,7 @@ export function StorefrontCheckout({
         )
       }
       setOrder(result as CreatedOrder)
+      setStatus(null)
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -130,25 +180,89 @@ export function StorefrontCheckout({
     }
   }
 
+  async function completeLocalPayment() {
+    if (!order) return
+    setPaymentPending(true)
+    setError(null)
+    try {
+      const response = await fetch(
+        `/api/checkout/${webSalesId}/${order.orderReference}/local-payment`,
+        { method: "POST" }
+      )
+      const result = (await response.json().catch(() => ({}))) as {
+        message?: string | string[]
+      }
+      if (!response.ok) {
+        throw new Error(
+          Array.isArray(result.message)
+            ? result.message.join(". ")
+            : (result.message ?? "The local payment could not be completed")
+        )
+      }
+      const statusResponse = await fetch(
+        `/api/checkout/${webSalesId}/${order.orderReference}`,
+        { cache: "no-store" }
+      )
+      if (statusResponse.ok) {
+        setStatus((await statusResponse.json()) as OrderStatus)
+      }
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The local payment could not be completed"
+      )
+    } finally {
+      setPaymentPending(false)
+    }
+  }
+
   if (order) {
+    const payment = status?.payment ?? order.payment
+    const paid = status?.paymentState === "PAID"
+    const failed = payment.state === "FAILED" || payment.state === "ABANDONED"
     return (
       <Card id="checkout">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <HugeiconsIcon icon={CheckmarkCircle02Icon} />
-            Order reserved
+            {paid
+              ? "Payment confirmed"
+              : failed
+                ? "Payment ended"
+                : "Authorize payment"}
           </CardTitle>
           <CardDescription>
-            Your checker stock and price are held for this payment attempt.
+            {paid
+              ? "Your payment and checker allocation are safely recorded."
+              : failed
+                ? "This payment did not complete. No checker was sold."
+                : "Your checker stock and price are held while you authorize Mobile Money."}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
-          <Alert>
+          {error ? (
+            <Alert variant="destructive">
+              <AlertTitle>Payment action failed</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          ) : null}
+          <Alert variant={failed ? "destructive" : "default"}>
             <HugeiconsIcon icon={InformationCircleIcon} />
-            <AlertTitle>Local payment foundation</AlertTitle>
+            <AlertTitle>
+              {paid
+                ? "Payment received"
+                : payment.localDevelopment
+                  ? "Local development payment"
+                  : "Check your phone"}
+            </AlertTitle>
             <AlertDescription>
-              No Mobile Money charge has been sent. Paystack authorization is
-              the next implementation slice.
+              {paid
+                ? "Voucher delivery work is queued. Keep your order reference for support or recovery."
+                : failed
+                  ? "The reserved inventory has been released."
+                  : (payment.displayText ??
+                    "Approve the Mobile Money prompt on the payer phone within three minutes.")}
             </AlertDescription>
           </Alert>
           <dl className="grid gap-4 sm:grid-cols-2">
@@ -161,9 +275,31 @@ export function StorefrontCheckout({
             />
             <Summary label="SMS delivery" value={order.deliveryPhoneMask} />
             <Summary label="Mobile Money" value={order.payerPhoneMask} />
+            <Summary
+              label="Payment status"
+              value={paymentLabel(payment.state)}
+            />
+            {paid ? (
+              <Summary
+                label="Delivery work"
+                value={`${status?.delivery.total ?? 0} message${status?.delivery.total === 1 ? "" : "s"} queued`}
+              />
+            ) : null}
           </dl>
         </CardContent>
-        <CardFooter>
+        <CardFooter className="flex flex-wrap gap-3">
+          {payment.localDevelopment && !paid && !failed ? (
+            <Button
+              disabled={paymentPending}
+              onClick={completeLocalPayment}
+              type="button"
+            >
+              {paymentPending ? <Spinner data-icon="inline-start" /> : null}
+              {paymentPending
+                ? "Completing payment…"
+                : "Complete local payment"}
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant="outline"
@@ -390,4 +526,17 @@ function money(minor: number, currency: string) {
     style: "currency",
     currency,
   }).format(minor / 100)
+}
+
+function paymentLabel(state: string) {
+  const labels: Record<string, string> = {
+    CREATED: "Preparing payment",
+    PENDING_AUTHORIZATION: "Awaiting authorization",
+    VERIFYING: "Verifying",
+    RECONCILING: "Confirming result",
+    SUCCESS: "Paid",
+    FAILED: "Failed",
+    ABANDONED: "Expired",
+  }
+  return labels[state] ?? "Processing"
 }

@@ -13,7 +13,7 @@ describe('AppController (e2e)', () => {
       imports: [AppModule],
     }).compile();
 
-    app = moduleFixture.createNestApplication();
+    app = moduleFixture.createNestApplication({ rawBody: true });
     configureApplication(app);
     await app.init();
   });
@@ -88,6 +88,14 @@ describe('AppController (e2e)', () => {
       .send({})
       .expect('Cache-Control', 'no-store')
       .expect(400);
+  });
+
+  it('rejects unauthenticated Paystack webhooks', () => {
+    return request(app.getHttpServer())
+      .post('/v1/payments/paystack/webhook')
+      .send({ event: 'charge.success', data: {} })
+      .expect('Cache-Control', 'no-store')
+      .expect(401);
   });
 
   afterEach(async () => {

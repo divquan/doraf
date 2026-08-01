@@ -146,11 +146,34 @@ Development can temporarily fall back to the agent contact keys and
 `ORDER_CONTACT_FINGERPRINT_KEY_BASE64`, and a controlled
 `PAYSTACK_GUEST_EMAIL_DOMAIN`.
 
-The current payment attempt remains `CREATED` and queues initialization and
-reservation-expiry work. It does not call Paystack yet. Expired attempts that
-were never initialized are safely abandoned and released before stock is
-reallocated; the next slice adds the continuously running handler plus provider
-verification before any initialized attempt can be released.
+After the reservation commits, the payment adapter initializes the Mobile Money
+charge. `PAYSTACK_MODE=local` is the safe development default and never makes a
+network request. `PAYSTACK_MODE=sandbox` requires an `sk_test_` key, while live
+mode is rejected outside `NODE_ENV=production` and requires an `sk_live_` key.
+
+Paystack webhook processing uses the exact raw request body and the documented
+HMAC-SHA512 signature. A reported success is verified against Paystack and must
+match the stored reference, amount, and currency. One serializable transaction
+then accepts the payment, sells and allocates every reserved voucher, appends
+one wallet sale credit, and creates durable SMS and optional email work.
+Duplicate processing returns the existing effects. Terminal failure releases
+the reservation. Local checkout exposes an explicitly development-only control
+to exercise this same successful-payment transaction without credentials.
+
+Initialized attempts still need the continuously running timeout verification
+and reconciliation worker. Delivery provider calls are also a later slice; the
+current transaction commits durable delivery messages and outbox work only.
+
+To use the Paystack sandbox locally:
+
+```dotenv
+PAYSTACK_MODE=sandbox
+PAYSTACK_SECRET_KEY=sk_test_replace-me
+```
+
+Configure the Paystack dashboard webhook URL as
+`https://<public-api-host>/v1/payments/paystack/webhook`. A tunnel is required
+when Paystack needs to reach a locally running API.
 
 ## Verification
 

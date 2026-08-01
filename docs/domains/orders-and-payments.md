@@ -273,3 +273,21 @@ durable initialization work; no provider call occurs inside the transaction.
 Uninitialized attempts may release after their 180-second reservation expires.
 Initialized or ambiguous attempts must use Paystack verification and the
 confirmed five-minute reconciliation grace period before release.
+
+The payment-processing slice initializes Ghana Mobile Money through a
+configuration-gated adapter after the order transaction commits. Local mode is
+a network-free development adapter; sandbox and live modes require the matching
+Paystack secret-key class, and live mode is unavailable outside production.
+
+Webhook signatures are validated over the exact raw request body. Paystack
+success notifications are verified server-side and matched against the stored
+reference, amount, and currency. An accepted success atomically consumes the
+reservation, sells and allocates the complete voucher set, marks the order paid,
+appends the unique agent sale credit, and creates durable SMS and optional email
+delivery messages. Terminal failures release inventory, and duplicate success
+processing finds the existing commercial effects.
+
+Continuous timeout verification, reconciliation retries, late-success fresh
+allocation, and excess-payment refund execution remain in the recovery and
+exception phase. The current late-success path records a paid fulfillment
+exception for operator recovery rather than losing the payment.

@@ -1,6 +1,11 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createCipheriv, createHmac, randomBytes } from 'node:crypto';
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHmac,
+  randomBytes,
+} from 'node:crypto';
 import type { AppEnvironment } from '../config/environment';
 
 export interface ProtectedContact {
@@ -66,6 +71,17 @@ export class OrderContactProtectionService {
     return normalizeEmail(value);
   }
 
+  revealPhone(ciphertext: Uint8Array, purpose: 'delivery' | 'payer'): string {
+    return this.reveal(ciphertext, `phone:${purpose}`);
+  }
+
+  revealEmail(
+    ciphertext: Uint8Array,
+    purpose: 'delivery' | 'synthetic',
+  ): string {
+    return this.reveal(ciphertext, `email:${purpose}`);
+  }
+
   private protect(
     normalized: string,
     purpose: string,
@@ -90,6 +106,23 @@ export class OrderContactProtectionService {
       encryptionKeyId: 'order-contact-master-key:v1',
       formatVersion: 1,
     };
+  }
+
+  private reveal(ciphertext: Uint8Array, purpose: string): string {
+    const protectedValue = Buffer.from(ciphertext);
+    if (protectedValue.length < 29) {
+      throw new Error('Protected order contact is malformed');
+    }
+    const nonce = protectedValue.subarray(0, 12);
+    const authTag = protectedValue.subarray(12, 28);
+    const encrypted = protectedValue.subarray(28);
+    const decipher = createDecipheriv('aes-256-gcm', this.encryptionKey, nonce);
+    decipher.setAAD(Buffer.from(`doraf:order-contact:${purpose}:v1`, 'utf8'));
+    decipher.setAuthTag(authTag);
+    return Buffer.concat([
+      decipher.update(encrypted),
+      decipher.final(),
+    ]).toString('utf8');
   }
 }
 

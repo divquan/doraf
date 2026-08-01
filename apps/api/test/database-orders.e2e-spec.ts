@@ -8,6 +8,8 @@ import { IdempotencyService } from '../src/operations/idempotency.service';
 import { OutboxService } from '../src/operations/outbox.service';
 import { OrderContactProtectionService } from '../src/orders/order-contact-protection.service';
 import { OrdersService } from '../src/orders/orders.service';
+import { PaymentGatewayService } from '../src/payments/payment-gateway.service';
+import { PaymentProcessingService } from '../src/payments/payment-processing.service';
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
 if (!databaseUrl)
@@ -17,6 +19,7 @@ describe('order creation and inventory reservation', () => {
   let module: TestingModule;
   let prisma: PrismaService;
   let orders: OrdersService;
+  let payments: PaymentProcessingService;
 
   beforeAll(async () => {
     const values: Partial<AppEnvironment> = {
@@ -28,6 +31,9 @@ describe('order creation and inventory reservation', () => {
         'base64',
       ),
       PAYSTACK_GUEST_EMAIL_DOMAIN: 'guest.localhost',
+      PAYSTACK_MODE: 'local',
+      PAYSTACK_SECRET_KEY: null,
+      NODE_ENV: 'test',
     };
     const config = {
       get: jest.fn((key: keyof AppEnvironment) => values[key]),
@@ -45,10 +51,13 @@ describe('order creation and inventory reservation', () => {
         OutboxService,
         OrderContactProtectionService,
         OrdersService,
+        PaymentGatewayService,
+        PaymentProcessingService,
       ],
     }).compile();
     prisma = module.get(PrismaService);
     orders = module.get(OrdersService);
+    payments = module.get(PaymentProcessingService);
   });
 
   afterAll(async () => module.close());
@@ -74,6 +83,9 @@ describe('order creation and inventory reservation', () => {
     expect(order.items).toHaveLength(2);
     expect(order.reservations[0]?.items).toHaveLength(2);
     expect(order.paymentAttempts).toHaveLength(1);
+    expect(order.paymentAttempts[0]?.providerReference).toMatch(
+      /^[A-Za-z0-9.=-]+$/,
+    );
     await expect(
       prisma.voucher.count({
         where: { id: { in: fixture.voucherIds }, availability: 'RESERVED' },
@@ -162,6 +174,78 @@ describe('order creation and inventory reservation', () => {
         select: { state: true },
       }),
     ).resolves.toEqual({ state: 'ABANDONED' });
+  });
+
+  it('applies a successful payment exactly once across commercial effects', async () => {
+    const fixture = await createCheckoutFixture(prisma, 2);
+    const created = await orders.createWebOrder(
+      checkoutCommand(fixture, randomUUID(), 2),
+    );
+    const initialized = await payments.initializePayment(
+      created.payment.reference,
+    );
+    expect(initialized).toMatchObject({
+      state: 'PENDING_AUTHORIZATION',
+      providerStatus: 'pay_offline',
+      localDevelopment: true,
+    });
+
+    await payments.completeLocalPayment(
+      fixture.webSalesId,
+      created.orderReference,
+    );
+    await payments.completeLocalPayment(
+      fixture.webSalesId,
+      created.orderReference,
+    );
+
+    const order = await prisma.order.findUniqueOrThrow({
+      where: { publicReference: created.orderReference },
+      include: {
+        paymentAttempts: true,
+        reservations: true,
+        items: { include: { allocation: true } },
+        ledgerEntries: true,
+        deliveryMessages: true,
+      },
+    });
+    expect(order).toMatchObject({
+      paymentState: 'PAID',
+      fulfillmentState: 'COMPLETE',
+    });
+    expect(order.paymentAttempts).toHaveLength(1);
+    expect(order.paymentAttempts[0]).toMatchObject({
+      state: 'SUCCESS',
+      classification: 'ACCEPTED',
+    });
+    expect(order.reservations).toHaveLength(1);
+    expect(order.reservations[0]?.state).toBe('CONSUMED');
+    expect(order.items.every((item) => item.allocation !== null)).toBe(true);
+    expect(order.ledgerEntries).toHaveLength(1);
+    expect(order.ledgerEntries[0]).toMatchObject({
+      type: 'SALE_CREDIT',
+      amountMinor: 1_000n,
+    });
+    expect(order.deliveryMessages).toHaveLength(3);
+    expect(
+      order.deliveryMessages.filter((message) => message.channel === 'SMS'),
+    ).toHaveLength(2);
+    await expect(
+      prisma.voucher.count({
+        where: { id: { in: fixture.voucherIds }, availability: 'SOLD' },
+      }),
+    ).resolves.toBe(2);
+    await expect(
+      prisma.outboxEvent.count({
+        where: {
+          aggregateType: 'DELIVERY_MESSAGE',
+          eventType: 'DELIVERY_MESSAGE_REQUESTED',
+          aggregateId: {
+            in: order.deliveryMessages.map((message) => message.id),
+          },
+        },
+      }),
+    ).resolves.toBe(3);
   });
 });
 

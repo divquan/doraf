@@ -1,4 +1,5 @@
 export type NodeEnvironment = 'development' | 'production' | 'test';
+export type PaymentProviderMode = 'local' | 'sandbox' | 'live';
 
 export interface AppEnvironment {
   NODE_ENV: NodeEnvironment;
@@ -13,6 +14,8 @@ export interface AppEnvironment {
   ORDER_CONTACT_ENCRYPTION_KEY_BASE64: string;
   ORDER_CONTACT_FINGERPRINT_KEY_BASE64: string;
   PAYSTACK_GUEST_EMAIL_DOMAIN: string;
+  PAYSTACK_MODE: PaymentProviderMode;
+  PAYSTACK_SECRET_KEY: string | null;
   OTP_FINGERPRINT_KEY_BASE64: string;
   AGENT_AUTH_OTP_TTL_SECONDS: number;
   AGENT_AUTH_OTP_MAX_ATTEMPTS: number;
@@ -121,6 +124,15 @@ export function validateEnvironment(
   if (!isValidHostname(guestEmailDomain)) {
     throw new Error('PAYSTACK_GUEST_EMAIL_DOMAIN must be a hostname');
   }
+  const paystackMode = paymentProviderMode(
+    raw.PAYSTACK_MODE,
+    nodeEnvironment as NodeEnvironment,
+  );
+  const paystackSecretKey = paymentProviderSecret(
+    raw.PAYSTACK_SECRET_KEY,
+    paystackMode,
+    nodeEnvironment as NodeEnvironment,
+  );
 
   const relyingPartyName = requiredString(
     raw.INTERNAL_AUTH_RP_NAME,
@@ -191,6 +203,8 @@ export function validateEnvironment(
     ORDER_CONTACT_ENCRYPTION_KEY_BASE64: orderContactEncryptionKey,
     ORDER_CONTACT_FINGERPRINT_KEY_BASE64: orderContactFingerprintKey,
     PAYSTACK_GUEST_EMAIL_DOMAIN: guestEmailDomain,
+    PAYSTACK_MODE: paystackMode,
+    PAYSTACK_SECRET_KEY: paystackSecretKey,
     AGENT_AUTH_OTP_TTL_SECONDS: agentOtpTtlSeconds,
     AGENT_AUTH_OTP_MAX_ATTEMPTS: agentOtpMaxAttempts,
     AGENT_AUTH_REGISTRATION_TTL_SECONDS: agentRegistrationTtlSeconds,
@@ -202,6 +216,42 @@ export function validateEnvironment(
     INTERNAL_AUTH_SESSION_TTL_SECONDS: sessionTtlSeconds,
     INTERNAL_ENROLLMENT_TTL_SECONDS: enrollmentTtlSeconds,
   };
+}
+
+function paymentProviderMode(
+  value: unknown,
+  environment: NodeEnvironment,
+): PaymentProviderMode {
+  if (value === undefined && environment !== 'production') return 'local';
+  if (value !== 'local' && value !== 'sandbox' && value !== 'live') {
+    throw new Error('PAYSTACK_MODE must be local, sandbox, or live');
+  }
+  if (environment === 'production' && value !== 'live') {
+    throw new Error('Production requires PAYSTACK_MODE=live');
+  }
+  if (environment !== 'production' && value === 'live') {
+    throw new Error('PAYSTACK_MODE=live is only allowed in production');
+  }
+  return value;
+}
+
+function paymentProviderSecret(
+  value: unknown,
+  mode: PaymentProviderMode,
+  environment: NodeEnvironment,
+): string | null {
+  if (mode === 'local') return null;
+  const secret = requiredString(value, 'PAYSTACK_SECRET_KEY');
+  if (mode === 'sandbox' && !secret.startsWith('sk_test_')) {
+    throw new Error('Paystack sandbox requires an sk_test_ secret key');
+  }
+  if (
+    mode === 'live' &&
+    (environment !== 'production' || !secret.startsWith('sk_live_'))
+  ) {
+    throw new Error('Paystack live mode requires an sk_live_ production key');
+  }
+  return secret;
 }
 
 function optionalDevelopmentKey(
