@@ -108,7 +108,8 @@ design.
 
 - An order contains one to five vouchers of one checker product.
 - All vouchers use one required SMS number and one optional delivery email.
-- Inventory is uploaded in product-specific CSV batches.
+- Inventory is entered manually in product-specific batches for the MVP; CSV
+  upload is deferred.
 - Batches record vendor, invoice/reference, acquisition date, unit cost,
   uploader, and import timestamp.
 - One invalid or duplicate row rejects the whole batch with row-level errors.

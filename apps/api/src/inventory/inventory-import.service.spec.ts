@@ -60,7 +60,7 @@ describe('InventoryImportService', () => {
   });
 
   it('encrypts and commits a completely valid batch once', async () => {
-    const result = await service.importCsv({
+    const result = await service.importEntries({
       productId,
       vendorName: 'Authorized Vendor',
       vendorReference: 'INV-2026-001',
@@ -71,11 +71,10 @@ describe('InventoryImportService', () => {
       authenticationStrength: 'PHISHING_RESISTANT',
       reason: 'Load authorized WAEC inventory',
       requestId: randomUUID(),
-      csv: [
-        'serial_number,pin',
-        'SERIAL001,012345678912',
-        'SERIAL002,123456789012',
-      ].join('\n'),
+      entries: [
+        { serialNumber: 'SERIAL001', pin: '012345678912' },
+        { serialNumber: 'SERIAL002', pin: '123456789012' },
+      ],
     });
 
     expect(result.importedVoucherCount).toBe(2);
@@ -92,7 +91,7 @@ describe('InventoryImportService', () => {
 
   it('rejects the entire file before encryption or persistence', async () => {
     await expect(
-      service.importCsv({
+      service.importEntries({
         productId,
         vendorName: 'Authorized Vendor',
         vendorReference: 'INV-2026-002',
@@ -103,11 +102,10 @@ describe('InventoryImportService', () => {
         authenticationStrength: 'PHISHING_RESISTANT',
         reason: 'Load authorized WAEC inventory',
         requestId: randomUUID(),
-        csv: [
-          'serial_number,pin',
-          'SERIAL001,012345678912',
-          'SERIAL001,invalid',
-        ].join('\n'),
+        entries: [
+          { serialNumber: 'SERIAL001', pin: '012345678912' },
+          { serialNumber: 'SERIAL001', pin: 'invalid' },
+        ],
       }),
     ).rejects.toBeInstanceOf(InventoryImportValidationError);
     expect(commitImport).not.toHaveBeenCalled();

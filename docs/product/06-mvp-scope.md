@@ -39,7 +39,7 @@ needed to operate real money and secret voucher inventory.
 ### Inventory
 
 - Central platform-owned inventory
-- Product-specific CSV batch import
+- Product-specific manual batch entry form
 - Whole-batch validation and row-level errors
 - Vendor, invoice, acquisition date, and unit cost
 - Encrypted serial-number/PIN pairs

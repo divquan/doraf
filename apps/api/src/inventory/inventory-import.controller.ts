@@ -33,7 +33,7 @@ export class InventoryImportController {
   preview(
     @Body() request: PreviewInventoryImportRequest,
   ): Promise<InventoryPreview> {
-    return this.imports.previewCsv(request.productId, request.csv);
+    return this.imports.previewEntries(request.productId, request.entries);
   }
 
   @Post()
@@ -42,7 +42,7 @@ export class InventoryImportController {
     @CurrentInternalPrincipal() principal: InternalPrincipal,
     @Headers('x-request-id') requestId?: string,
   ): Promise<CommittedInventoryBatch> {
-    return this.imports.importCsv({
+    return this.imports.importEntries({
       productId: request.productId,
       vendorName: request.vendorName,
       vendorReference: request.vendorReference,
@@ -53,7 +53,7 @@ export class InventoryImportController {
       authenticationStrength: principal.authenticationStrength,
       reason: request.reason,
       requestId: safeRequestId(requestId),
-      csv: request.csv,
+      entries: request.entries,
     });
   }
 }

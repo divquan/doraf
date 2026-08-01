@@ -86,7 +86,8 @@ Capabilities:
 - retention and deletion, and
 - access audit.
 
-Voucher inventory CSV source-file retention requires an explicit security and
+The MVP does not accept voucher inventory source files. If bulk file upload is
+introduced later, source-file retention will require an explicit security and
 retention decision. Raw batch contents are not an ordinary export.
 
 ## Shared contracts

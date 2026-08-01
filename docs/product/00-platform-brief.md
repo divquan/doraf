@@ -290,9 +290,10 @@ provided, the same optional delivery email.
 
 ### PF-042 — Product-specific inventory batches
 
-An Administrator imports vouchers in product-specific CSV batches. Doraf
-records the vendor, vendor invoice or reference, acquisition date, unit cost,
-uploader, and import timestamp.
+An Administrator enters vouchers in product-specific batches through a
+structured manual form. Doraf records the vendor, vendor invoice or reference,
+acquisition date, unit cost, uploader, and import timestamp. CSV upload is
+outside the MVP.
 
 The complete batch is validated before import. Any invalid or duplicate row
 rejects the entire batch and produces row-level errors.
@@ -649,8 +650,8 @@ produce operational alerts.
 
 ### PF-095 — Controlled inventory import
 
-Inventory CSV import provides a validation preview and row-level errors before
-an Administrator explicitly commits the complete batch.
+Manual inventory entry provides a validation preview and entry-level errors
+before an Administrator explicitly commits the complete batch.
 
 ### PF-096 — Administration work queues
 

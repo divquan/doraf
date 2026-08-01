@@ -28,6 +28,11 @@ export interface PlainVoucherRow {
   pin: string;
 }
 
+export interface InventoryVoucherEntry {
+  serialNumber: string;
+  pin: string;
+}
+
 export interface InventoryPreview {
   valid: boolean;
   sourceRowCount: number;
@@ -46,7 +51,7 @@ export interface ImportInventoryCommand {
   authenticationStrength: 'PRIMARY' | 'MFA' | 'PHISHING_RESISTANT';
   reason: string;
   requestId: string;
-  csv: string;
+  entries: InventoryVoucherEntry[];
 }
 
 export interface BatchDataKey {

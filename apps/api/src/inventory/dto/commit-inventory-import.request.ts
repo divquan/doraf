@@ -1,11 +1,16 @@
 import {
+  ArrayMinSize,
   IsDateString,
+  IsArray,
   IsString,
   IsUUID,
   Length,
   Matches,
   MaxLength,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+import { InventoryVoucherEntryRequest } from './preview-inventory-import.request';
 
 export class CommitInventoryImportRequest {
   @IsUUID('4')
@@ -38,7 +43,9 @@ export class CommitInventoryImportRequest {
   @Matches(/\S/, { message: 'reason must not be blank' })
   reason!: string;
 
-  @IsString()
-  @MaxLength(1_000_000)
-  csv!: string;
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => InventoryVoucherEntryRequest)
+  entries!: InventoryVoucherEntryRequest[];
 }

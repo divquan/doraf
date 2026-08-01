@@ -48,10 +48,11 @@ A sold voucher may later receive a dispute disposition such as `REPLACED` or
 `REFUNDED`. This records the commercial resolution without making the original
 item available again.
 
-## Import requirements
+## Inventory-entry requirements
 
-The MVP import unit is a CSV batch associated with one checker product and
-source. Each row contains one serial number and one PIN. The batch records:
+The MVP inventory unit is a manually entered batch associated with one checker
+product and source. An Administrator adds one or more serial-number/PIN pairs in
+a structured form. The batch records:
 
 - vendor,
 - vendor invoice or reference,
@@ -71,14 +72,15 @@ Validation should reject:
 - a row whose product is ambiguous.
 
 The entire batch is validated before inventory is created. Any invalid or
-duplicate row rejects the whole batch. The importer must return row-level error
-details so the Administrator can correct and retry the source data.
+duplicate entry rejects the whole batch. The form returns entry-level error
+details so the Administrator can correct and retry the data.
 
-### Implemented import contract
+### Implemented entry contract
 
-The CSV header is exactly `serial_number,pin`. Preview parses the complete file,
-validates every row, and checks keyed fingerprints against existing inventory.
-Commit repeats validation so a stale or modified preview cannot bypass it.
+The administration client sends structured `serialNumber` and `pin` entries.
+Preview validates the complete set and checks keyed fingerprints against
+existing inventory. Commit repeats validation so a stale or modified preview
+cannot bypass it. CSV upload is outside the MVP.
 
 Only successfully committed batches are stored in `InventoryBatch`; therefore
 the presence of a batch means the import completed. A failed preview creates no

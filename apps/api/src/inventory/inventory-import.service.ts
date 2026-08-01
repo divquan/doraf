@@ -10,6 +10,7 @@ import {
   VOUCHER_CRYPTO,
   type CommittedInventoryBatch,
   type ImportInventoryCommand,
+  type InventoryVoucherEntry,
   type InventoryPreview,
   type InventoryRepository,
   type InventoryValidationError,
@@ -28,12 +29,15 @@ export class InventoryImportService {
     private readonly crypto: VoucherCrypto,
   ) {}
 
-  async previewCsv(productId: string, csv: string): Promise<InventoryPreview> {
+  async previewEntries(
+    productId: string,
+    entries: InventoryVoucherEntry[],
+  ): Promise<InventoryPreview> {
     if (!(await this.inventory.productExists(productId))) {
       throw new InventoryProductNotFoundError(productId);
     }
 
-    const parsed = this.parser.parse(csv);
+    const parsed = this.parser.parse(entriesToCsv(entries));
     const errors = [...parsed.errors];
     const locallyValidRows = parsed.rows.filter(
       (row) => !errors.some((error) => error.rowNumber === row.rowNumber),
@@ -60,15 +64,18 @@ export class InventoryImportService {
     };
   }
 
-  async importCsv(
+  async importEntries(
     command: ImportInventoryCommand,
   ): Promise<CommittedInventoryBatch> {
-    const preview = await this.previewCsv(command.productId, command.csv);
+    const preview = await this.previewEntries(
+      command.productId,
+      command.entries,
+    );
     if (!preview.valid) {
       throw new InventoryImportValidationError(preview.errors);
     }
 
-    const parsed = this.parser.parse(command.csv);
+    const parsed = this.parser.parse(entriesToCsv(command.entries));
     const batchId = randomUUID();
     const batchKey = await this.crypto.createBatchKey();
 
@@ -171,6 +178,19 @@ export class InventoryImportService {
       cryptoVersion: batchKey.cryptoVersion,
     };
   }
+}
+
+function entriesToCsv(entries: InventoryVoucherEntry[]): string {
+  return [
+    'serial_number,pin',
+    ...entries.map(
+      (entry) => `${csvCell(entry.serialNumber)},${csvCell(entry.pin)}`,
+    ),
+  ].join('\n');
+}
+
+function csvCell(value: string): string {
+  return `"${value.replaceAll('"', '""')}"`;
 }
 
 function voucherContext(

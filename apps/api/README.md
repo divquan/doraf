@@ -105,13 +105,10 @@ pricing write commands require an `Idempotency-Key` header. Future-dated changes
 enqueue activation-due work for the separately deployed worker, whose pricing
 handler applies the same clamping rules when the event becomes available.
 
-`InventoryImportService` supports validation preview and atomic commit for CSV
-files with this exact header:
-
-```csv
-serial_number,pin
-ABC123456,012345678912
-```
+`InventoryImportService` supports validation preview and atomic commit for
+structured manual entries containing `serialNumber` and `pin`. The complete set
+is rejected when any entry is invalid or duplicates existing inventory. CSV
+upload is outside the MVP.
 
 Inventory registration uses `InventoryModule.registerMasterKey()` and requires
 independent `VOUCHER_MASTER_KEY_BASE64` and `VOUCHER_FINGERPRINT_KEY_BASE64`

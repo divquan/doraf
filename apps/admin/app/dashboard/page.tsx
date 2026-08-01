@@ -2,6 +2,7 @@ import { redirect } from "next/navigation"
 import { AgentManagement } from "@/components/agent-management"
 import { InviteInternalUserForm } from "@/components/invite-internal-user-form"
 import { LogoutButton } from "@/components/logout-button"
+import { ManualInventoryForm } from "@/components/manual-inventory-form"
 import { PricingControls } from "@/components/pricing-controls"
 import { ProductAvailability } from "@/components/product-availability"
 import { apiJson, apiRequest } from "@/lib/internal-api"
@@ -23,6 +24,17 @@ export default async function DashboardPage() {
         </div>
         <LogoutButton />
       </header>
+      {pricing.viewerRole === "ADMINISTRATOR" ? (
+        <section className="flex flex-col gap-4">
+          <div>
+            <h2 className="text-2xl font-semibold">Inventory intake</h2>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
+              Validate and securely add checker credentials to available stock.
+            </p>
+          </div>
+          <ManualInventoryForm products={pricing.products} />
+        </section>
+      ) : null}
       <section className="space-y-4">
         <div>
           <h2 className="text-2xl font-semibold">Pricing operations</h2>

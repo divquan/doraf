@@ -81,7 +81,7 @@ describe('inventory import transaction', () => {
   });
 
   it('atomically commits batch, vouchers, and import events', async () => {
-    const result = await service.importCsv({
+    const result = await service.importEntries({
       productId,
       vendorName: 'Integration Test Vendor',
       vendorReference: `TEST-${randomUUID()}`,
@@ -92,11 +92,16 @@ describe('inventory import transaction', () => {
       authenticationStrength: 'PHISHING_RESISTANT',
       reason: 'Integration test import',
       requestId: randomUUID(),
-      csv: [
-        'serial_number,pin',
-        `DB${randomUUID().replaceAll('-', '')},${randomPin()}`,
-        `DB${randomUUID().replaceAll('-', '')},${randomPin()}`,
-      ].join('\n'),
+      entries: [
+        {
+          serialNumber: `DB${randomUUID().replaceAll('-', '')}`,
+          pin: randomPin(),
+        },
+        {
+          serialNumber: `DB${randomUUID().replaceAll('-', '')}`,
+          pin: randomPin(),
+        },
+      ],
     });
 
     const [batch, voucherCount, eventCount] = await Promise.all([
@@ -121,7 +126,7 @@ describe('inventory import transaction', () => {
     const before = await prisma.inventoryBatch.count();
 
     await expect(
-      service.importCsv({
+      service.importEntries({
         productId,
         vendorName: 'Integration Test Vendor',
         vendorReference: `TEST-${randomUUID()}`,
@@ -132,7 +137,7 @@ describe('inventory import transaction', () => {
         authenticationStrength: 'PHISHING_RESISTANT',
         reason: 'Integration test invalid import',
         requestId: randomUUID(),
-        csv: 'serial_number,pin\nVALID123,not-a-pin',
+        entries: [{ serialNumber: 'VALID123', pin: 'not-a-pin' }],
       }),
     ).rejects.toBeInstanceOf(InventoryImportValidationError);
 

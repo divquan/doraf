@@ -44,20 +44,21 @@ Administrators see exact counts by product and state, including:
 
 They can configure low-stock thresholds for each checker product.
 
-### Batch import
+### Manual batch entry
 
 The import workflow:
 
 1. Selects one checker product.
 2. Supplies vendor, invoice/reference, acquisition date, and unit cost.
-3. Uploads a CSV containing serial-number/PIN pairs.
-4. Validates the whole file without creating inventory.
-5. Shows counts and row-level errors.
+3. Adds one or more serial-number/PIN pairs in a structured form.
+4. Validates the complete entry set without creating inventory.
+5. Shows counts and entry-level errors.
 6. Requires explicit Administrator confirmation.
 7. Commits the valid complete batch or commits nothing.
 8. Records uploader, timestamps, and batch audit history.
 
-The MVP does not require second-person approval for inventory import.
+The MVP does not include CSV upload and does not require second-person approval
+for inventory entry.
 
 ### Batch history
 

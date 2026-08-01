@@ -9,7 +9,7 @@ export class InventoryProductNotFoundError extends Error {
 
 export class InventoryImportValidationError extends Error {
   constructor(public readonly errors: InventoryValidationError[]) {
-    super('Inventory CSV failed validation');
+    super('Inventory entries failed validation');
     this.name = InventoryImportValidationError.name;
   }
 }
