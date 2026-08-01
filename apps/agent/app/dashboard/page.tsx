@@ -32,6 +32,7 @@ import {
   WalletSummary,
 } from "@/components/wallet-balance-card"
 import { apiJson, apiRequest } from "@/lib/agent-api"
+import { AgentWithdrawal, WithdrawalPanel } from "@/components/withdrawal-panel"
 
 interface AgentSession {
   agent: {
@@ -57,14 +58,21 @@ export default async function DashboardPage({
   const query = await searchParams
   const walletPage = getWalletPage(query.walletPage)
 
-  const [sessionRes, pricesRes, channelRes, walletSummaryRes, transactionsRes] =
-    await Promise.all([
-      apiRequest("/agent-auth/session", {}, true),
-      apiRequest("/agent-auth/prices", {}, true),
-      apiRequest("/agent-auth/sales-channel", {}, true),
-      apiRequest("/agent-wallet/summary", {}, true),
-      apiRequest(`/agent-wallet/transactions?page=${walletPage}`, {}, true),
-    ])
+  const [
+    sessionRes,
+    pricesRes,
+    channelRes,
+    walletSummaryRes,
+    transactionsRes,
+    withdrawalsRes,
+  ] = await Promise.all([
+    apiRequest("/agent-auth/session", {}, true),
+    apiRequest("/agent-auth/prices", {}, true),
+    apiRequest("/agent-auth/sales-channel", {}, true),
+    apiRequest("/agent-wallet/summary", {}, true),
+    apiRequest(`/agent-wallet/transactions?page=${walletPage}`, {}, true),
+    apiRequest("/agent-wallet/withdrawals", {}, true),
+  ])
 
   if (sessionRes.status === 401) {
     redirect("/login")
@@ -78,6 +86,7 @@ export default async function DashboardPage({
     items: TransactionItem[]
     pagination: PaginationMetadata
   }
+  const withdrawals = (await apiJson(withdrawalsRes)) as AgentWithdrawal[]
 
   const salesUrl = new URL(
     channel.path,
@@ -129,6 +138,13 @@ export default async function DashboardPage({
         <section>
           <WalletBalanceCard summary={walletSummary} />
         </section>
+
+        <WithdrawalPanel
+          phoneMask={agent.phoneMask}
+          readOnly={agent.status === "SUSPENDED"}
+          withdrawableMinor={walletSummary.withdrawableMinor}
+          withdrawals={withdrawals}
+        />
 
         <section>
           <TransactionHistoryTable

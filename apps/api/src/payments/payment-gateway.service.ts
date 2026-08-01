@@ -45,6 +45,18 @@ export interface ProviderRefundResult {
   status: string;
 }
 
+export interface ProviderTransferRecipient {
+  recipientCode: string;
+}
+
+export interface ProviderTransferResult {
+  reference: string;
+  transferCode: string | null;
+  status: string;
+  amountMinor: bigint | null;
+  currency: string | null;
+}
+
 @Injectable()
 export class PaymentGatewayService {
   readonly mode: PaymentProviderMode;
@@ -100,6 +112,74 @@ export class PaymentGatewayService {
       { method: 'GET' },
     );
     return normalizeRefundResult(payload);
+  }
+
+  async createMobileMoneyRecipient(input: {
+    name: string;
+    phone: string;
+    network: string;
+  }): Promise<ProviderTransferRecipient> {
+    const payload = await this.request('/transferrecipient', {
+      method: 'POST',
+      body: JSON.stringify({
+        type: 'mobile_money',
+        name: input.name,
+        account_number: toGhanaLocalPhone(input.phone),
+        bank_code: paystackMobileMoneyCode(input.network),
+        currency: 'GHS',
+      }),
+    });
+    if (!isRecord(payload) || !isRecord(payload.data)) {
+      throw new BadGatewayException('Paystack returned an invalid recipient');
+    }
+    const recipientCode = stringValue(payload.data.recipient_code);
+    if (!recipientCode) {
+      throw new BadGatewayException('Paystack returned an invalid recipient');
+    }
+    return { recipientCode };
+  }
+
+  async initiateTransfer(input: {
+    reference: string;
+    recipientCode: string;
+    amountMinor: bigint;
+    reason: string;
+  }): Promise<ProviderTransferResult> {
+    const payload = await this.request('/transfer', {
+      method: 'POST',
+      body: JSON.stringify({
+        source: 'balance',
+        amount: input.amountMinor.toString(),
+        reference: input.reference,
+        recipient: input.recipientCode,
+        reason: input.reason,
+        currency: 'GHS',
+      }),
+    });
+    return normalizeTransferResult(payload, input.reference);
+  }
+
+  async verifyTransfer(reference: string): Promise<ProviderTransferResult> {
+    const payload = await this.request(
+      `/transfer/verify/${encodeURIComponent(reference)}`,
+      { method: 'GET' },
+    );
+    return normalizeTransferResult(payload, reference);
+  }
+
+  async finalizeTransfer(input: {
+    transferCode: string;
+    otp: string;
+    reference: string;
+  }): Promise<ProviderTransferResult> {
+    const payload = await this.request('/transfer/finalize_transfer', {
+      method: 'POST',
+      body: JSON.stringify({
+        transfer_code: input.transferCode,
+        otp: input.otp,
+      }),
+    });
+    return normalizeTransferResult(payload, input.reference);
   }
 
   assertWebhookSignature(rawBody: Buffer, signature: string | undefined) {
@@ -183,6 +263,27 @@ function isChargeAttempted(message: string): boolean {
   return message.trim().toLowerCase() === 'charge attempted';
 }
 
+function paystackMobileMoneyCode(network: string): string {
+  switch (network) {
+    case 'MTN':
+      return 'MTN';
+    case 'TELECEL':
+      return 'VOD';
+    case 'AIRTELTIGO':
+      return 'ATL';
+    default:
+      throw new BadGatewayException('Unsupported Mobile Money network');
+  }
+}
+
+function toGhanaLocalPhone(phone: string): string {
+  const local = phone.replace(/^\+?233/, '0');
+  if (!/^0\d{9}$/.test(local)) {
+    throw new BadGatewayException('Registered Mobile Money number is invalid');
+  }
+  return local;
+}
+
 function normalizeProviderResult(
   payload: unknown,
   expectedReference: string,
@@ -247,6 +348,27 @@ function normalizeRefundResult(payload: unknown): ProviderRefundResult {
     throw new BadGatewayException('Paystack returned an invalid refund');
   }
   return { reference, status };
+}
+
+function normalizeTransferResult(
+  payload: unknown,
+  expectedReference: string,
+): ProviderTransferResult {
+  if (!isRecord(payload) || !isRecord(payload.data)) {
+    throw new BadGatewayException('Paystack returned an invalid transfer');
+  }
+  const reference = stringValue(payload.data.reference);
+  const status = stringValue(payload.data.status)?.toLowerCase();
+  if (!reference || !status || reference !== expectedReference) {
+    throw new BadGatewayException('Paystack returned an invalid transfer');
+  }
+  return {
+    reference,
+    status,
+    transferCode: stringValue(payload.data.transfer_code),
+    amountMinor: integerValue(payload.data.amount),
+    currency: stringValue(payload.data.currency)?.toUpperCase() ?? null,
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

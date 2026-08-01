@@ -36,6 +36,7 @@ import { SalesChannelService } from './sales-channel.service';
     AgentSessionGuard,
     AgentNoStoreInterceptor,
     OtpTokenService,
+    PhoneProtectionService,
     SMS_OTP_SENDER,
     InternalAccessModule,
   ],

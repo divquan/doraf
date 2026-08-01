@@ -7,6 +7,7 @@ describe('formatLedgerEntryDescription', () => {
     'SALE_REVERSAL_DEBIT',
     'PAYOUT_DEBIT',
     'PAYOUT_FEE_DEBIT',
+    'PAYOUT_COMPENSATION_CREDIT',
     'ADJUSTMENT_CREDIT',
     'ADJUSTMENT_DEBIT',
   ];

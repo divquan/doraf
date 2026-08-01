@@ -76,6 +76,58 @@ export class AgentAuthService {
     return this.createChallenge(OtpPurpose.AGENT_SIGN_IN, phone, agent.id);
   }
 
+  async requestWithdrawalOtp(agentId: string): Promise<OtpRequestResult> {
+    const agent = await this.prisma.agent.findUnique({
+      where: { id: agentId },
+      select: {
+        phoneCiphertext: true,
+        phoneFingerprint: true,
+        phoneMask: true,
+        encryptionKeyId: true,
+        formatVersion: true,
+      },
+    });
+    if (!agent) throw new UnauthorizedException('Authentication required');
+    return this.createChallenge(
+      OtpPurpose.AGENT_WITHDRAWAL,
+      {
+        normalized: '',
+        ciphertext: Buffer.from(agent.phoneCiphertext),
+        fingerprint: Buffer.from(agent.phoneFingerprint),
+        mask: agent.phoneMask,
+        encryptionKeyId: agent.encryptionKeyId,
+        formatVersion: agent.formatVersion,
+      },
+      agentId,
+    );
+  }
+
+  async verifyWithdrawalOtp(
+    agentId: string,
+    challengeId: string,
+    code: string,
+  ) {
+    const challenge = await this.findUsableChallenge(
+      challengeId,
+      OtpPurpose.AGENT_WITHDRAWAL,
+    );
+    if (challenge.agentId !== agentId) throw this.invalidOtp();
+    await this.assertCode(challenge, code);
+    const completion = this.otpTokens.createCompletionToken();
+    const now = new Date();
+    const expiresAt = this.future('AGENT_AUTH_OTP_TTL_SECONDS', now);
+    const consumed = await this.prisma.otpChallenge.updateMany({
+      where: { id: challenge.id, consumedAt: null, expiresAt: { gt: now } },
+      data: {
+        consumedAt: now,
+        completionTokenFingerprint: Uint8Array.from(completion.fingerprint),
+        completionExpiresAt: expiresAt,
+      },
+    });
+    if (consumed.count !== 1) throw this.invalidOtp();
+    return { withdrawalToken: completion.token, expiresAt };
+  }
+
   async verifyRegistrationOtp(
     challengeId: string,
     code: string,

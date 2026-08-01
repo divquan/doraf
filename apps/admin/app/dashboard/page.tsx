@@ -10,6 +10,10 @@ import {
 import { PricingControls } from "@/components/pricing-controls"
 import { ProductAvailability } from "@/components/product-availability"
 import { apiJson, apiRequest } from "@/lib/internal-api"
+import {
+  AdminWithdrawal,
+  WithdrawalOperations,
+} from "@/components/withdrawal-operations"
 
 export default async function DashboardPage() {
   const [pricingResponse, inventoryResponse] = await Promise.all([
@@ -23,6 +27,12 @@ export default async function DashboardPage() {
     typeof PricingControls
   >[0]["data"]
   const inventory = (await apiJson(inventoryResponse)) as InventoryOverviewData
+  const withdrawals =
+    pricing.viewerRole === "ADMINISTRATOR"
+      ? ((await apiJson(
+          await apiRequest("/admin/withdrawals", {}, true)
+        )) as AdminWithdrawal[])
+      : []
   return (
     <main className="mx-auto flex min-h-svh max-w-5xl flex-col gap-10 p-6 md:p-10">
       <header className="flex items-center justify-between gap-4">
@@ -66,6 +76,18 @@ export default async function DashboardPage() {
           />
         ) : null}
       </section>
+      {pricing.viewerRole === "ADMINISTRATOR" ? (
+        <section className="flex flex-col gap-4">
+          <div>
+            <h2 className="text-2xl font-semibold">Withdrawal operations</h2>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
+              Review held wallet funds, approve Mobile Money transfers, and
+              reconcile Paystack outcomes.
+            </p>
+          </div>
+          <WithdrawalOperations withdrawals={withdrawals} />
+        </section>
+      ) : null}
       {pricing.viewerRole === "ADMINISTRATOR" ? (
         <section className="flex flex-col gap-4">
           <div>

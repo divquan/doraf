@@ -65,6 +65,25 @@ export class AgentAuthController {
     );
   }
 
+  @Post('withdrawals/otp')
+  @UseGuards(AgentSessionGuard)
+  requestWithdrawalOtp(@CurrentAgentPrincipal() principal: AgentPrincipal) {
+    return this.authentication.requestWithdrawalOtp(principal.agentId);
+  }
+
+  @Post('withdrawals/verify')
+  @UseGuards(AgentSessionGuard)
+  verifyWithdrawalOtp(
+    @Body() request: VerifyAgentOtpRequest,
+    @CurrentAgentPrincipal() principal: AgentPrincipal,
+  ) {
+    return this.authentication.verifyWithdrawalOtp(
+      principal.agentId,
+      request.challengeId,
+      request.code,
+    );
+  }
+
   @Get('session')
   @UseGuards(AgentSessionGuard)
   session(@CurrentAgentPrincipal() principal: AgentPrincipal) {

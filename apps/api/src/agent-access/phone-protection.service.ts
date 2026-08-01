@@ -1,6 +1,11 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createCipheriv, createHmac, randomBytes } from 'node:crypto';
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHmac,
+  randomBytes,
+} from 'node:crypto';
 import type { AppEnvironment } from '../config/environment';
 import type { ProtectedPhone } from './agent-access.types';
 
@@ -41,6 +46,31 @@ export class PhoneProtectionService {
       encryptionKeyId: 'master-key:v1',
       formatVersion: 1,
     };
+  }
+
+  decrypt(ciphertext: Uint8Array): string {
+    const value = Buffer.from(ciphertext);
+    if (value.length <= 28) {
+      throw new BadRequestException('Stored phone number is invalid');
+    }
+    const nonce = value.subarray(0, 12);
+    const authenticationTag = value.subarray(12, 28);
+    const encrypted = value.subarray(28);
+    try {
+      const decipher = createDecipheriv(
+        'aes-256-gcm',
+        this.encryptionKey,
+        nonce,
+      );
+      decipher.setAAD(aad);
+      decipher.setAuthTag(authenticationTag);
+      return Buffer.concat([
+        decipher.update(encrypted),
+        decipher.final(),
+      ]).toString('utf8');
+    } catch {
+      throw new BadRequestException('Stored phone number cannot be decrypted');
+    }
   }
 
   fingerprint(normalized: string): Buffer {

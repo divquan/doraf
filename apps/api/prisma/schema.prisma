@@ -19,6 +19,7 @@ enum AgentStatus {
 enum OtpPurpose {
   AGENT_REGISTRATION
   AGENT_SIGN_IN
+  AGENT_WITHDRAWAL
 
   @@map("otp_purpose")
 }
@@ -170,10 +171,34 @@ enum LedgerEntryType {
   SALE_REVERSAL_DEBIT
   PAYOUT_DEBIT
   PAYOUT_FEE_DEBIT
+  PAYOUT_COMPENSATION_CREDIT
   ADJUSTMENT_CREDIT
   ADJUSTMENT_DEBIT
 
   @@map("ledger_entry_type")
+}
+
+enum WalletHoldState {
+  ACTIVE
+  CONSUMED
+  RELEASED
+
+  @@map("wallet_hold_state")
+}
+
+enum WithdrawalState {
+  REQUESTED
+  APPROVED
+  REJECTED
+  CANCELLED
+  AWAITING_MERCHANT_OTP
+  SUBMITTED
+  PENDING
+  SUCCESS
+  FAILED
+  REVERSED
+
+  @@map("withdrawal_state")
 }
 
 enum DeliveryChannel {
@@ -221,26 +246,28 @@ model AgentTenant {
 }
 
 model Agent {
-  id               String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId         String                 @unique @map("tenant_id") @db.Uuid
-  name             String                 @db.VarChar(120)
-  phoneCiphertext  Bytes                  @map("phone_ciphertext")
-  phoneFingerprint Bytes                  @unique @map("phone_fingerprint")
-  phoneMask        String                 @map("phone_mask") @db.VarChar(32)
-  webSalesId       String                 @unique @default(dbgenerated("lower(encode(gen_random_bytes(12), 'hex'::text))")) @map("web_sales_id") @db.VarChar(24)
-  encryptionKeyId  String                 @map("encryption_key_id") @db.VarChar(100)
-  formatVersion    Int                    @default(1) @map("format_version")
-  status           AgentStatus            @default(ACTIVE)
-  version          Int                    @default(1)
-  createdAt        DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
-  tenant           AgentTenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  pricingOverrides AgentPricingOverride[]
-  productPrices    AgentProductPrice[]
-  sessions         Session[]
-  otpChallenges    OtpChallenge[]
-  orders           Order[]
-  wallet           WalletAccount?
+  id                 String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String                 @unique @map("tenant_id") @db.Uuid
+  name               String                 @db.VarChar(120)
+  phoneCiphertext    Bytes                  @map("phone_ciphertext")
+  phoneFingerprint   Bytes                  @unique @map("phone_fingerprint")
+  phoneMask          String                 @map("phone_mask") @db.VarChar(32)
+  webSalesId         String                 @unique @default(dbgenerated("lower(encode(gen_random_bytes(12), 'hex'::text))")) @map("web_sales_id") @db.VarChar(24)
+  encryptionKeyId    String                 @map("encryption_key_id") @db.VarChar(100)
+  formatVersion      Int                    @default(1) @map("format_version")
+  status             AgentStatus            @default(ACTIVE)
+  version            Int                    @default(1)
+  createdAt          DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant             AgentTenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  pricingOverrides   AgentPricingOverride[]
+  productPrices      AgentProductPrice[]
+  sessions           Session[]
+  otpChallenges      OtpChallenge[]
+  orders             Order[]
+  wallet             WalletAccount?
+  withdrawals        Withdrawal[]
+  transferRecipients TransferRecipient[]
 
   @@index([status])
   @@map("agent")
@@ -286,6 +313,7 @@ model InternalUser {
   createdEnrollmentTokens InternalEnrollmentToken[] @relation("EnrollmentTokenCreator")
   authCeremonies          InternalAuthCeremony[]
   refunds                 Refund[]
+  approvedWithdrawals     Withdrawal[]              @relation("WithdrawalApprover")
 
   @@index([status, role])
   @@map("internal_user")
@@ -797,6 +825,8 @@ model WalletAccount {
   updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
   agent         Agent         @relation(fields: [agentId], references: [id], onDelete: Restrict)
   ledgerEntries LedgerEntry[]
+  holds         WalletHold[]
+  withdrawals   Withdrawal[]
 
   @@map("wallet_account")
 }
@@ -821,6 +851,83 @@ model LedgerEntry {
   @@index([walletAccountId, createdAt])
   @@index([orderId])
   @@map("ledger_entry")
+}
+
+model WalletHold {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  walletAccountId String          @map("wallet_account_id") @db.Uuid
+  withdrawalId    String          @unique @map("withdrawal_id") @db.Uuid
+  amountMinor     BigInt          @map("amount_minor")
+  currency        String          @default("GHS") @db.Char(3)
+  state           WalletHoldState @default(ACTIVE)
+  releasedAt      DateTime?       @map("released_at") @db.Timestamptz(6)
+  consumedAt      DateTime?       @map("consumed_at") @db.Timestamptz(6)
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  walletAccount   WalletAccount   @relation(fields: [walletAccountId], references: [id], onDelete: Restrict)
+  withdrawal      Withdrawal      @relation(fields: [withdrawalId], references: [id], onDelete: Restrict)
+
+  @@index([walletAccountId, state])
+  @@map("wallet_hold")
+}
+
+model Withdrawal {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  agentId          String            @map("agent_id") @db.Uuid
+  walletAccountId  String            @map("wallet_account_id") @db.Uuid
+  destinationMask  String            @map("destination_mask") @db.VarChar(32)
+  network          String            @db.VarChar(32)
+  netAmountMinor   BigInt            @map("net_amount_minor")
+  feeAmountMinor   BigInt            @map("fee_amount_minor")
+  holdAmountMinor  BigInt            @map("hold_amount_minor")
+  currency         String            @default("GHS") @db.Char(3)
+  state            WithdrawalState   @default(REQUESTED)
+  approvedById     String?           @map("approved_by_id") @db.Uuid
+  decisionReason   String?           @map("decision_reason") @db.VarChar(500)
+  requestedAt      DateTime          @default(now()) @map("requested_at") @db.Timestamptz(6)
+  decidedAt        DateTime?         @map("decided_at") @db.Timestamptz(6)
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  agent            Agent             @relation(fields: [agentId], references: [id], onDelete: Restrict)
+  walletAccount    WalletAccount     @relation(fields: [walletAccountId], references: [id], onDelete: Restrict)
+  hold             WalletHold?
+  approvedBy       InternalUser?     @relation("WithdrawalApprover", fields: [approvedById], references: [id], onDelete: Restrict)
+  transferAttempts TransferAttempt[]
+
+  @@index([state, requestedAt])
+  @@index([agentId, requestedAt])
+  @@map("withdrawal")
+}
+
+model TransferRecipient {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  agentId          String   @map("agent_id") @db.Uuid
+  network          String   @db.VarChar(32)
+  phoneFingerprint Bytes    @map("phone_fingerprint")
+  phoneMask        String   @map("phone_mask") @db.VarChar(32)
+  recipientCode    String   @unique @map("recipient_code") @db.VarChar(100)
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  agent            Agent    @relation(fields: [agentId], references: [id], onDelete: Restrict)
+
+  @@unique([agentId, network, phoneFingerprint])
+  @@index([agentId, network, active])
+  @@map("transfer_recipient")
+}
+
+model TransferAttempt {
+  id                String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  withdrawalId      String     @unique @map("withdrawal_id") @db.Uuid
+  providerReference String     @unique @map("provider_reference") @db.VarChar(50)
+  recipientCode     String     @map("recipient_code") @db.VarChar(100)
+  transferCode      String?    @unique @map("transfer_code") @db.VarChar(100)
+  providerStatus    String     @map("provider_status") @db.VarChar(40)
+  createdAt         DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  withdrawal        Withdrawal @relation(fields: [withdrawalId], references: [id], onDelete: Restrict)
+
+  @@index([withdrawalId, createdAt])
+  @@map("transfer_attempt")
 }
 
 model DeliveryMessage {

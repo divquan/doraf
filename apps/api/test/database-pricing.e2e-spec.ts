@@ -160,7 +160,14 @@ describe('pricing transactions', () => {
     });
     expect(due.availableAt.getTime()).toBe(future.getTime());
 
-    const activationTime = new Date();
+    const currentPolicy = await prisma.productPricingPolicy.findFirstOrThrow({
+      where: { productId, id: { not: created.policy.id }, effectiveTo: future },
+      orderBy: { effectiveFrom: 'desc' },
+      select: { effectiveFrom: true },
+    });
+    // Base the due timestamp on the persisted policy window instead of the
+    // host clock, which can be a few milliseconds ahead of Docker PostgreSQL.
+    const activationTime = new Date(currentPolicy.effectiveFrom.getTime() + 1);
     await prisma.productPricingPolicy.updateMany({
       where: { productId, id: { not: created.policy.id }, effectiveTo: future },
       data: { effectiveTo: activationTime },

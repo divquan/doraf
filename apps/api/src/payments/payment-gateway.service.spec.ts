@@ -98,6 +98,84 @@ describe('PaymentGatewayService', () => {
     });
   });
 
+  it('maps the registered Ghana phone and telco to a Paystack transfer recipient', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          status: true,
+          data: { recipient_code: 'RCP_test_recipient' },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+    const gateway = new PaymentGatewayService(
+      config({
+        PAYSTACK_MODE: 'sandbox',
+        PAYSTACK_SECRET_KEY: 'sk_test_gateway-secret',
+      }),
+    );
+
+    await gateway.createMobileMoneyRecipient({
+      name: 'Test Agent',
+      phone: '+233241234567',
+      network: 'TELECEL',
+    });
+
+    const request = fetchSpy.mock.calls[0]?.[1];
+    if (typeof request?.body !== 'string')
+      throw new Error('Expected JSON body');
+    expect(JSON.parse(request.body)).toEqual({
+      type: 'mobile_money',
+      name: 'Test Agent',
+      account_number: '0241234567',
+      bank_code: 'VOD',
+      currency: 'GHS',
+    });
+  });
+
+  it('submits a GHS transfer with a stable reference', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          status: true,
+          data: {
+            reference: 'doraf_wd_1234567890123456',
+            transfer_code: 'TRF_test',
+            status: 'pending',
+            amount: 2_000,
+            currency: 'GHS',
+          },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+    const gateway = new PaymentGatewayService(
+      config({
+        PAYSTACK_MODE: 'sandbox',
+        PAYSTACK_SECRET_KEY: 'sk_test_gateway-secret',
+      }),
+    );
+
+    await gateway.initiateTransfer({
+      reference: 'doraf_wd_1234567890123456',
+      recipientCode: 'RCP_test',
+      amountMinor: 2_000n,
+      reason: 'Doraf withdrawal',
+    });
+
+    const request = fetchSpy.mock.calls[0]?.[1];
+    if (typeof request?.body !== 'string')
+      throw new Error('Expected JSON body');
+    expect(JSON.parse(request.body)).toEqual({
+      source: 'balance',
+      amount: '2000',
+      reference: 'doraf_wd_1234567890123456',
+      recipient: 'RCP_test',
+      reason: 'Doraf withdrawal',
+      currency: 'GHS',
+    });
+  });
+
   it('does not release inventory for an unexpected charge-attempted response', async () => {
     jest
       .spyOn(global, 'fetch')

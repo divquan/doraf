@@ -29,14 +29,23 @@ export class WalletService {
       };
     }
 
-    const aggregate = await this.prisma.ledgerEntry.aggregate({
-      where: { walletAccountId: wallet.id },
-      _sum: { amountMinor: true },
-    });
+    const [aggregate, holds] = await Promise.all([
+      this.prisma.ledgerEntry.aggregate({
+        where: { walletAccountId: wallet.id },
+        _sum: { amountMinor: true },
+      }),
+      this.prisma.walletHold.aggregate({
+        where: { walletAccountId: wallet.id, state: 'ACTIVE' },
+        _sum: { amountMinor: true },
+      }),
+    ]);
 
     const ledgerBalanceMinor = aggregate._sum.amountMinor ?? 0n;
-    const activeHoldsMinor = 0n;
-    const withdrawableMinor = ledgerBalanceMinor > 0n ? ledgerBalanceMinor : 0n;
+    const activeHoldsMinor = holds._sum.amountMinor ?? 0n;
+    const withdrawableMinor =
+      ledgerBalanceMinor > activeHoldsMinor
+        ? ledgerBalanceMinor - activeHoldsMinor
+        : 0n;
     const isNegative = ledgerBalanceMinor < 0n;
     const negativeBalanceMinor = isNegative ? -ledgerBalanceMinor : 0n;
 
@@ -146,6 +155,8 @@ export function formatLedgerEntryDescription(
       return 'Withdrawal payout';
     case 'PAYOUT_FEE_DEBIT':
       return 'Withdrawal fee';
+    case 'PAYOUT_COMPENSATION_CREDIT':
+      return 'Returned withdrawal funds';
     case 'ADJUSTMENT_CREDIT':
       return 'Account credit adjustment';
     case 'ADJUSTMENT_DEBIT':

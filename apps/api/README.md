@@ -55,6 +55,15 @@ The current HTTP surface is:
 - `GET /v1/agent-auth/sales-channel`
 - `GET /v1/agent-wallet/summary` (authenticated agent)
 - `GET /v1/agent-wallet/transactions` (authenticated agent)
+- `GET /v1/agent-wallet/withdrawals` (authenticated agent)
+- `POST /v1/agent-wallet/withdrawals` (authenticated agent, fresh withdrawal token)
+- `POST /v1/agent-auth/withdrawals/otp` (authenticated agent)
+- `POST /v1/agent-auth/withdrawals/verify` (authenticated agent)
+- `GET /v1/admin/withdrawals` (Administrator)
+- `POST /v1/admin/withdrawals/:withdrawalId/approve` (Administrator)
+- `POST /v1/admin/withdrawals/:withdrawalId/reject` (Administrator)
+- `POST /v1/admin/withdrawals/:withdrawalId/finalize-transfer` (Administrator)
+- `POST /v1/admin/withdrawals/:withdrawalId/verify-transfer` (Administrator)
 - `GET /v1/sales-channels/web/:webSalesId` (public active-agent resolution)
 - `POST /v1/sales-channels/web/:webSalesId/orders` (public idempotent checkout)
 - `POST /v1/buyer-recovery/request` (public, generic recovery challenge)
@@ -102,8 +111,8 @@ completion and authenticated sessions use separate short-lived opaque tokens.
 
 Agent suspension and restoration require an Administrator session and a recorded
 reason. Each action is serializable and appends an immutable audit event. A
-suspended agent can still sign in to their read-only portal; account recovery is
-not exposed until its documented evidence and withdrawal-hold policy is decided.
+suspended agent can still sign in to their read-only portal. Agent account
+recovery is not exposed until its evidence policy is decided.
 
 Pricing policy and override writes are versioned by effective time. When a
 currently effective change makes an agent's active retail price invalid, the
@@ -170,6 +179,10 @@ and provider 5xx responses remain in reconciliation because Doraf cannot safely
 assume that no payment prompt was sent. The API logs the Paystack HTTP status
 and a redacted provider reason alongside the payment reference.
 
+The same configured webhook endpoint receives Paystack transfer events. Transfer
+events only trigger provider verification; ledger settlement uses the verified
+reference, amount, currency, and status. There is no separate transfer webhook.
+
 Initialized attempts still need the continuously running timeout verification
 and reconciliation worker. Delivery provider calls are also a later slice; the
 current transaction commits durable delivery messages and outbox work only.
@@ -206,12 +219,15 @@ Configure the Paystack dashboard webhook URL as
 `https://<public-api-host>/v1/payments/paystack/webhook`. A tunnel is required
 when Paystack needs to reach a locally running API.
 
-## Agent Wallet & Ledger
+## Agent wallet, ledger, and withdrawals
 
-The `/v1/agent-wallet/summary` and `/v1/agent-wallet/transactions` endpoints provide authenticated agents with their current wallet balance breakdown and paginated transaction history.
+The agent-wallet endpoints provide authenticated agents with their balance,
+paginated transaction history, withdrawal request form, and withdrawal history.
 
 - **Signed Decimal String Contract:** All monetary fields (`ledgerBalanceMinor`, `activeHoldsMinor`, `withdrawableMinor`, `negativeBalanceMinor`, `amountMinor`) are returned as signed integer pesewa strings (e.g. `"2500"`, `"-500"`). Currency presentation formatting (`GHS 25.00`) is handled in the frontend.
-- **Zero-Hold Limitation:** Active holds are currently set to `"0"` until the withdrawal request slice introduces the `WalletHold` and `Withdrawal` models.
+- **Atomic holds:** A fresh Doraf OTP authorizes one request. A serializable transaction rechecks funds and places the net payout plus GHS 1 fee on hold, preventing concurrent overspend.
+- **Approval and transfer:** Administrator approval revalidates the agent and wallet, then durable outbox work creates or reuses the current-phone Paystack recipient and initiates a uniquely referenced GHS transfer. Merchant transfer OTP can be completed from the administration queue.
+- **Settlement:** Verified success appends payout and fee debits and consumes the hold. Failure releases it. A later verified reversal appends an idempotent compensation credit without changing prior ledger rows.
 - **No GET Initialization:** Querying balance or transactions for an agent without wallet entries returns a zero summary and empty history without creating database records.
 - **Append-Only Immutability:** `ledger_entry` records are protected by a PostgreSQL trigger `prevent_ledger_entry_update_or_delete` rejecting any `UPDATE` or `DELETE` attempt at the database engine level.
 

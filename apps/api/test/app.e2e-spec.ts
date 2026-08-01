@@ -102,6 +102,13 @@ describe('AppController (e2e)', () => {
       .expect(401);
   });
 
+  it('does not expose a second Paystack transfer webhook', () => {
+    return request(app.getHttpServer())
+      .post('/v1/payments/paystack/transfer-webhook')
+      .send({ event: 'transfer.success', data: {} })
+      .expect(404);
+  });
+
   it('validates buyer recovery references before persistence access', () => {
     return request(app.getHttpServer())
       .post('/v1/buyer-recovery/request')
@@ -126,6 +133,18 @@ describe('AppController (e2e)', () => {
   it('denies anonymous access to agent wallet transactions', () => {
     return request(app.getHttpServer())
       .get('/v1/agent-wallet/transactions')
+      .expect(401);
+  });
+
+  it('denies anonymous access to agent withdrawal requests', () => {
+    return request(app.getHttpServer())
+      .get('/v1/agent-wallet/withdrawals')
+      .expect(401);
+  });
+
+  it('denies anonymous withdrawal administration', () => {
+    return request(app.getHttpServer())
+      .get('/v1/admin/withdrawals')
       .expect(401);
   });
 });

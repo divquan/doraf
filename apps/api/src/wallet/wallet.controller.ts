@@ -1,6 +1,8 @@
 import {
   Controller,
+  Body,
   Get,
+  Post,
   Query,
   UseGuards,
   UseInterceptors,
@@ -11,12 +13,17 @@ import { AgentSessionGuard } from '../agent-access/agent-session.guard';
 import { CurrentAgentPrincipal } from '../agent-access/current-agent-principal.decorator';
 import { WalletTransactionsQueryDto } from './dto/wallet-transactions-query.dto';
 import { WalletService } from './wallet.service';
+import { WithdrawalsService } from './withdrawals.service';
+import { CreateWithdrawalRequest } from './dto/create-withdrawal.request';
 
 @Controller('agent-wallet')
 @UseGuards(AgentSessionGuard)
 @UseInterceptors(AgentNoStoreInterceptor)
 export class WalletController {
-  constructor(private readonly walletService: WalletService) {}
+  constructor(
+    private readonly walletService: WalletService,
+    private readonly withdrawals: WithdrawalsService,
+  ) {}
 
   @Get('summary')
   getSummary(@CurrentAgentPrincipal() principal: AgentPrincipal) {
@@ -29,5 +36,18 @@ export class WalletController {
     @Query() query: WalletTransactionsQueryDto,
   ) {
     return this.walletService.getTransactions(principal.agentId, query);
+  }
+
+  @Get('withdrawals')
+  listWithdrawals(@CurrentAgentPrincipal() principal: AgentPrincipal) {
+    return this.withdrawals.listForAgent(principal.agentId);
+  }
+
+  @Post('withdrawals')
+  createWithdrawal(
+    @Body() request: CreateWithdrawalRequest,
+    @CurrentAgentPrincipal() principal: AgentPrincipal,
+  ) {
+    return this.withdrawals.request({ agentId: principal.agentId, ...request });
   }
 }
