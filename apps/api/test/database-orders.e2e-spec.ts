@@ -378,6 +378,90 @@ describe('order creation and inventory reservation', () => {
       }),
     ).resolves.toBe(1);
   });
+
+  it('claims a due payment once, verifies it, and releases expired reconciliation inventory', async () => {
+    const fixture = await createCheckoutFixture(prisma, 1);
+    const created = await orders.createWebOrder(
+      checkoutCommand(fixture, randomUUID(), 1),
+    );
+    await payments.initializePayment(created.payment.reference);
+    const expiredAt = new Date(Date.now() - 6 * 60_000);
+    await prisma.paymentAttempt.update({
+      where: { providerReference: created.payment.reference },
+      data: {
+        createdAt: new Date(Date.now() - 10 * 60_000),
+        authorizationExpiresAt: expiredAt,
+        nextReconciliationAt: expiredAt,
+      },
+    });
+    paymentGateway.verify.mockResolvedValueOnce({
+      reference: created.payment.reference,
+      status: 'pending',
+      amountMinor: null,
+      currency: null,
+      transactionId: 'pending-transaction',
+      accessCode: null,
+      displayText: null,
+      message: 'Awaiting authorization',
+    });
+
+    const claimed = await payments.claimDueReconciliationAttempts();
+    expect(claimed).toContain(created.payment.reference);
+    await expect(
+      payments.claimDueReconciliationAttempts(),
+    ).resolves.not.toContain(created.payment.reference);
+    await payments.reconcileDuePayment(created.payment.reference);
+
+    const attempt = await prisma.paymentAttempt.findUniqueOrThrow({
+      where: { providerReference: created.payment.reference },
+    });
+    const reservation = await prisma.inventoryReservation.findFirstOrThrow({
+      where: { paymentAttemptId: attempt.id },
+    });
+    expect(attempt.state).toBe('RECONCILING');
+    expect(attempt.providerStatus).toBe('pending');
+    expect(attempt.nextReconciliationAt).not.toBeNull();
+    expect(reservation.state).toBe('RELEASED');
+    await expect(
+      prisma.voucher.count({
+        where: { id: fixture.voucherIds[0], availability: 'AVAILABLE' },
+      }),
+    ).resolves.toBe(1);
+  });
+
+  it('keeps inventory reserved and schedules another verification after a provider timeout', async () => {
+    const fixture = await createCheckoutFixture(prisma, 1);
+    const created = await orders.createWebOrder(
+      checkoutCommand(fixture, randomUUID(), 1),
+    );
+    await payments.initializePayment(created.payment.reference);
+    const dueAt = new Date(Date.now() - 1_000);
+    await prisma.paymentAttempt.update({
+      where: { providerReference: created.payment.reference },
+      data: { nextReconciliationAt: dueAt },
+    });
+    paymentGateway.verify.mockImplementationOnce(() => {
+      throw new PaymentProviderRequestException(
+        'ambiguous',
+        null,
+        'Request timed out',
+      );
+    });
+
+    await payments.claimDueReconciliationAttempts();
+    await expect(
+      payments.reconcileDuePayment(created.payment.reference),
+    ).rejects.toThrow('Paystack payment initialization failed');
+
+    const attempt = await prisma.paymentAttempt.findUniqueOrThrow({
+      where: { providerReference: created.payment.reference },
+      include: { reservation: true },
+    });
+    expect(attempt.state).toBe('RECONCILING');
+    expect(attempt.providerStatus).toBe('VERIFICATION_UNCONFIRMED');
+    expect(attempt.nextReconciliationAt?.getTime()).toBeGreaterThan(Date.now());
+    expect(attempt.reservation?.state).toBe('ACTIVE');
+  });
 });
 
 async function createCheckoutFixture(prisma: PrismaService, stock: number) {

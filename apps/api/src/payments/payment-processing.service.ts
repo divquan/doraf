@@ -18,6 +18,9 @@ import {
 } from './payment-gateway.service';
 
 const TERMINAL_FAILURES = new Set(['failed', 'abandoned']);
+const RECONCILIATION_GRACE_MS = 5 * 60 * 1_000;
+const AMBIGUOUS_VERIFICATION_RETRY_MS = 60_000;
+const POST_RELEASE_RECONCILIATION_MS = 15 * 60 * 1_000;
 
 export interface SerializedPaymentAttempt {
   reference: string;
@@ -186,8 +189,56 @@ export class PaymentProcessingService {
   }
 
   async verifyPayment(providerReference: string) {
-    const result = await this.gateway.verify(providerReference);
-    return this.processProviderResult(providerReference, result);
+    return this.reconcileDuePayment(providerReference);
+  }
+
+  /**
+   * Claims due attempts with a lease. A second worker can safely retry after
+   * the lease expires if this process stops while Paystack is being queried.
+   */
+  async claimDueReconciliationAttempts(limit = 20): Promise<string[]> {
+    const now = new Date();
+    const candidates = await this.prisma.paymentAttempt.findMany({
+      where: {
+        state: { in: ['PENDING_AUTHORIZATION', 'RECONCILING', 'VERIFYING'] },
+        nextReconciliationAt: { lte: now },
+      },
+      orderBy: { nextReconciliationAt: 'asc' },
+      take: Math.max(1, Math.min(limit, 100)),
+      select: { id: true, providerReference: true },
+    });
+    const leaseUntil = new Date(
+      now.getTime() + AMBIGUOUS_VERIFICATION_RETRY_MS,
+    );
+    const claimed: string[] = [];
+    for (const candidate of candidates) {
+      const result = await this.prisma.paymentAttempt.updateMany({
+        where: {
+          id: candidate.id,
+          state: { in: ['PENDING_AUTHORIZATION', 'RECONCILING', 'VERIFYING'] },
+          nextReconciliationAt: { lte: now },
+        },
+        data: {
+          state: 'VERIFYING',
+          nextReconciliationAt: leaseUntil,
+          version: { increment: 1 },
+        },
+      });
+      if (result.count === 1) claimed.push(candidate.providerReference);
+    }
+    return claimed;
+  }
+
+  async reconcileDuePayment(providerReference: string) {
+    try {
+      const result = await this.gateway.verify(providerReference);
+      return this.processProviderResult(providerReference, result);
+    } catch (error) {
+      if (error instanceof PaymentProviderRequestException) {
+        await this.recordAmbiguousVerification(providerReference, error);
+      }
+      throw error;
+    }
   }
 
   async verifyPublicPayment(webSalesId: string, orderReference: string) {
@@ -306,19 +357,115 @@ export class PaymentProcessingService {
       if (eventId) await this.finishEvent(eventId, 'PROCESSED');
       return outcome;
     }
-    const updated = await this.prisma.paymentAttempt.update({
-      where: { providerReference },
+    const updated = await this.recordNonTerminalResult(
+      providerReference,
+      result,
+    );
+    if (eventId) await this.finishEvent(eventId, 'PROCESSED');
+    return this.serializeAttempt(updated);
+  }
+
+  private async recordAmbiguousVerification(
+    providerReference: string,
+    error: PaymentProviderRequestException,
+  ) {
+    const result = await this.prisma.paymentAttempt.updateMany({
+      where: {
+        providerReference,
+        state: { in: ['PENDING_AUTHORIZATION', 'VERIFYING', 'RECONCILING'] },
+      },
       data: {
         state: 'RECONCILING',
-        providerStatus: result.status,
-        providerTransactionId: result.transactionId,
+        providerStatus: 'VERIFICATION_UNCONFIRMED',
         lastVerifiedAt: new Date(),
-        nextReconciliationAt: new Date(Date.now() + 5 * 60 * 1_000),
+        nextReconciliationAt: new Date(
+          Date.now() + AMBIGUOUS_VERIFICATION_RETRY_MS,
+        ),
         version: { increment: 1 },
       },
     });
-    if (eventId) await this.finishEvent(eventId, 'PROCESSED');
-    return this.serializeAttempt(updated);
+    if (result.count === 1) {
+      this.logger.warn(
+        `Paystack verification ambiguous reference=${providerReference} httpStatus=${error.providerStatusCode ?? 'none'} reason=${redactProviderMessage(error.providerMessage)}`,
+      );
+    }
+  }
+
+  private async recordNonTerminalResult(
+    providerReference: string,
+    payment: ProviderPaymentResult,
+  ) {
+    return this.prisma.$transaction(async (transaction) => {
+      await transaction.$queryRaw`
+        SELECT id FROM "payment_attempt"
+        WHERE provider_reference = ${providerReference}
+        FOR UPDATE
+      `;
+      const attempt = await transaction.paymentAttempt.findUniqueOrThrow({
+        where: { providerReference },
+        include: { reservation: { include: { items: true } } },
+      });
+      if (
+        attempt.state === 'SUCCESS' ||
+        attempt.state === 'FAILED' ||
+        attempt.state === 'ABANDONED'
+      ) {
+        return attempt;
+      }
+
+      const now = new Date();
+      const graceEndsAt = new Date(
+        attempt.authorizationExpiresAt.getTime() + RECONCILIATION_GRACE_MS,
+      );
+      const reservation = attempt.reservation;
+      const releaseReservation =
+        reservation?.state === 'ACTIVE' && now >= graceEndsAt;
+      const nextReconciliationAt =
+        now < attempt.authorizationExpiresAt
+          ? attempt.authorizationExpiresAt
+          : releaseReservation
+            ? new Date(now.getTime() + POST_RELEASE_RECONCILIATION_MS)
+            : graceEndsAt;
+
+      const updated = await transaction.paymentAttempt.update({
+        where: { id: attempt.id },
+        data: {
+          state: 'RECONCILING',
+          providerStatus: payment.status,
+          providerTransactionId: payment.transactionId,
+          lastVerifiedAt: now,
+          nextReconciliationAt,
+          version: { increment: 1 },
+        },
+      });
+      if (releaseReservation && reservation) {
+        const voucherIds = reservation.items.map((item) => item.voucherId);
+        await transaction.inventoryReservation.update({
+          where: { id: reservation.id },
+          data: { state: 'RELEASED', version: { increment: 1 } },
+        });
+        await transaction.voucher.updateMany({
+          where: { id: { in: voucherIds }, availability: 'RESERVED' },
+          data: { availability: 'AVAILABLE', version: { increment: 1 } },
+        });
+        await transaction.inventoryEvent.createMany({
+          data: voucherIds.map((voucherId) => ({
+            voucherId,
+            eventType: 'PAYMENT_RECONCILIATION_GRACE_EXPIRED',
+            previousAvailability: 'RESERVED' as const,
+            resultingAvailability: 'AVAILABLE' as const,
+            sourceType: 'PAYMENT_RECONCILIATION',
+            sourceId: attempt.id,
+            safeMetadata: { reservationId: reservation.id },
+          })),
+          skipDuplicates: true,
+        });
+        this.logger.warn(
+          `Payment reconciliation grace expired; reservation released reference=${providerReference}`,
+        );
+      }
+      return updated;
+    });
   }
 
   private applySuccessfulPayment(

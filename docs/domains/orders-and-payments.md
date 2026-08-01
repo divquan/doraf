@@ -296,10 +296,15 @@ appends the unique agent sale credit, and creates durable SMS and optional email
 delivery messages. Terminal failures release inventory, and duplicate success
 processing finds the existing commercial effects.
 
-Continuous timeout verification, reconciliation retries, late-success fresh
-allocation, and excess-payment refund execution remain in the recovery and
-exception phase. The current late-success path records a paid fulfillment
-exception for operator recovery rather than losing the payment.
+The payment reconciliation worker claims due attempts with a short durable
+lease and verifies the existing Paystack reference; it never initializes a
+second charge. It first verifies at the authorization deadline, retains an
+active reservation through the confirmed five-minute grace period, and then
+releases that reservation while continuing background verification. A provider
+timeout retains the reservation and schedules another verification. A late
+success after release follows the existing paid fulfillment-exception path for
+operator recovery rather than losing the payment. Fresh late-success allocation
+and excess-payment refund execution remain in the recovery and exception phase.
 
 When Paystack definitively rejects initialization, Doraf records the failed
 attempt and releases the complete reservation immediately. A network timeout or
