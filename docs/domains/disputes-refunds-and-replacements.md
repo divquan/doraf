@@ -86,6 +86,11 @@ original agent profit.
 
 ## Refund
 
+Excess payments enter a `REQUESTED` refund queue. An Administrator lists and
+approves them with a recorded reason; approval creates durable provider-submission
+work but does not itself call Paystack. Provider submission and reconciliation
+remain asynchronous so an approval transaction never waits on an external API.
+
 If Doraf cannot supply a valid replacement, an Administrator can refund the
 affected unit.
 

@@ -139,6 +139,7 @@ enum PaymentAttemptClassification {
 
 enum RefundState {
   REQUESTED
+  APPROVED
   SUBMITTED
   PENDING
   SUCCESS

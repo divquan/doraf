@@ -10,6 +10,7 @@ import { OperationsModule } from './operations/operations.module';
 import { PricingModule } from './pricing/pricing.module';
 import { OrdersModule } from './orders/orders.module';
 import { DeliveryModule } from './delivery/delivery.module';
+import { RefundsModule } from './refunds/refunds.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { DeliveryModule } from './delivery/delivery.module';
     InventoryModule.registerMasterKey(),
     OrdersModule,
     DeliveryModule,
+    RefundsModule,
   ],
 })
 export class AppModule {}

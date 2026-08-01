@@ -14,6 +14,6 @@ import { PaymentsController } from './payments.controller';
     PaymentProcessingService,
     PaymentReconciliationWorker,
   ],
-  exports: [PaymentProcessingService],
+  exports: [PaymentGatewayService, PaymentProcessingService],
 })
 export class PaymentsModule {}

@@ -40,6 +40,11 @@ export interface ProviderPaymentResult {
   message: string | null;
 }
 
+export interface ProviderRefundResult {
+  reference: string;
+  status: string;
+}
+
 @Injectable()
 export class PaymentGatewayService {
   readonly mode: PaymentProviderMode;
@@ -71,6 +76,30 @@ export class PaymentGatewayService {
       { method: 'GET' },
     );
     return normalizeProviderResult(payload, reference);
+  }
+
+  async submitRefund(input: {
+    transactionReference: string;
+    amountMinor: bigint;
+    currency: string;
+  }): Promise<ProviderRefundResult> {
+    const payload = await this.request('/refund', {
+      method: 'POST',
+      body: JSON.stringify({
+        transaction: input.transactionReference,
+        amount: input.amountMinor.toString(),
+        currency: input.currency,
+      }),
+    });
+    return normalizeRefundResult(payload);
+  }
+
+  async fetchRefund(reference: string): Promise<ProviderRefundResult> {
+    const payload = await this.request(
+      `/refund/${encodeURIComponent(reference)}`,
+      { method: 'GET' },
+    );
+    return normalizeRefundResult(payload);
   }
 
   assertWebhookSignature(rawBody: Buffer, signature: string | undefined) {
@@ -206,6 +235,18 @@ function normalizeHostedCheckout(
     displayText: 'Continue securely in the Paystack checkout window.',
     message: stringValue(payload.message),
   };
+}
+
+function normalizeRefundResult(payload: unknown): ProviderRefundResult {
+  if (!isRecord(payload) || !isRecord(payload.data)) {
+    throw new BadGatewayException('Paystack returned an invalid refund');
+  }
+  const reference = stringValue(payload.data.id);
+  const status = stringValue(payload.data.status)?.toLowerCase();
+  if (!reference || !status) {
+    throw new BadGatewayException('Paystack returned an invalid refund');
+  }
+  return { reference, status };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
