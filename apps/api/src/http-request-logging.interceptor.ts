@@ -34,6 +34,7 @@ export class HttpRequestLoggingInterceptor implements NestInterceptor {
             error instanceof HttpException ? error.getStatus() : 500,
             requestId,
             startedAt,
+            error,
           ),
       }),
     );
@@ -44,9 +45,12 @@ export class HttpRequestLoggingInterceptor implements NestInterceptor {
     statusCode: number,
     requestId: string,
     startedAt: number,
+    error?: unknown,
   ): void {
     const durationMs = Math.round(performance.now() - startedAt);
-    const message = `${request.method} ${request.baseUrl}${request.path} ${statusCode} ${durationMs}ms requestId=${requestId}`;
+    const errDetails =
+      error instanceof Error ? ` error="${error.message}"` : '';
+    const message = `${request.method} ${request.baseUrl}${request.path} ${statusCode} ${durationMs}ms requestId=${requestId}${errDetails}`;
 
     if (statusCode >= 500) {
       this.logger.error(message);

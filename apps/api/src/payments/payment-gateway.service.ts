@@ -18,7 +18,9 @@ export class PaymentProviderRequestException extends BadGatewayException {
     readonly providerStatusCode: number | null,
     readonly providerMessage: string,
   ) {
-    super('Paystack payment initialization failed');
+    super(
+      `Paystack request failed (${providerStatusCode ?? 'network'}: ${providerMessage})`,
+    );
   }
 }
 
