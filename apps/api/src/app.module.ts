@@ -6,6 +6,7 @@ import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { AgentAccessModule } from './agent-access/agent-access.module';
+import { OperationsModule } from './operations/operations.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { AgentAccessModule } from './agent-access/agent-access.module';
     HealthModule,
     CatalogModule,
     AgentAccessModule,
+    OperationsModule,
     InventoryModule.registerMasterKey(),
   ],
 })
