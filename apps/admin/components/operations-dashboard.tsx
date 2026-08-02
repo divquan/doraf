@@ -1,4 +1,9 @@
+"use client"
+
+import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Badge } from "@workspace/ui/components/badge"
+import { Button } from "@workspace/ui/components/button"
 import {
   Card,
   CardContent,
@@ -6,8 +11,39 @@ import {
   CardHeader,
   CardTitle,
 } from "@workspace/ui/components/card"
+import { Spinner } from "@workspace/ui/components/spinner"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@workspace/ui/components/table"
+
+export interface StuckOutboxDetailData {
+  id: string
+  eventType: string
+  aggregateType: string
+  aggregateId: string
+  state: string
+  lastError: string | null
+  createdAt: string
+}
 
 export interface AdminReportingOverviewData {
+  invariants?: {
+    status: "HEALTHY" | "DISCREPANCY_DETECTED"
+    auditedAt: string
+    checks: Array<{
+      code: string
+      name: string
+      status: "PASS" | "FAIL"
+      details: string
+      anomalyCount: number
+      stuckEvents?: StuckOutboxDetailData[]
+    }>
+  }
   financial: {
     totalGrossSalesMinor: string
     totalAgentCommissionsMinor: string
@@ -46,8 +82,167 @@ export function OperationsDashboard({
 }: {
   data: AdminReportingOverviewData
 }) {
+  const router = useRouter()
+  const [requeuing, setRequeuing] = useState(false)
+  const [requeueMessage, setRequeueMessage] = useState<string | null>(null)
+
+  const invariantStatus = data.invariants?.status ?? "HEALTHY"
+  const outboxCheck = data.invariants?.checks.find(
+    (c) => c.code === "OUTBOX_QUEUE_STUCK_WORK"
+  )
+  const stuckEvents = outboxCheck?.stuckEvents ?? []
+
+  async function handleRequeue() {
+    setRequeuing(true)
+    setRequeueMessage(null)
+    try {
+      const response = await fetch("/api/reporting/requeue-outbox", {
+        method: "POST",
+      })
+      const body = (await response.json().catch(() => ({}))) as {
+        requeuedCount?: number
+        message?: string
+      }
+      if (!response.ok) {
+        throw new Error(body.message ?? "Failed to requeue stuck events")
+      }
+      setRequeueMessage(
+        `Successfully requeued ${body.requeuedCount ?? 0} stuck outbox task(s).`
+      )
+      router.refresh()
+    } catch (err) {
+      setRequeueMessage(
+        err instanceof Error ? err.message : "Requeue action failed"
+      )
+    } finally {
+      setRequeuing(false)
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6">
+      {/* System Invariant & Health Status */}
+      <Card
+        className={
+          invariantStatus === "DISCREPANCY_DETECTED"
+            ? "border-destructive bg-destructive/5"
+            : ""
+        }
+      >
+        <CardHeader>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <CardTitle className="text-base">
+                Continuous System Invariant & Data Health
+              </CardTitle>
+              <CardDescription>
+                Automated database checks across ledger, inventory stock, order items, and outbox queues
+              </CardDescription>
+            </div>
+            <Badge
+              variant={
+                invariantStatus === "HEALTHY" ? "secondary" : "destructive"
+              }
+            >
+              {invariantStatus === "HEALTHY"
+                ? "All Invariants Healthy"
+                : "Discrepancy Detected"}
+            </Badge>
+          </div>
+        </CardHeader>
+        {data.invariants?.checks && data.invariants.checks.length > 0 ? (
+          <CardContent className="flex flex-col gap-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {data.invariants.checks.map((check) => (
+                <div
+                  key={check.code}
+                  className="flex flex-col justify-between rounded-md border p-3 text-xs"
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold">{check.name}</span>
+                      <Badge
+                        variant={
+                          check.status === "PASS" ? "outline" : "destructive"
+                        }
+                        className="text-[10px]"
+                      >
+                        {check.status}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-muted-foreground">{check.details}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Stuck Outbox Work Inspector */}
+            {stuckEvents.length > 0 ? (
+              <div className="mt-2 rounded-lg border bg-background p-4 flex flex-col gap-3">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <h4 className="text-sm font-semibold text-destructive">
+                      Stuck Outbox Work Inspector ({stuckEvents.length} queued)
+                    </h4>
+                    <p className="text-xs text-muted-foreground">
+                      Tasks pending &gt; 10 minutes without completion. Re-queue to trigger background workers.
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    disabled={requeuing}
+                    onClick={handleRequeue}
+                    variant="outline"
+                  >
+                    {requeuing ? <Spinner data-icon="inline-start" /> : null}
+                    Re-queue Stuck Tasks
+                  </Button>
+                </div>
+
+                {requeueMessage ? (
+                  <p className="text-xs font-medium text-primary">
+                    {requeueMessage}
+                  </p>
+                ) : null}
+
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs">Event Type</TableHead>
+                      <TableHead className="text-xs">Aggregate ID</TableHead>
+                      <TableHead className="text-xs">State</TableHead>
+                      <TableHead className="text-xs">Created</TableHead>
+                      <TableHead className="text-xs">Last Error / Note</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {stuckEvents.map((evt) => (
+                      <TableRow key={evt.id} className="text-xs">
+                        <TableCell className="font-mono font-medium">
+                          {evt.eventType}
+                        </TableCell>
+                        <TableCell className="font-mono text-muted-foreground">
+                          {evt.aggregateId.slice(0, 18)}...
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-[10px]">
+                            {evt.state}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{formatDate(evt.createdAt)}</TableCell>
+                        <TableCell className="max-w-xs truncate text-muted-foreground">
+                          {evt.lastError ?? "Awaiting worker dispatch"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : null}
+          </CardContent>
+        ) : null}
+      </Card>
+
       {/* Financial Overview */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard
@@ -249,4 +444,11 @@ function formatGhs(minorStr: string) {
   return `GHS ${(minor / 100n).toLocaleString("en-GH")}.${(minor % 100n)
     .toString()
     .padStart(2, "0")}`
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("en-GH", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date(value))
 }

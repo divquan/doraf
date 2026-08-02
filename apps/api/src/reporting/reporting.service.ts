@@ -1,8 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { WalletHoldState, WithdrawalState } from '../generated/prisma/client';
+import {
+  InvariantAuditorService,
+  type InvariantAuditReport,
+} from './invariant-auditor.service';
 
 export interface AdminReportingOverview {
+  invariants: InvariantAuditReport;
   financial: {
     totalGrossSalesMinor: string;
     totalAgentCommissionsMinor: string;
@@ -38,10 +43,14 @@ export interface AdminReportingOverview {
 
 @Injectable()
 export class ReportingService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditor: InvariantAuditorService,
+  ) {}
 
   async getAdminOverview(): Promise<AdminReportingOverview> {
     const [
+      invariants,
       grossSales,
       commissions,
       ledgerTotal,
@@ -53,6 +62,7 @@ export class ReportingService {
       agentStats,
       outboxPending,
     ] = await Promise.all([
+      this.auditor.runFullAudit(),
       this.prisma.order.aggregate({
         where: { paymentState: 'PAID' },
         _sum: { retailTotalMinor: true },
@@ -151,6 +161,7 @@ export class ReportingService {
     }
 
     return {
+      invariants,
       financial: {
         totalGrossSalesMinor: grossSalesMinor.toString(),
         totalAgentCommissionsMinor: commissionsMinor.toString(),
@@ -177,5 +188,13 @@ export class ReportingService {
         pendingOutboxCount: outboxPending,
       },
     };
+  }
+
+  async getInvariantsReport(): Promise<InvariantAuditReport> {
+    return this.auditor.runFullAudit();
+  }
+
+  async requeueStuckOutbox() {
+    return this.auditor.requeueStuckOutboxEvents();
   }
 }

@@ -1,9 +1,11 @@
 import { Test, type TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../database/prisma.service';
+import { InvariantAuditorService } from './invariant-auditor.service';
 import { ReportingService } from './reporting.service';
 
 describe('ReportingService', () => {
   let service: ReportingService;
+  let auditor: { runFullAudit: jest.Mock };
   let prisma: {
     order: { aggregate: jest.Mock; count: jest.Mock };
     ledgerEntry: { aggregate: jest.Mock };
@@ -17,6 +19,13 @@ describe('ReportingService', () => {
   };
 
   beforeEach(async () => {
+    auditor = {
+      runFullAudit: jest.fn().mockResolvedValue({
+        status: 'HEALTHY',
+        auditedAt: new Date().toISOString(),
+        checks: [],
+      }),
+    };
     prisma = {
       order: {
         aggregate: jest.fn().mockResolvedValue({
@@ -79,6 +88,7 @@ describe('ReportingService', () => {
       providers: [
         ReportingService,
         { provide: PrismaService, useValue: prisma },
+        { provide: InvariantAuditorService, useValue: auditor },
       ],
     }).compile();
 
@@ -88,6 +98,7 @@ describe('ReportingService', () => {
   it('aggregates financial, fulfillment, and operations stats correctly', async () => {
     const result = await service.getAdminOverview();
 
+    expect(result.invariants.status).toBe('HEALTHY');
     expect(result.financial.totalGrossSalesMinor).toBe('15000');
     expect(result.financial.totalAgentCommissionsMinor).toBe('3000');
     expect(result.financial.totalPlatformNetMinor).toBe('12000');

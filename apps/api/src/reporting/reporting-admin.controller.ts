@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { InternalRole } from '../generated/prisma/client';
 import { InternalRoles } from '../internal-access/internal-roles.decorator';
 import { InternalRolesGuard } from '../internal-access/internal-roles.guard';
@@ -14,5 +14,15 @@ export class ReportingAdminController {
   @Get('overview')
   getOverview() {
     return this.reporting.getAdminOverview();
+  }
+
+  @Get('invariants')
+  getInvariants() {
+    return this.reporting.getInvariantsReport();
+  }
+
+  @Post('requeue-outbox')
+  requeueOutbox() {
+    return this.reporting.requeueStuckOutbox();
   }
 }
