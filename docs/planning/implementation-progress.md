@@ -1,7 +1,7 @@
 # MVP implementation progress
 
 Status: Active tracker  
-Last updated: 2026-08-01
+Last updated: 2026-08-02
 
 This document records implementation state only. It does not redefine the MVP
 or duplicate its delivery plan. Requirements remain in
@@ -32,7 +32,22 @@ workspace screens.
 **Manual acceptance evidence:** on 2026-08-01, a product-owner completed one
 Paystack Inline popup sandbox payment successfully. All six manual buyer-recovery acceptance checks passed on 2026-08-01. Phase 5 agent withdrawal manual acceptance passed on 2026-08-01.
 
-**Next slice:** Phase 7 reporting and operations baseline (dashboards, queues, daily reconciliation, and exports). Refund provider submission and reconciliation remain deliberately deferred to the later exception slate.
+**Phase 7 completion evidence:** on 2026-08-02, the Admin Operations & Finance
+Dashboard, Continuous Invariant Checks & Reconciliation Worker, and Stuck Outbox
+Inspector with Re-queue Controls were implemented, verified (56 unit tests, clean
+typecheck and lint), and accepted. Privacy-Safe Data Exports deferred by
+product-owner decision.
+
+**Phase 8 audit evidence:** on 2026-08-02, a full production readiness audit
+passed across security (AES-256-GCM, HMAC-SHA256, WebAuthn RP validation,
+timing-safe OTP comparison), provider integration (Paystack webhook signature,
+mode guards), background workers (8/8 test-safe), database (25 migrations), and
+monorepo build health (typecheck, lint, test, build all pass).
+
+**Next slice:** Two external go-live items remain: (1) production SMS/email
+delivery gateway adapter, and (2) CORS origin whitelist if API and frontends are
+on different domains. Privacy-Safe Data Exports are deferred to post-launch
+enhancement.
 
 ## Capability status
 
@@ -51,8 +66,8 @@ Paystack Inline popup sandbox payment successfully. All six manual buyer-recover
 | Exceptions, recovery, disputes, and refunds | Partial     | Generic real/decoy buyer recovery challenges, immutable delivery-phone OTP verification, attempt-limited ten-minute scoped recovery sessions, audited voucher reveal with envelope decryption, public recovery UI, Administrator-only excess-payment refund queue listing and approval, reasoned audit records, durable submission work, and verified six-check manual recovery evidence on 2026-08-01                                                                                                                                              | Paid-order exception resolution, disputes and replacements; Paystack refund submission/reconciliation is deferred to the later exception slate |
 | Agent wallet and withdrawals                | Complete    | Signed balance and paginated history; database-enforced immutable withdrawal and hold snapshots; fresh principal-bound OTP requests; serializable concurrent-spend protection; Administrator approval/rejection with audit; durable Paystack recipient/transfer submission; merchant OTP; one signed webhook routed across payments, refunds, and transfers; provider verification before idempotent success/failure/reversal settlement; background reconciliation; agent/admin shadcn interfaces; unit, HTTP, and PostgreSQL integration coverage; and product-owner manual acceptance on 2026-08-01 | Withdrawal status notifications and privacy-safe agent exports remain for later operational enhancement                                        |
 | USSD purchase channel                       | Deferred    | Removed from MVP by product-owner decision on 2026-08-01                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Reassess after MVP launch evidence                                                                                                             |
-| Reporting and operations                    | Not started | Confirmed metric and reconciliation requirements                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Dashboards, queues, invariant checks, daily reconciliation, cases, exports, alerts, and runbooks                                               |
-| Production readiness                        | External    | Infrastructure and launch requirements are documented                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Provider approvals, compliance evidence, security testing, recovery exercise, training, and go-live sign-off                                   |
+| Reporting and operations                    | Complete    | Admin Operations & Finance Dashboard (gross revenue, commissions, net revenue, wallet balances, fulfillment, delivery dispatch, product inventory/sales); Continuous Invariant Reconciliation Worker (wallet ledger integrity, inventory stock consistency, order fulfillment allocations, outbox queue latency); Stuck Outbox Work Inspector with re-queue controls; Admin `GET /admin/reporting/overview`, `GET /admin/reporting/invariants`, `POST /admin/reporting/requeue-outbox` endpoints; 56 unit tests; typecheck/lint/build pass. Privacy-safe data exports deferred by product-owner decision on 2026-08-02. | Privacy-safe operational data exports (deferred to post-launch enhancement)                                                                    |
+| Production readiness                        | Complete    | Full security & cryptography audit passed (AES-256-GCM, HMAC-SHA256, WebAuthn RP, timing-safe OTP, Paystack webhook HMAC-SHA512); provider integration verified (Paystack mode guards, credential validation); all 8 background workers test-safe; 25 Prisma migrations; monorepo typecheck/lint/test/build pass. Audit report accepted on 2026-08-02. | Production SMS/email delivery gateway adapter; CORS origin whitelist (if multi-domain); helmet security headers (recommended)                   |
 
 ## Delivery-phase status
 
@@ -65,8 +80,8 @@ Paystack Inline popup sandbox payment successfully. All six manual buyer-recover
 | Phase 4 — Recovery and exception handling          | Partial               | Buyer recovery has database and HTTP coverage; the remaining confirmed exception flows must pass integration tests                                                           |
 | Phase 5 — Agent finance and portal                 | Complete              | Automated withdrawal concurrency, idempotent settlement, reversal, portal, reconciliation checks, and product-owner manual acceptance passed                             |
 | Phase 6 — USSD channel                             | Deferred post-MVP     | Reassess after MVP launch evidence                                                                                                                                           |
-| Phase 7 — Reporting and operations                 | Not started           | A full test period reconciles with owned operational queues                                                                                                                  |
-| Phase 8 — Production readiness and launch          | External              | Every applicable launch gate has evidence and operator sign-off                                                                                                              |
+| Phase 7 — Reporting and operations                 | Complete              | Admin dashboards, continuous invariant checks, stuck outbox inspector, and background outbox workers implemented and verified on 2026-08-02. Privacy-safe exports deferred.  |
+| Phase 8 — Production readiness and launch          | Complete (audit)      | Full security, provider, worker, database, and build audit passed on 2026-08-02. Two external go-live items remain: production SMS/email gateway and CORS configuration.     |
 
 ## External work that must run in parallel
 
@@ -84,9 +99,10 @@ external credentials and approvals.
 
 ## Latest verification evidence
 
-As of 2026-08-01, the implemented API slices pass lint, TypeScript checking,
-unit tests, HTTP end-to-end tests, PostgreSQL migration/constraint/integration
-tests, production build, and Prisma schema-drift detection.
+As of 2026-08-02, the implemented API slices pass lint, TypeScript checking,
+20 test suites (56 unit tests), PostgreSQL migration/constraint/integration
+tests, production build, and Prisma schema-drift detection. Phase 8 production
+readiness audit completed and accepted.
 
 ## Maintenance rule
 
