@@ -18,8 +18,6 @@ import {
   CardTitle,
 } from "@workspace/ui/components/card"
 import { Separator } from "@workspace/ui/components/separator"
-import { DorafMark } from "@/components/doraf-mark"
-import { LogoutButton } from "@/components/logout-button"
 import { AgentPricingRow, PricingGrid } from "@/components/pricing-grid"
 import { SalesLinkCard } from "@/components/sales-link-card"
 import {
@@ -95,20 +93,7 @@ export default async function DashboardPage({
   const firstName = agent.name.split(/\s+/)[0] ?? agent.name
 
   return (
-    <main className="min-h-svh bg-muted/35">
-      <header className="border-b bg-background/90">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-4 sm:px-8">
-          <DorafMark />
-          <div className="flex items-center gap-3">
-            <div className="hidden text-right sm:block">
-              <p className="text-sm font-medium">{agent.name}</p>
-              <p className="text-xs text-muted-foreground">{agent.phoneMask}</p>
-            </div>
-            <LogoutButton />
-          </div>
-        </div>
-      </header>
-
+    <main>
       <div className="mx-auto flex max-w-6xl flex-col gap-8 px-5 py-8 sm:px-8 sm:py-12">
         <section className="flex flex-col gap-3">
           <Badge className="w-fit" variant="secondary">
