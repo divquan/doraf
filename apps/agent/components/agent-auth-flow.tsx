@@ -57,6 +57,10 @@ export function AgentAuthFlow({ mode }: { mode: Mode }) {
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // Phase 3 states for OTP resend
+  const [resendPending, setResendPending] = useState(false)
+  const [resendStatus, setResendStatus] = useState<string | null>(null)
+
   const isRegistration = mode === "register"
 
   async function requestCode(event: FormEvent<HTMLFormElement>) {
@@ -75,6 +79,31 @@ export function AgentAuthFlow({ mode }: { mode: Mode }) {
       setPhoneMask(result.phoneMask)
       setStep("otp")
     })
+  }
+
+  async function resendCode() {
+    setResendPending(true)
+    setResendStatus(null)
+    setError(null)
+    try {
+      const response = await fetch(
+        `/api/agent-auth/${isRegistration ? "registration" : "login"}/otp`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ phone }),
+        }
+      )
+      const result = await readResponse<OtpResponse>(response)
+      setChallengeId(result.challengeId)
+      setCode("")
+      setResendStatus("Code resent")
+      setTimeout(() => setResendStatus(null), 3000)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not resend code")
+    } finally {
+      setResendPending(false)
+    }
   }
 
   async function verifyCode(event: FormEvent<HTMLFormElement>) {
@@ -216,9 +245,22 @@ export function AgentAuthFlow({ mode }: { mode: Mode }) {
                     ))}
                   </InputOTPGroup>
                 </InputOTP>
-                <FieldDescription>
-                  Sent to {phoneMask}. The code expires in five minutes.
-                </FieldDescription>
+                <div className="flex items-center justify-between mt-2.5">
+                  <FieldDescription>
+                    Sent to {phoneMask}. Expires in 5 minutes.
+                  </FieldDescription>
+                  <button
+                    type="button"
+                    onClick={resendCode}
+                    disabled={resendPending || isSubmitting}
+                    className="text-xs font-semibold text-primary hover:underline disabled:opacity-50"
+                  >
+                    {resendPending ? "Sending..." : "Resend code"}
+                  </button>
+                </div>
+                {resendStatus ? (
+                  <p className="text-xs font-medium text-emerald-600 mt-1">{resendStatus}</p>
+                ) : null}
               </Field>
               <Field>
                 <Button

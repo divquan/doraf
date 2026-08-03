@@ -80,6 +80,7 @@ function PriceCard({
   )
   const [pending, setPending] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [confirming, setConfirming] = useState(false)
   const parsedMinor = Math.round(Number(value) * 100)
   const valid =
     Number.isInteger(parsedMinor) &&
@@ -90,6 +91,11 @@ function PriceCard({
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!valid || readOnly) return
+    if (!confirming) {
+      setConfirming(true)
+      setMessage(null)
+      return
+    }
     setPending(true)
     setMessage(null)
     try {
@@ -104,6 +110,7 @@ function PriceCard({
       if (!response.ok)
         throw new Error(body.message ?? "The price could not be saved")
       setMessage("Price saved")
+      setConfirming(false)
       router.refresh()
     } catch (error) {
       setMessage(
@@ -161,7 +168,10 @@ function PriceCard({
               min={(row.pricing.basePriceMinor / 100).toFixed(2)}
               max={(row.pricing.maximumRetailPriceMinor / 100).toFixed(2)}
               value={value}
-              onChange={(event) => setValue(event.target.value)}
+              onChange={(event) => {
+                setValue(event.target.value)
+                setConfirming(false)
+              }}
               disabled={readOnly || pending}
               placeholder={(row.pricing.basePriceMinor / 100).toFixed(2)}
               className="h-11 text-base font-medium"
@@ -181,17 +191,38 @@ function PriceCard({
           ) : null}
         </CardContent>
         <CardFooter className="border-t bg-muted/15 pt-4">
-          <Button
-            className="w-full"
-            disabled={!valid || readOnly || pending}
-            type="submit"
-          >
-            {pending
-              ? "Saving…"
-              : row.pricing.retailPriceMinor === null
-                ? "Set price"
-                : "Save new price"}
-          </Button>
+          {confirming ? (
+            <div className="flex w-full items-center gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1"
+                disabled={pending}
+                onClick={() => setConfirming(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                disabled={pending}
+              >
+                {pending ? "Saving…" : "Confirm"}
+              </Button>
+            </div>
+          ) : (
+            <Button
+              className="w-full"
+              disabled={!valid || readOnly || pending}
+              type="submit"
+            >
+              {pending
+                ? "Saving…"
+                : row.pricing.retailPriceMinor === null
+                  ? "Set price"
+                  : "Save new price"}
+            </Button>
+          )}
         </CardFooter>
       </form>
     </Card>

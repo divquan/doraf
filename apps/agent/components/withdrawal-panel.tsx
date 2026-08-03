@@ -106,6 +106,12 @@ export function WithdrawalPanel({
   const [withdrawalToken, setWithdrawalToken] = useState("")
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  
+  // Phase 3 states
+  const [requestOpen, setRequestOpen] = useState(false)
+  const [resendPending, setResendPending] = useState(false)
+  const [resendStatus, setResendStatus] = useState<string | null>(null)
+
   const netAmountMinor = parseGhs(amount)
   const totalMinor = netAmountMinor === null ? null : netAmountMinor + 100n
   const canRequest =
@@ -126,6 +132,25 @@ export function WithdrawalPanel({
       setChallengeId(result.challengeId)
       setStep("otp")
     })
+  }
+
+  async function resendOtp() {
+    setResendPending(true)
+    setResendStatus(null)
+    setError(null)
+    try {
+      const result = await readResponse<{ challengeId: string }>(
+        await fetch("/api/withdrawals/otp", { method: "POST" })
+      )
+      setChallengeId(result.challengeId)
+      setCode("")
+      setResendStatus("Code resent")
+      setTimeout(() => setResendStatus(null), 3000)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not resend code")
+    } finally {
+      setResendPending(false)
+    }
   }
 
   async function verifyOtp(event: FormEvent<HTMLFormElement>) {
@@ -165,6 +190,7 @@ export function WithdrawalPanel({
     setCode("")
     setWithdrawalToken("")
     setStep("details")
+    setRequestOpen(false)
     router.refresh()
   }
 
@@ -197,185 +223,232 @@ export function WithdrawalPanel({
         </p>
       </div>
       <div className="grid gap-5 lg:grid-cols-[0.8fr_1.2fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle>New request</CardTitle>
-            <CardDescription>
-              Every withdrawal is protected by SMS verification and reviewed by
-              an Administrator.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {error ? (
-              <Alert className="mb-5" variant="destructive">
-                <AlertTitle>Request not completed</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            ) : null}
+        {!requestOpen ? (
+          <Card className="flex flex-col justify-between">
+            <CardHeader>
+              <CardTitle>New request</CardTitle>
+              <CardDescription>
+                Request a payout of your available wallet earnings.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-col gap-1.5 rounded-lg bg-muted/40 p-4 border text-center">
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Withdrawable Amount
+                </span>
+                <span className="text-xl font-bold">
+                  {pesewasToGhs(withdrawableMinor)}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Requests are processed after identity verification via a one-time SMS passcode. A transaction fee of GHS 1.00 applies.
+              </p>
+            </CardContent>
+            <CardFooter>
+              <Button
+                className="w-full"
+                onClick={() => setRequestOpen(true)}
+                disabled={readOnly}
+              >
+                Request withdrawal
+              </Button>
+            </CardFooter>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle>New request</CardTitle>
+              <CardDescription>
+                Every withdrawal is protected by SMS verification and reviewed by
+                an Administrator.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {error ? (
+                <Alert className="mb-5" variant="destructive">
+                  <AlertTitle>Request not completed</AlertTitle>
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              ) : null}
 
-            {step === "details" ? (
-              <form id="withdrawal-details" onSubmit={requestOtp}>
-                <FieldGroup>
-                  <Field>
-                    <FieldLabel htmlFor="withdrawal-amount">
-                      Amount to receive (GHS)
-                    </FieldLabel>
-                    <Input
-                      id="withdrawal-amount"
-                      disabled={readOnly || pending}
-                      inputMode="decimal"
-                      min="10"
-                      max="50000"
-                      onChange={(event) => setAmount(event.target.value)}
-                      placeholder="20.00"
-                      required
-                      step="0.01"
-                      type="number"
-                      value={amount}
-                    />
-                    <FieldDescription>
-                      Minimum GHS 10.00. Available:{" "}
-                      {pesewasToGhs(withdrawableMinor)}
-                    </FieldDescription>
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="withdrawal-network">
-                      Mobile Money network
-                    </FieldLabel>
-                    <NativeSelect
-                      className="w-full"
-                      disabled={readOnly || pending}
-                      id="withdrawal-network"
-                      onChange={(event) => setNetwork(event.target.value)}
-                      value={network}
-                    >
-                      <NativeSelectOption value="MTN">
-                        MTN MoMo
-                      </NativeSelectOption>
-                      <NativeSelectOption value="TELECEL">
-                        Telecel Cash
-                      </NativeSelectOption>
-                      <NativeSelectOption value="AIRTELTIGO">
-                        AT Money
-                      </NativeSelectOption>
-                    </NativeSelect>
-                    <FieldDescription>
-                      Destination: {phoneMask}
-                    </FieldDescription>
-                  </Field>
-                  <Separator />
-                  <div className="flex flex-col gap-2 text-sm">
-                    <SummaryRow
-                      label="You receive"
-                      value={money(
-                        totalMinor === null ? null : totalMinor - 100n
-                      )}
-                    />
-                    <SummaryRow label="Withdrawal fee" value="GHS 1.00" />
-                    <SummaryRow
-                      label="Total wallet hold"
-                      value={money(totalMinor)}
-                      strong
-                    />
-                  </div>
-                </FieldGroup>
-              </form>
-            ) : null}
+              {step === "details" ? (
+                <form id="withdrawal-details" onSubmit={requestOtp}>
+                  <FieldGroup>
+                    <Field>
+                      <FieldLabel htmlFor="withdrawal-amount">
+                        Amount to receive (GHS)
+                      </FieldLabel>
+                      <Input
+                        id="withdrawal-amount"
+                        disabled={readOnly || pending}
+                        inputMode="decimal"
+                        min="10"
+                        max="50000"
+                        onChange={(event) => setAmount(event.target.value)}
+                        placeholder="20.00"
+                        required
+                        step="0.01"
+                        type="number"
+                        value={amount}
+                      />
+                      <FieldDescription>
+                        Minimum GHS 10.00. Available:{" "}
+                        {pesewasToGhs(withdrawableMinor)}
+                      </FieldDescription>
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="withdrawal-network">
+                        Mobile Money network
+                      </FieldLabel>
+                      <NativeSelect
+                        className="w-full"
+                        disabled={readOnly || pending}
+                        id="withdrawal-network"
+                        onChange={(event) => setNetwork(event.target.value)}
+                        value={network}
+                      >
+                        <NativeSelectOption value="MTN">
+                          MTN MoMo
+                        </NativeSelectOption>
+                        <NativeSelectOption value="TELECEL">
+                          Telecel Cash
+                        </NativeSelectOption>
+                        <NativeSelectOption value="AIRTELTIGO">
+                          AT Money
+                        </NativeSelectOption>
+                      </NativeSelect>
+                      <FieldDescription>
+                        Destination: {phoneMask}
+                      </FieldDescription>
+                    </Field>
+                    <Separator />
+                    <div className="flex flex-col gap-2 text-sm">
+                      <SummaryRow
+                        label="You receive"
+                        value={money(
+                          totalMinor === null ? null : totalMinor - 100n
+                        )}
+                      />
+                      <SummaryRow label="Withdrawal fee" value="GHS 1.00" />
+                      <SummaryRow
+                        label="Total wallet hold"
+                        value={money(totalMinor)}
+                        strong
+                        />
+                    </div>
+                  </FieldGroup>
+                </form>
+              ) : null}
 
-            {step === "otp" ? (
-              <form id="withdrawal-otp" onSubmit={verifyOtp}>
-                <FieldGroup>
-                  <Field data-invalid={Boolean(error)}>
-                    <FieldLabel htmlFor="withdrawal-otp-code">
-                      Six-digit verification code
-                    </FieldLabel>
-                    <InputOTP
-                      aria-invalid={Boolean(error)}
-                      autoComplete="one-time-code"
-                      id="withdrawal-otp-code"
-                      inputMode="numeric"
-                      maxLength={6}
-                      onChange={setCode}
-                      pattern="^[0-9]*$"
-                      value={code}
-                    >
-                      <InputOTPGroup>
-                        {Array.from({ length: 6 }, (_, index) => (
-                          <InputOTPSlot index={index} key={index} />
-                        ))}
-                      </InputOTPGroup>
-                    </InputOTP>
-                    <FieldDescription>
-                      Sent to {phoneMask}. The code expires in five minutes.
-                    </FieldDescription>
-                    {error ? <FieldError>{error}</FieldError> : null}
-                  </Field>
-                </FieldGroup>
-              </form>
-            ) : null}
+              {step === "otp" ? (
+                <form id="withdrawal-otp" onSubmit={verifyOtp}>
+                  <FieldGroup>
+                    <Field data-invalid={Boolean(error)}>
+                      <FieldLabel htmlFor="withdrawal-otp-code">
+                        Six-digit verification code
+                      </FieldLabel>
+                      <InputOTP
+                        aria-invalid={Boolean(error)}
+                        autoComplete="one-time-code"
+                        id="withdrawal-otp-code"
+                        inputMode="numeric"
+                        maxLength={6}
+                        onChange={setCode}
+                        pattern="^[0-9]*$"
+                        value={code}
+                      >
+                        <InputOTPGroup>
+                          {Array.from({ length: 6 }, (_, index) => (
+                            <InputOTPSlot index={index} key={index} />
+                          ))}
+                        </InputOTPGroup>
+                      </InputOTP>
+                      <div className="flex items-center justify-between mt-2.5">
+                        <FieldDescription>
+                          Sent to {phoneMask}. Expires in 5 minutes.
+                        </FieldDescription>
+                        <button
+                          type="button"
+                          onClick={resendOtp}
+                          disabled={resendPending || pending}
+                          className="text-xs font-semibold text-primary hover:underline disabled:opacity-50"
+                        >
+                          {resendPending ? "Sending..." : "Resend code"}
+                        </button>
+                      </div>
+                      {resendStatus ? (
+                        <p className="text-xs font-medium text-emerald-600 mt-1">{resendStatus}</p>
+                      ) : null}
+                      {error ? <FieldError>{error}</FieldError> : null}
+                    </Field>
+                  </FieldGroup>
+                </form>
+              ) : null}
 
-            {step === "verified" ? (
-              <Alert>
-                <HugeiconsIcon icon={SecurityCheckIcon} />
-                <AlertTitle>Phone verified</AlertTitle>
-                <AlertDescription>
-                  Verification succeeded. Retry the request while this secure
-                  authorization is still valid.
-                </AlertDescription>
-              </Alert>
-            ) : null}
-          </CardContent>
-          <CardFooter className="flex gap-3">
-            {step !== "details" ? (
+              {step === "verified" ? (
+                <Alert>
+                  <HugeiconsIcon icon={SecurityCheckIcon} />
+                  <AlertTitle>Phone verified</AlertTitle>
+                  <AlertDescription>
+                    Verification succeeded. Retry the request while this secure
+                    authorization is still valid.
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+            </CardContent>
+            <CardFooter className="flex gap-3">
               <Button
                 disabled={pending}
-                onClick={reset}
+                onClick={() => {
+                  reset()
+                  setRequestOpen(false)
+                }}
                 type="button"
                 variant="outline"
               >
                 Cancel
               </Button>
-            ) : null}
-            {step === "details" ? (
-              <Button
-                className="flex-1"
-                disabled={!canRequest || pending}
-                form="withdrawal-details"
-                type="submit"
-              >
-                {pending ? (
-                  <Spinner data-icon="inline-start" />
-                ) : (
-                  <HugeiconsIcon
-                    icon={ArrowRight01Icon}
-                    data-icon="inline-end"
-                  />
-                )}
-                {pending ? "Sending code…" : "Verify and request"}
-              </Button>
-            ) : step === "otp" ? (
-              <Button
-                className="flex-1"
-                disabled={code.length !== 6 || pending}
-                form="withdrawal-otp"
-                type="submit"
-              >
-                {pending ? <Spinner data-icon="inline-start" /> : null}
-                {pending ? "Verifying…" : "Confirm withdrawal"}
-              </Button>
-            ) : (
-              <Button
-                className="flex-1"
-                disabled={pending}
-                onClick={retryCreate}
-                type="button"
-              >
-                {pending ? <Spinner data-icon="inline-start" /> : null}
-                {pending ? "Submitting…" : "Retry request"}
-              </Button>
-            )}
-          </CardFooter>
-        </Card>
+              {step === "details" ? (
+                <Button
+                  className="flex-1"
+                  disabled={!canRequest || pending}
+                  form="withdrawal-details"
+                  type="submit"
+                >
+                  {pending ? (
+                    <Spinner data-icon="inline-start" />
+                  ) : (
+                    <HugeiconsIcon
+                      icon={ArrowRight01Icon}
+                      data-icon="inline-end"
+                    />
+                  )}
+                  {pending ? "Sending code…" : "Verify and request"}
+                </Button>
+              ) : step === "otp" ? (
+                <Button
+                  className="flex-1"
+                  disabled={code.length !== 6 || pending}
+                  form="withdrawal-otp"
+                  type="submit"
+                >
+                  {pending ? <Spinner data-icon="inline-start" /> : null}
+                  {pending ? "Verifying…" : "Confirm withdrawal"}
+                </Button>
+              ) : (
+                <Button
+                  className="flex-1"
+                  disabled={pending}
+                  onClick={retryCreate}
+                  type="button"
+                >
+                  {pending ? <Spinner data-icon="inline-start" /> : null}
+                  {pending ? "Submitting…" : "Retry request"}
+                </Button>
+              )}
+            </CardFooter>
+          </Card>
+        )}
 
         <WithdrawalHistory withdrawals={withdrawals} />
       </div>

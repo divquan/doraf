@@ -13,7 +13,6 @@ import {
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Button } from "@workspace/ui/components/button"
-import { Badge } from "@workspace/ui/components/badge"
 import { cn } from "@workspace/ui/lib/utils"
 import { DorafMark } from "@/components/doraf-mark"
 
@@ -22,7 +21,6 @@ export interface NavItem {
   label: string
   icon: typeof DashboardSquare01Icon
   badge?: string
-  isPhase2?: boolean
 }
 
 export interface NavGroup {
@@ -51,13 +49,11 @@ const navGroups: NavGroup[] = [
         href: "/sales",
         label: "Sales Channels",
         icon: ShoppingBag01Icon,
-        isPhase2: true,
       },
       {
         href: "/pricing",
         label: "Pricing Setup",
         icon: Tag01Icon,
-        isPhase2: true,
       },
     ],
   },
@@ -69,13 +65,11 @@ const navGroups: NavGroup[] = [
         href: "/wallet",
         label: "Wallet Balance",
         icon: Wallet02Icon,
-        isPhase2: true,
       },
       {
         href: "/withdrawals",
         label: "Withdrawals",
         icon: MoneySend01Icon,
-        isPhase2: true,
       },
     ],
   },
@@ -87,7 +81,6 @@ const navGroups: NavGroup[] = [
         href: "/settings",
         label: "Settings",
         icon: Settings02Icon,
-        isPhase2: true,
       },
     ],
   },
@@ -172,11 +165,6 @@ export function WorkspaceSidebar({
                           icon={item.icon}
                         />
                         <span className="flex-1 truncate">{item.label}</span>
-                        {item.isPhase2 && (
-                          <Badge className="text-[10px] px-1.5 py-0" variant="secondary">
-                            Soon
-                          </Badge>
-                        )}
                       </Link>
                     </li>
                   )

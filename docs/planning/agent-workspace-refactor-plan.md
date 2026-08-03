@@ -1,7 +1,7 @@
 # Agent workspace refactor plan
 
-Status: Proposed (awaiting product-owner review)
-Last updated: 2026-08-02
+Status: Active (Phases 0-3 completed)
+Last updated: 2026-08-03
 
 This is an executable implementation plan for restructuring `apps/agent` from a
 single-page feature dump (`/dashboard`) into a structured, navigable agent
@@ -1633,5 +1633,5 @@ the nav pattern that P1-2, P1-4, and P2-7 build on.
 
 ---
 
-Implementation has **not** begun. This plan is awaiting review.
+Status update: Phase 0, Phase 1, Phase 2, and Phase 3 are completed. Ready to proceed to Phase 4.
 
