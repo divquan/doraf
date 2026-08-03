@@ -7,7 +7,19 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import { Button } from "@workspace/ui/components/button"
 import { Spinner } from "@workspace/ui/components/spinner"
 
-export function LogoutButton() {
+interface LogoutButtonProps {
+  variant?: "outline" | "ghost" | "default" | "secondary" | "destructive" | "link"
+  size?: "default" | "xs" | "sm" | "lg" | "icon" | "icon-xs" | "icon-sm" | "icon-lg"
+  showText?: boolean
+  className?: string
+}
+
+export function LogoutButton({
+  variant = "outline",
+  size = "default",
+  showText = true,
+  className,
+}: LogoutButtonProps) {
   const router = useRouter()
   const [isPending, setIsPending] = useState(false)
 
@@ -19,13 +31,20 @@ export function LogoutButton() {
   }
 
   return (
-    <Button disabled={isPending} onClick={logout} variant="outline">
+    <Button
+      disabled={isPending}
+      onClick={logout}
+      variant={variant}
+      size={size}
+      className={className}
+      aria-label="Sign out"
+    >
       {isPending ? (
-        <Spinner data-icon="inline-start" />
+        <Spinner data-icon={showText ? "inline-start" : undefined} />
       ) : (
-        <HugeiconsIcon icon={Logout01Icon} data-icon="inline-start" />
+        <HugeiconsIcon icon={Logout01Icon} data-icon={showText ? "inline-start" : undefined} />
       )}
-      {isPending ? "Signing out…" : "Sign out"}
+      {showText && (isPending ? "Signing out…" : "Sign out")}
     </Button>
   )
 }

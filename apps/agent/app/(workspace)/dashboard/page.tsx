@@ -165,7 +165,7 @@ export default async function DashboardPage() {
                     <HugeiconsIcon icon={ShoppingBag01Icon} className="size-5" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium leading-tight">Sales Channels</p>
+                    <p className="text-sm font-medium leading-tight">My Store</p>
                     <p className="text-xs text-muted-foreground mt-0.5">Share store checkout link</p>
                   </div>
                 </div>
