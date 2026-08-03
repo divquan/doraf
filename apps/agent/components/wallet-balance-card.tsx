@@ -17,7 +17,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@workspace/ui/components/card"
-import { pesewasToGhs } from "@/lib/money-format"
+import { pesewasToGhs } from "@workspace/ui/lib/format"
 
 export interface WalletSummary {
   ledgerBalanceMinor: string

@@ -31,7 +31,7 @@ import {
   TableRow,
 } from "@workspace/ui/components/table"
 import { cn } from "@workspace/ui/lib/utils"
-import { pesewasToGhs } from "@/lib/money-format"
+import { formatAccraDate, pesewasToGhs } from "@workspace/ui/lib/format"
 
 export interface TransactionItem {
   id: string
@@ -213,19 +213,3 @@ export function TransactionHistoryTable({
   )
 }
 
-function formatAccraDate(isoString: string): string {
-  try {
-    const date = new Date(isoString)
-    return date.toLocaleString("en-GB", {
-      timeZone: "Africa/Accra",
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    })
-  } catch {
-    return isoString
-  }
-}

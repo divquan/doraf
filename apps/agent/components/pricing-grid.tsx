@@ -17,6 +17,7 @@ import {
 } from "@workspace/ui/components/card"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
+import { money } from "@workspace/ui/lib/format"
 
 export interface AgentPricingRow {
   product: {
@@ -238,9 +239,3 @@ function Metric({ label, value }: { label: string; value: string }) {
   )
 }
 
-function money(minor: number) {
-  return new Intl.NumberFormat("en-GH", {
-    style: "currency",
-    currency: "GHS",
-  }).format(minor / 100)
-}
