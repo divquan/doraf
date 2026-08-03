@@ -12,7 +12,7 @@ export default function RecoverPage() {
     <main className="min-h-svh bg-muted/35">
       <header className="border-b bg-background/90">
         <div className="mx-auto flex max-w-5xl items-center px-5 py-4 sm:px-8">
-          <DorafMark />
+          <DorafMark variant="buyer" />
         </div>
       </header>
       <div className="mx-auto grid max-w-5xl gap-10 px-5 py-10 sm:px-8 sm:py-14 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
