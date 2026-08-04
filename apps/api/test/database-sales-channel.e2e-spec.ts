@@ -63,13 +63,13 @@ describe('agent web sales channel', () => {
     });
 
     const ownChannel = await service.getForAgent(agent.id);
-    expect(ownChannel).toEqual({
+    expect(ownChannel).toMatchObject({
       type: 'WEB',
       publicId: agent.webSalesId,
-      path: `/buy/${agent.webSalesId}`,
+      subdomainUrl: `https://${agent.webSalesId}.doraf.app`,
     });
     const publicStore = await service.resolveWebChannel(agent.webSalesId);
-    expect(publicStore.agent).toEqual({ displayName: agent.name });
+    expect(publicStore.agent).toMatchObject({ displayName: agent.name });
     expect(publicStore).not.toHaveProperty('agent.id');
     expect(publicStore.products).toEqual([
       expect.objectContaining({
@@ -78,6 +78,22 @@ describe('agent web sales channel', () => {
         currency: 'GHS',
       }),
     ]);
+
+    // Test updating storefront settings and custom slug
+    const updatedChannel = await service.updateStorefront(agent.id, {
+      slug: 'test-agent-store',
+      storeName: 'Test Agent Storefront',
+      whatsappNumber: '233240000000',
+    });
+    expect(updatedChannel.slug).toBe('test-agent-store');
+    expect(updatedChannel.publicId).toBe('test-agent-store');
+
+    const slugResolved = await service.resolveWebChannel('test-agent-store');
+    expect(slugResolved.agent).toMatchObject({
+      displayName: agent.name,
+      storeName: 'Test Agent Storefront',
+      whatsappNumber: '233240000000',
+    });
 
     await prisma.agent.update({
       where: { id: agent.id },

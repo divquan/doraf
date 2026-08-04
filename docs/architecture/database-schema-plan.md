@@ -186,7 +186,9 @@ Constraints:
 
 - `id`
 - `agentId`
-- immutable public identifier
+- immutable public identifier (`webSalesId`)
+- editable unique `slug` (3-30 chars, lowercase alphanumeric with hyphens)
+- `storeName`, `tagline`, `logoUrl`, `bannerUrl`, `whatsappNumber`, `themePreset`, `announcement`
 - `status`
 - `createdAt`
 - `retiredAt`

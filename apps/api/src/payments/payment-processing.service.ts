@@ -125,8 +125,23 @@ export class PaymentProcessingService {
   }
 
   async getPublicOrderStatus(webSalesId: string, orderReference: string) {
+    const isHex = /^[a-f0-9]{24}$/i.test(webSalesId);
+    const agent = await this.prisma.agent.findFirst({
+      where: isHex
+        ? { OR: [{ webSalesId }, { slug: webSalesId }] }
+        : { slug: webSalesId },
+      select: { webSalesId: true, slug: true },
+    });
+    const channelSnapshots = [
+      webSalesId,
+      ...(agent ? [agent.webSalesId, agent.slug].filter((s): s is string => Boolean(s)) : []),
+    ];
+
     const order = await this.prisma.order.findFirst({
-      where: { publicReference: orderReference, channelIdSnapshot: webSalesId },
+      where: {
+        publicReference: orderReference,
+        channelIdSnapshot: { in: channelSnapshots },
+      },
       include: {
         paymentAttempts: { orderBy: { attemptNumber: 'desc' }, take: 1 },
         deliveryMessages: { select: { state: true, channel: true } },
@@ -259,11 +274,23 @@ export class PaymentProcessingService {
   }
 
   async verifyPublicPayment(webSalesId: string, orderReference: string) {
+    const isHex = /^[a-f0-9]{24}$/i.test(webSalesId);
+    const agent = await this.prisma.agent.findFirst({
+      where: isHex
+        ? { OR: [{ webSalesId }, { slug: webSalesId }] }
+        : { slug: webSalesId },
+      select: { webSalesId: true, slug: true },
+    });
+    const channelSnapshots = [
+      webSalesId,
+      ...(agent ? [agent.webSalesId, agent.slug].filter((s): s is string => Boolean(s)) : []),
+    ];
+
     const attempt = await this.prisma.paymentAttempt.findFirst({
       where: {
         order: {
           publicReference: orderReference,
-          channelIdSnapshot: webSalesId,
+          channelIdSnapshot: { in: channelSnapshots },
         },
       },
       orderBy: { attemptNumber: 'desc' },

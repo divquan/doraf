@@ -5,10 +5,14 @@ import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes"
 
 function ThemeProvider({
   children,
+  scriptProps,
   ...props
 }: React.ComponentProps<typeof NextThemesProvider>) {
   return (
-    <NextThemesProvider {...props}>
+    <NextThemesProvider
+      scriptProps={{ suppressHydrationWarning: true, ...scriptProps }}
+      {...props}
+    >
       <ThemeHotkey />
       {children}
     </NextThemesProvider>

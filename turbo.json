@@ -4,6 +4,7 @@
   "globalEnv": [
     "NODE_ENV",
     "DORAF_API_URL",
+    "DORAF_STOREFRONT_URL",
     "DORAF_AGENT_WEB_URL",
     "DATABASE_URL",
     "DIRECT_URL"

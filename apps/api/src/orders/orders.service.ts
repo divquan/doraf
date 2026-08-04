@@ -38,7 +38,9 @@ export class OrdersService {
   ) {}
 
   async createWebOrder(input: CreateWebOrderInput) {
-    if (!/^[a-f0-9]{24}$/.test(input.webSalesId)) {
+    const isHex = /^[a-f0-9]{24}$/i.test(input.webSalesId);
+    const isSlug = /^[a-z0-9]+(?:-[a-z0-9]+)*$/i.test(input.webSalesId);
+    if (!isHex && !isSlug) {
       throw new NotFoundException('Sales channel not found');
     }
     const deliveryPhone = this.contacts.protectPhone(
@@ -98,12 +100,16 @@ export class OrdersService {
             );
           }
 
-          const agent = await transaction.agent.findUnique({
-            where: { webSalesId: input.webSalesId },
+          const agent = await transaction.agent.findFirst({
+            where: isHex
+              ? { OR: [{ webSalesId: input.webSalesId }, { slug: input.webSalesId }] }
+              : { slug: input.webSalesId },
             select: {
               id: true,
               tenantId: true,
               status: true,
+              webSalesId: true,
+              slug: true,
               productPrices: {
                 where: { productId: input.productId },
                 select: {
@@ -191,7 +197,7 @@ export class OrdersService {
               tenantId: agent.tenantId,
               agentId: agent.id,
               channelType: 'WEB',
-              channelIdSnapshot: input.webSalesId,
+              channelIdSnapshot: agent.slug || agent.webSalesId,
               productId: input.productId,
               quantity: input.quantity,
               currency: configuredPrice.currency,
