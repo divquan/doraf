@@ -9,9 +9,20 @@ import {
   TransactionItem,
   PaginationMetadata,
 } from "@/components/transaction-history-table"
+import { AgentWithdrawal, WithdrawalPanel } from "@/components/withdrawal-panel"
 import { apiJson, apiRequest } from "@/lib/agent-api"
 
 const MAX_WALLET_TRANSACTION_PAGE = 10_000
+
+interface AgentSession {
+  agent: {
+    id: string
+    tenantId: string
+    name: string
+    phoneMask: string
+    status: "ACTIVE" | "SUSPENDED"
+  }
+}
 
 export default async function WalletPage({
   searchParams,
@@ -19,22 +30,24 @@ export default async function WalletPage({
   const query = await searchParams
   const walletPage = getWalletPage(query.walletPage)
 
-  const [sessionRes, walletSummaryRes, transactionsRes] = await Promise.all([
+  const [sessionRes, walletSummaryRes, transactionsRes, withdrawalsRes] = await Promise.all([
     apiRequest("/agent-auth/session", {}, true),
     apiRequest("/agent-wallet/summary", {}, true),
     apiRequest(`/agent-wallet/transactions?page=${walletPage}`, {}, true),
+    apiRequest("/agent-wallet/withdrawals", {}, true),
   ])
 
   if (sessionRes.status === 401) {
     redirect("/login")
   }
 
-  await apiJson(sessionRes)
+  const { agent } = (await apiJson(sessionRes)) as AgentSession
   const walletSummary = (await apiJson(walletSummaryRes)) as WalletSummary
   const transactionsData = (await apiJson(transactionsRes)) as {
     items: TransactionItem[]
     pagination: PaginationMetadata
   }
+  const withdrawals = (await apiJson(withdrawalsRes)) as AgentWithdrawal[]
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-8">
@@ -46,8 +59,12 @@ export default async function WalletPage({
         <WalletBalanceCard summary={walletSummary} />
       </section>
       <section>
-        <TransactionHistoryTable
-          items={transactionsData.items}
+        <WithdrawalPanel
+          phoneMask={agent.phoneMask}
+          readOnly={agent.status === "SUSPENDED"}
+          withdrawableMinor={walletSummary.withdrawableMinor}
+          withdrawals={withdrawals}
+          transactions={transactionsData.items}
           pagination={transactionsData.pagination}
         />
       </section>

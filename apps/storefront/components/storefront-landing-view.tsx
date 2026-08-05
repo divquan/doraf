@@ -21,6 +21,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@workspace/ui/components/empty"
 import { money } from "@workspace/ui/lib/format"
 import { DorafMark } from "@/components/doraf-mark"
+import { StorefrontFooter } from "./storefront-footer"
 import { CheckoutModal } from "./checkout-modal"
 import { type StorefrontProduct } from "./storefront-checkout"
 
@@ -56,7 +57,7 @@ export function StorefrontLandingView({
   }
 
   return (
-    <div className="min-h-svh bg-muted/30 text-foreground selection:bg-primary/20 selection:text-primary pb-24">
+    <div className="flex flex-col min-h-svh bg-muted/30 text-foreground selection:bg-primary/20 selection:text-primary">
       {/* 1. ANNOUNCEMENT TICKER */}
       {agent.announcement && (
         <div className="bg-muted/80 border-b px-4 py-2 text-center text-xs font-semibold text-muted-foreground sm:text-sm">
@@ -86,7 +87,7 @@ export function StorefrontLandingView({
       </header>
 
       {/* 3. OPEN STORE CANVAS (NO SINGLE ENCLOSING CARD ENCLOSURE) */}
-      <main className="mx-auto max-w-5xl px-5 py-8 sm:px-8 space-y-8">
+      <main className="mx-auto max-w-5xl px-5 py-8 sm:px-8 space-y-8 flex-grow">
         {/* Cover Banner Area */}
         <div className="relative overflow-hidden rounded-3xl border border-border/70 shadow-sm h-48 w-full bg-gradient-to-r from-primary/10 via-primary/5 to-muted sm:h-64">
           {agent.bannerUrl && (
@@ -281,6 +282,8 @@ export function StorefrontLandingView({
         webSalesId={webSalesId}
         initialProductId={selectedProductId}
       />
+
+      <StorefrontFooter storeDisplayName={storeDisplayName} />
     </div>
   )
 }

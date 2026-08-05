@@ -1,8 +1,25 @@
 "use client"
 
+import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { cn } from "@workspace/ui/lib/utils"
+import { HugeiconsIcon } from "@hugeicons/react"
+import { MoneySend01Icon } from "@hugeicons/core-free-icons"
+import { Button } from "@workspace/ui/components/button"
 import { WithdrawalHistory } from "./_workspace/withdrawal-history"
 import { WithdrawalRequestForm } from "./_workspace/withdrawal-request-form"
+import {
+  Dialog,
+  DialogDescription,
+  DialogHeader,
+  DialogPopup,
+  DialogTitle,
+} from "@workspace/ui/components/dialog"
+import {
+  TransactionHistoryTable,
+  TransactionItem,
+  PaginationMetadata,
+} from "./transaction-history-table"
 
 export type Step = "details" | "otp" | "verified"
 
@@ -36,40 +53,99 @@ export function WithdrawalPanel({
   withdrawableMinor,
   withdrawals,
   readOnly,
+  transactions,
+  pagination,
 }: {
   phoneMask: string
   withdrawableMinor: string
   withdrawals: AgentWithdrawal[]
   readOnly: boolean
+  transactions: TransactionItem[]
+  pagination: PaginationMetadata
 }) {
   const router = useRouter()
+  const [activeTab, setActiveTab] = useState<"ledger" | "withdrawals">("ledger")
+  const [modalOpen, setModalOpen] = useState(false)
 
   function handleRequestCreated() {
     router.refresh()
   }
 
   return (
-    <div className="flex flex-col gap-8">
-      <section className="flex flex-col gap-5">
-        <div>
-          <h2 className="font-heading text-2xl font-semibold">Withdraw funds</h2>
-          <p className="mt-1 text-sm leading-6 text-muted-foreground">
-            Send available earnings to your registered Mobile Money number.
-          </p>
+    <div className="flex flex-col gap-4 w-full">
+      {/* Logs Header and Withdraw Trigger */}
+      <div className="flex flex-wrap items-center justify-between border-b border-border pb-2 gap-4">
+        <div className="flex border-b border-transparent">
+          <button
+            onClick={() => setActiveTab("ledger")}
+            className={cn(
+              "px-4 py-2 text-sm font-semibold border-b-2 transition-all cursor-pointer outline-none -mb-[10px]",
+              activeTab === "ledger"
+                ? "border-primary text-foreground font-semibold"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Ledger History
+          </button>
+          <button
+            onClick={() => setActiveTab("withdrawals")}
+            className={cn(
+              "px-4 py-2 text-sm font-semibold border-b-2 transition-all cursor-pointer outline-none -mb-[10px]",
+              activeTab === "withdrawals"
+                ? "border-primary text-foreground font-semibold"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Payout Requests
+          </button>
         </div>
-        <div className="grid gap-5 lg:grid-cols-[0.8fr_1.2fr]">
-          <WithdrawalRequestForm
-            phoneMask={phoneMask}
-            withdrawableMinor={withdrawableMinor}
-            readOnly={readOnly}
-            onRequestCreated={handleRequestCreated}
-          />
-        </div>
-      </section>
 
-      <section>
-        <WithdrawalHistory withdrawals={withdrawals} />
-      </section>
+        <Button
+          onClick={() => setModalOpen(true)}
+          disabled={readOnly}
+          size="sm"
+          className="font-semibold gap-1.5"
+        >
+          <HugeiconsIcon icon={MoneySend01Icon} className="size-4" />
+          Withdraw Funds
+        </Button>
+      </div>
+
+      {/* History table log */}
+      <div className="transition-all duration-200 w-full">
+        {activeTab === "ledger" ? (
+          <TransactionHistoryTable
+            items={transactions}
+            pagination={pagination}
+          />
+        ) : (
+          <WithdrawalHistory withdrawals={withdrawals} />
+        )}
+      </div>
+
+      {/* Withdrawal Form Modal */}
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogPopup className="max-w-md p-6">
+          <DialogHeader className="mb-4">
+            <DialogTitle className="text-xl font-bold">Withdraw funds</DialogTitle>
+            <DialogDescription>
+              Send available earnings to your registered Mobile Money account.
+            </DialogDescription>
+          </DialogHeader>
+          {modalOpen && (
+            <WithdrawalRequestForm
+              phoneMask={phoneMask}
+              withdrawableMinor={withdrawableMinor}
+              readOnly={readOnly}
+              onRequestCreated={() => {
+                handleRequestCreated()
+                setModalOpen(false)
+              }}
+              onCancel={() => setModalOpen(false)}
+            />
+          )}
+        </DialogPopup>
+      </Dialog>
     </div>
   )
 }

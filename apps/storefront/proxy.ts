@@ -64,6 +64,12 @@ export function proxy(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // Skip proxying/rewriting for static assets (files with extensions)
+  const hasExtension = /\.[a-zA-Z0-9]+$/.test(pathname)
+  if (hasExtension) {
+    return NextResponse.next()
+  }
+
   if (subdomain && !reserved.has(subdomain)) {
     const rewriteUrl = request.nextUrl.clone()
     if (pathname === "/") {
@@ -78,5 +84,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|robots.txt).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|robots.txt|logo.jpg).*)"],
 }

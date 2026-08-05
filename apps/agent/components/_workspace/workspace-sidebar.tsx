@@ -46,11 +46,6 @@ const navItems: NavItem[] = [
     icon: Wallet02Icon,
   },
   {
-    href: "/withdrawals",
-    label: "Withdrawals",
-    icon: MoneySend01Icon,
-  },
-  {
     href: "/settings",
     label: "Settings",
     icon: Settings02Icon,

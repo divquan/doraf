@@ -8,7 +8,7 @@ export function DashcheckerMark({ variant = "agent" }: { variant?: "agent" | "bu
       <img
         src="/logo.jpg"
         alt="Dashchecker Mark"
-        className="h-9 w-auto object-contain mix-blend-multiply dark:mix-blend-normal"
+        className="h-[46.8px] w-auto object-contain mix-blend-multiply dark:mix-blend-normal"
       />
     )
   }
@@ -18,7 +18,7 @@ export function DashcheckerMark({ variant = "agent" }: { variant?: "agent" | "bu
       <img
         src="/logo.jpg"
         alt="Dashchecker Logo"
-        className="h-8 w-auto object-contain mix-blend-multiply dark:mix-blend-normal"
+        className="h-[41.6px] w-auto object-contain mix-blend-multiply dark:mix-blend-normal"
       />
       {variant === "agent" && (
         <span className="text-[0.65rem] font-bold tracking-[0.18em] text-muted-foreground uppercase px-1.5 py-0.5 rounded bg-muted/60 border border-border/50">

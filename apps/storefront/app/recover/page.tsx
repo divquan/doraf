@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { BuyerRecoveryFlow } from "@/components/buyer-recovery-flow"
 import { DorafMark } from "@/components/doraf-mark"
+import { StorefrontFooter } from "@/components/storefront-footer"
 
 export const metadata: Metadata = {
   title: "Recover a purchase",
@@ -9,13 +10,13 @@ export const metadata: Metadata = {
 
 export default function RecoverPage() {
   return (
-    <main className="min-h-svh bg-muted/35">
+    <div className="flex flex-col min-h-svh bg-muted/35">
       <header className="border-b bg-background/90">
         <div className="mx-auto flex max-w-5xl items-center px-5 py-4 sm:px-8">
           <DorafMark variant="buyer" />
         </div>
       </header>
-      <div className="mx-auto grid max-w-5xl gap-10 px-5 py-10 sm:px-8 sm:py-14 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
+      <main className="mx-auto grid max-w-5xl gap-10 px-5 py-10 sm:px-8 sm:py-14 lg:grid-cols-[0.8fr_1.2fr] lg:items-start flex-grow w-full">
         <section className="flex flex-col gap-4 lg:sticky lg:top-10">
           <p className="text-sm font-semibold tracking-[0.16em] text-primary uppercase">
             Purchase recovery
@@ -33,7 +34,8 @@ export default function RecoverPage() {
           </div>
         </section>
         <BuyerRecoveryFlow />
-      </div>
-    </main>
+      </main>
+      <StorefrontFooter />
+    </div>
   )
 }
