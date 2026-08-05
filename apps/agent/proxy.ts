@@ -9,6 +9,7 @@ import { agentSessionCookie } from "@/lib/agent-session"
  */
 const workspacePaths = [
   "/dashboard",
+  "/my-store",
   "/sales",
   "/pricing",
   "/wallet",
@@ -43,6 +44,7 @@ export function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     "/dashboard/:path*",
+    "/my-store/:path*",
     "/sales/:path*",
     "/pricing/:path*",
     "/wallet/:path*",

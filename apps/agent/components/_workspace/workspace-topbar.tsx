@@ -31,6 +31,7 @@ export function WorkspaceTopbar({
   // Breadcrumb mapping
   const routeMap: Record<string, string> = {
     "/dashboard": "Dashboard",
+    "/my-store": "My Store",
     "/sales": "My Store",
     "/pricing": "Pricing Setup",
     "/wallet": "Wallet Balance",

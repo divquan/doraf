@@ -31,7 +31,7 @@ const navItems: NavItem[] = [
     icon: DashboardSquare01Icon,
   },
   {
-    href: "/sales",
+    href: "/my-store",
     label: "My Store",
     icon: ShoppingBag01Icon,
   },

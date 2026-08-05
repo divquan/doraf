@@ -170,7 +170,7 @@ export default async function DashboardPage() {
                   </div>
                 </div>
                 <Link
-                  href="/sales"
+                  href="/my-store"
                   className={buttonVariants({ variant: "outline", size: "sm" })}
                 >
                   Go

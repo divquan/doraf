@@ -55,7 +55,7 @@ export class SalesChannelService {
       slug: agent.slug,
       webSalesId: agent.webSalesId,
       path: `/buy/${agent.webSalesId}`,
-      subdomainUrl: `https://${publicId}.doraf.app`,
+      subdomainUrl: this.getSubdomainUrl(publicId),
       storeName: agent.storeName,
       tagline: agent.tagline,
       logoUrl: agent.logoUrl,
@@ -64,6 +64,11 @@ export class SalesChannelService {
       themePreset: agent.themePreset || 'default',
       announcement: agent.announcement,
     };
+  }
+
+  private getSubdomainUrl(publicId: string): string {
+    const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'doraf.app';
+    return `https://${publicId}.${rootDomain}`;
   }
 
   async resolveWebChannel(identifier: string) {
