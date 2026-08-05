@@ -6,6 +6,7 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import {
   Comment01Icon,
   CreditCardIcon,
+  Download04Icon,
   FlashIcon,
   Megaphone01Icon,
   SecurityCheckIcon,
@@ -71,13 +72,15 @@ export function StorefrontLandingView({
         <div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-3.5 sm:px-8">
           <DorafMark variant="buyer" />
           <div className="flex items-center gap-3">
-            <Button render={<Link href="/recover" />} size="sm" variant="ghost" className="text-xs font-medium">
+            <Button
+              render={<Link href="/recover" />}
+              size="sm"
+              variant="secondary"
+              className="text-xs font-bold gap-1.5"
+            >
+              <HugeiconsIcon icon={Download04Icon} className="size-3.5" />
               Recover Purchase
             </Button>
-            <Badge variant="secondary" className="hidden sm:flex gap-1.5 font-medium">
-              <HugeiconsIcon icon={SecurityCheckIcon} className="size-3.5 text-emerald-600" />
-              Secure Checkout
-            </Badge>
           </div>
         </div>
       </header>
@@ -162,7 +165,7 @@ export function StorefrontLandingView({
           </div>
 
           <div className="flex items-center gap-3.5 rounded-2xl border bg-card/70 p-4 shadow-xs backdrop-blur-xs">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
               <HugeiconsIcon icon={CreditCardIcon} className="size-5" />
             </span>
             <div>
@@ -172,7 +175,7 @@ export function StorefrontLandingView({
           </div>
 
           <div className="flex items-center gap-3.5 rounded-2xl border bg-card/70 p-4 shadow-xs backdrop-blur-xs">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
               <HugeiconsIcon icon={SecurityCheckIcon} className="size-5" />
             </span>
             <div>
@@ -236,17 +239,6 @@ export function StorefrontLandingView({
                         {money(product.retailPriceMinor, product.currency)}
                       </p>
                     </div>
-
-                    <ul className="space-y-1.5 text-xs text-muted-foreground border-t pt-3">
-                      <li className="flex items-center gap-2">
-                        <HugeiconsIcon icon={Tick02Icon} className="size-4 text-emerald-600 shrink-0" />
-                        Works for any examination year
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <HugeiconsIcon icon={Tick02Icon} className="size-4 text-emerald-600 shrink-0" />
-                        Delivered instantly to your phone via SMS
-                      </li>
-                    </ul>
                   </CardContent>
 
                   <CardFooter className="border-t bg-muted/15 pt-4">

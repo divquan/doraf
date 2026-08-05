@@ -215,11 +215,6 @@ function PriceCard({
             </div>
           )}
 
-          {/* Base & Cap limits info */}
-          <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 px-1">
-            <span>Doraf Base: <strong className="text-foreground">{money(row.pricing.basePriceMinor)}</strong></span>
-            <span>Max Cap: <strong className="text-foreground">{money(row.pricing.maximumRetailPriceMinor)}</strong></span>
-          </div>
         </CardContent>
 
         <CardFooter className="border-t bg-muted/15 pt-4">

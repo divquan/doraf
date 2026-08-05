@@ -65,7 +65,6 @@ export function StoreEditor({
   // Active WYSIWYG editing fields
   const [editingField, setEditingField] = useState<string | null>(null)
   const [showQrModal, setShowQrModal] = useState(false)
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
   const [message, setMessage] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -79,18 +78,59 @@ export function StoreEditor({
   const activeSlug = slug.trim() || data.slug || data.webSalesId
   const salesUrl = sfConfig.formatSubdomainUrl(activeSlug)
 
-  // Track unsaved changes
+  // Derive unsaved changes state
+  const hasUnsavedChanges =
+    slug !== (data.slug || "") ||
+    storeName !== (data.storeName || "") ||
+    tagline !== (data.tagline || "") ||
+    logoUrl !== (data.logoUrl || "") ||
+    bannerUrl !== (data.bannerUrl || "") ||
+    whatsappNumber !== (data.whatsappNumber || "") ||
+    announcement !== (data.announcement || "")
+
+  // Prompt on page exit or navigation
   useEffect(() => {
-    const isDifferent =
-      slug !== (data.slug || "") ||
-      storeName !== (data.storeName || "") ||
-      tagline !== (data.tagline || "") ||
-      logoUrl !== (data.logoUrl || "") ||
-      bannerUrl !== (data.bannerUrl || "") ||
-      whatsappNumber !== (data.whatsappNumber || "") ||
-      announcement !== (data.announcement || "")
-    setHasUnsavedChanges(isDifferent)
-  }, [slug, storeName, tagline, logoUrl, bannerUrl, whatsappNumber, announcement, data])
+    if (!hasUnsavedChanges) return
+
+    // 1. Intercept browser reload / tab close / external links
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = "You have unsaved changes. Are you sure you want to leave?"
+      return e.returnValue
+    }
+
+    // 2. Intercept Next.js client-side navigation (internal links)
+    const handleAnchorClick = (e: MouseEvent) => {
+      const target = (e.target as HTMLElement).closest("a")
+      if (!target) return
+
+      const href = target.getAttribute("href")
+      if (!href) return
+
+      // Ignore links that open in a new tab, download links, or hashes
+      const isTargetBlank = target.getAttribute("target") === "_blank"
+      const isDownload = target.hasAttribute("download")
+      const isExternal = href.startsWith("http") && !href.startsWith(window.location.origin)
+      const isHash = href.startsWith("#")
+
+      if (isTargetBlank || isDownload || isExternal || isHash) return
+
+      // Prompt the user
+      const ok = window.confirm("You have unsaved changes. Are you sure you want to leave?")
+      if (!ok) {
+        e.preventDefault()
+        e.stopPropagation()
+      }
+    }
+
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    document.addEventListener("click", handleAnchorClick, true) // Capture phase to run before Next.js Link handler
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload)
+      document.removeEventListener("click", handleAnchorClick, true)
+    }
+  }, [hasUnsavedChanges])
 
   function handleLogoFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]

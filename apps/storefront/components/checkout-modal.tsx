@@ -270,7 +270,7 @@ export function CheckoutModal({
                 </p>
               </div>
             </div>
-            <Badge variant="outline" className="border-primary/30 bg-primary/5 text-primary">
+            <Badge variant="outline" className="border-primary/30 bg-primary/5 text-primary mr-8">
               Step {step} of 3
             </Badge>
           </div>
@@ -296,25 +296,6 @@ export function CheckoutModal({
             <form onSubmit={handleNextToPayment} className="space-y-5">
               <FieldSet>
                 <FieldGroup>
-                  <Field>
-                    <FieldLabel htmlFor="modal-product" className="font-semibold">
-                      Select Checker Product
-                    </FieldLabel>
-                    <NativeSelect
-                      id="modal-product"
-                      value={productId}
-                      onChange={(e) => setProductId(e.target.value)}
-                      className="w-full h-11 text-sm font-medium"
-                    >
-                      {products.map((item) => (
-                        <NativeSelectOption key={item.id} value={item.id}>
-                          {item.name} — {money(item.retailPriceMinor, item.currency)}
-                        </NativeSelectOption>
-                      ))}
-                    </NativeSelect>
-                    <FieldDescription className="text-xs">{product?.scopeDisclosure}</FieldDescription>
-                  </Field>
-
                   <Field>
                     <FieldLabel className="font-semibold">Quantity</FieldLabel>
                     <ToggleGroup
