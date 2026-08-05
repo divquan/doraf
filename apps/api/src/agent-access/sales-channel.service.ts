@@ -67,16 +67,29 @@ export class SalesChannelService {
   }
 
   private getSubdomainUrl(publicId: string): string {
-    const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'doraf.app';
-    return `https://${publicId}.${rootDomain}`;
+    const rawUrl = process.env.DORAF_STOREFRONT_URL || 'http://localhost:3003';
+    try {
+      const url = new URL(rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`);
+      const protocol = url.protocol || 'https:';
+      const hostname = url.hostname;
+      const port = url.port ? `:${url.port}` : '';
+      const isLocal =
+        hostname === 'localhost' ||
+        hostname === '127.0.0.1' ||
+        hostname.endsWith('.localhost');
+      if (isLocal) {
+        return `${protocol}//${publicId}.localhost${port}`;
+      }
+      const rootDomain = hostname.split('.').slice(-2).join('.');
+      return `${protocol}//${publicId}.${rootDomain}`;
+    } catch {
+      return `https://${publicId}.doraf.app`;
+    }
   }
 
   async resolveWebChannel(identifier: string) {
-    const isHex = /^[a-f0-9]{24}$/i.test(identifier);
     const agent = await this.prisma.agent.findFirst({
-      where: isHex
-        ? { OR: [{ webSalesId: identifier }, { slug: identifier }] }
-        : { slug: identifier },
+      where: { OR: [{ webSalesId: identifier }, { slug: identifier }] },
       select: {
         name: true,
         status: true,

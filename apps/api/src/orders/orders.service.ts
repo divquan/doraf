@@ -101,9 +101,7 @@ export class OrdersService {
           }
 
           const agent = await transaction.agent.findFirst({
-            where: isHex
-              ? { OR: [{ webSalesId: input.webSalesId }, { slug: input.webSalesId }] }
-              : { slug: input.webSalesId },
+            where: { OR: [{ webSalesId: input.webSalesId }, { slug: input.webSalesId }] },
             select: {
               id: true,
               tenantId: true,

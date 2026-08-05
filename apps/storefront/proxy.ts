@@ -1,27 +1,45 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
+function getRootDomain(hostHeader: string): string {
+  const storefrontUrl = process.env.DORAF_STOREFRONT_URL
+  if (storefrontUrl) {
+    try {
+      const parsed = new URL(storefrontUrl.startsWith("http") ? storefrontUrl : `https://${storefrontUrl}`)
+      return parsed.hostname
+    } catch {
+      // Ignore parse error
+    }
+  }
+  const hostWithoutPort = hostHeader.split(":")[0] || ""
+  if (hostWithoutPort.endsWith(".localhost")) return "localhost"
+  const parts = hostWithoutPort.split(".")
+  if (parts.length >= 2) return parts.slice(-2).join(".")
+  return hostWithoutPort || "localhost"
+}
+
 export function proxy(request: NextRequest) {
   const host = request.headers.get("host") || ""
   const { pathname } = request.nextUrl
+  const rootDomain = getRootDomain(host)
 
-  // Handle legacy /buy/:webSalesId paths -> 301 Redirect to subdomain or rewrite
+  // Handle legacy /buy/:webSalesId paths -> 301 Redirect to subdomain
   if (pathname.startsWith("/buy/")) {
     const parts = pathname.split("/").filter(Boolean)
     const identifier = parts[1]
     if (identifier) {
-      const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "doraf.app"
       const portMatch = host.match(/:\d+$/)
       const port = portMatch ? portMatch[0] : ""
+      const isLocal = rootDomain === "localhost" || rootDomain === "127.0.0.1"
+      const targetHost = isLocal ? `${identifier}.localhost${port}` : `${identifier}.${rootDomain}`
       const redirectUrl = new URL(
-        `http${request.nextUrl.protocol === "https:" ? "s" : ""}://${identifier}.${rootDomain.split(":")[0]}${port}/`
+        `http${request.nextUrl.protocol === "https:" ? "s" : ""}://${targetHost}/`
       )
       return NextResponse.redirect(redirectUrl, { status: 301 })
     }
   }
 
-  // Extract subdomain if accessing via {slug}.doraf.app or {slug}.localhost:3000
-  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "doraf.app"
+  // Extract subdomain if accessing via {slug}.domain or {slug}.localhost:3003
   const hostWithoutPort = host.split(":")[0] ?? ""
 
   let subdomain: string | null = null
@@ -41,6 +59,10 @@ export function proxy(request: NextRequest) {
   }
 
   const reserved = new Set(["www", "app", "api", "admin", "dashboard", "recover"])
+
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.next()
+  }
 
   if (subdomain && !reserved.has(subdomain)) {
     const rewriteUrl = request.nextUrl.clone()

@@ -111,8 +111,61 @@ export function clearCookie(response: NextResponse, name: string) {
 }
 
 export function requireSameOrigin(request: NextRequest) {
+  // 1. Check browser's built-in Sec-Fetch-Site header
+  const secFetchSite = request.headers.get("sec-fetch-site")
+  if (secFetchSite === "same-origin" || secFetchSite === "same-site" || secFetchSite === "none") {
+    return
+  }
+
   const origin = request.headers.get("origin")
-  if (origin && origin !== request.nextUrl.origin) {
+  if (!origin) return
+
+  try {
+    const originUrl = new URL(origin)
+    const hostHeader = request.headers.get("host") || request.nextUrl.host || ""
+    const requestHostWithoutPort = hostHeader.split(":")[0]?.toLowerCase() || ""
+    const originHostWithoutPort = originUrl.hostname.toLowerCase()
+
+    // 2. Direct host match (e.g. new.localhost === new.localhost)
+    if (originHostWithoutPort === requestHostWithoutPort) return
+
+    // 3. Direct origin match with request.nextUrl.origin
+    if (origin === request.nextUrl.origin) return
+
+    // 4. Localhost / dev server subdomains match
+    const isLocalOrigin =
+      originHostWithoutPort === "localhost" ||
+      originHostWithoutPort === "127.0.0.1" ||
+      originHostWithoutPort === "::1" ||
+      originHostWithoutPort.endsWith(".localhost")
+
+    const isLocalHost =
+      requestHostWithoutPort === "localhost" ||
+      requestHostWithoutPort === "127.0.0.1" ||
+      requestHostWithoutPort === "::1" ||
+      requestHostWithoutPort.endsWith(".localhost")
+
+    if (isLocalOrigin && isLocalHost) return
+
+    // 5. Same root domain match (e.g. *.doraf.app)
+    const storefrontUrl = process.env.DORAF_STOREFRONT_URL
+    if (storefrontUrl) {
+      const parsedStorefront = new URL(
+        storefrontUrl.startsWith("http") ? storefrontUrl : `https://${storefrontUrl}`
+      )
+      const rootDomain = parsedStorefront.hostname.replace(/^www\./, "").toLowerCase()
+      if (
+        (originHostWithoutPort === rootDomain || originHostWithoutPort.endsWith(`.${rootDomain}`)) &&
+        (requestHostWithoutPort === rootDomain || requestHostWithoutPort.endsWith(`.${rootDomain}`))
+      ) {
+        return
+      }
+    }
+  } catch {
+    // If URL parsing fails, fall through
+  }
+
+  if (secFetchSite === "cross-site") {
     throw new ApiError(403, "Cross-site requests are not allowed")
   }
 }

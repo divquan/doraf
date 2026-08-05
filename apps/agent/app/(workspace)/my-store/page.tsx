@@ -43,8 +43,7 @@ export default async function MyStorePage() {
   const channel = (await apiJson(channelRes)) as SalesChannel
   const prices = pricesRes.ok ? ((await apiJson(pricesRes)) as AgentPricingRow[]) : []
 
-  const publicId = channel.slug || channel.webSalesId
-  const salesUrl = channel.subdomainUrl || `https://${publicId}.doraf.app`
+  const salesUrl = channel.subdomainUrl
   const qr = await qrDataUrl(salesUrl)
 
   return (

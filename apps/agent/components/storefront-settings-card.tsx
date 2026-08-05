@@ -8,6 +8,7 @@ import { Button } from "@workspace/ui/components/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@workspace/ui/components/card"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
+import { getStorefrontConfig } from "@/lib/storefront-url"
 
 export interface StorefrontSettings {
   publicId: string
@@ -84,7 +85,9 @@ export function StorefrontSettingsCard({
     }
   }
 
+  const sfConfig = getStorefrontConfig(settings.subdomainUrl)
   const currentSlugDisplay = slug || settings.slug || settings.webSalesId
+  const currentUrl = sfConfig.formatSubdomainUrl(currentSlugDisplay)
 
   return (
     <Card className="border-border/75 bg-card shadow-sm">
@@ -129,10 +132,10 @@ export function StorefrontSettingsCard({
                 placeholder={settings.webSalesId}
                 className="w-full bg-transparent px-1 font-mono font-medium outline-none placeholder:text-muted-foreground/60"
               />
-              <span className="text-muted-foreground select-none">.doraf.app</span>
+              <span className="text-muted-foreground select-none">{sfConfig.suffix}</span>
             </div>
             <p className="text-xs text-muted-foreground">
-              Your store URL: <code className="font-mono text-primary">https://{currentSlugDisplay}.doraf.app</code>
+              Your store URL: <code className="font-mono text-primary">{currentUrl}</code>
             </p>
           </div>
 

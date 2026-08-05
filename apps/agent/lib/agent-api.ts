@@ -111,8 +111,41 @@ export function clearCookie(response: NextResponse, name: string) {
 }
 
 export function requireSameOrigin(request: NextRequest) {
+  const secFetchSite = request.headers.get("sec-fetch-site")
+  if (secFetchSite === "same-origin" || secFetchSite === "same-site" || secFetchSite === "none") {
+    return
+  }
+
   const origin = request.headers.get("origin")
-  if (origin && origin !== request.nextUrl.origin) {
+  if (!origin) return
+
+  try {
+    const originUrl = new URL(origin)
+    const hostHeader = request.headers.get("host") || request.nextUrl.host || ""
+    const requestHostWithoutPort = hostHeader.split(":")[0]?.toLowerCase() || ""
+    const originHostWithoutPort = originUrl.hostname.toLowerCase()
+
+    if (originHostWithoutPort === requestHostWithoutPort) return
+    if (origin === request.nextUrl.origin) return
+
+    const isLocalOrigin =
+      originHostWithoutPort === "localhost" ||
+      originHostWithoutPort === "127.0.0.1" ||
+      originHostWithoutPort === "::1" ||
+      originHostWithoutPort.endsWith(".localhost")
+
+    const isLocalHost =
+      requestHostWithoutPort === "localhost" ||
+      requestHostWithoutPort === "127.0.0.1" ||
+      requestHostWithoutPort === "::1" ||
+      requestHostWithoutPort.endsWith(".localhost")
+
+    if (isLocalOrigin && isLocalHost) return
+  } catch {
+    // Fall through
+  }
+
+  if (secFetchSite === "cross-site") {
     throw new ApiError(403, "Cross-site requests are not allowed")
   }
 }

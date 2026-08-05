@@ -26,6 +26,7 @@ import { Label } from "@workspace/ui/components/label"
 import { money } from "@workspace/ui/lib/format"
 import { cn } from "@workspace/ui/lib/utils"
 import { type AgentPricingRow } from "@/components/pricing-grid"
+import { getStorefrontConfig } from "@/lib/storefront-url"
 
 export interface StorefrontData {
   publicId: string
@@ -74,8 +75,9 @@ export function StoreEditor({
   const logoFileInputRef = useRef<HTMLInputElement>(null)
   const bannerFileInputRef = useRef<HTMLInputElement>(null)
 
+  const sfConfig = getStorefrontConfig(data.subdomainUrl)
   const activeSlug = slug.trim() || data.slug || data.webSalesId
-  const salesUrl = `https://${activeSlug}.doraf.app`
+  const salesUrl = sfConfig.formatSubdomainUrl(activeSlug)
 
   // Track unsaved changes
   useEffect(() => {
@@ -216,7 +218,7 @@ export function StoreEditor({
 
             {editingField === "slug" ? (
               <div className="flex items-center rounded-md border border-primary px-2 py-1 text-xs bg-background">
-                <span className="text-muted-foreground select-none">https://</span>
+                <span className="text-muted-foreground select-none">{sfConfig.protocol}//</span>
                 <input
                   autoFocus
                   disabled={readOnly}
@@ -228,7 +230,7 @@ export function StoreEditor({
                   placeholder={data.webSalesId}
                   className="bg-transparent font-mono font-bold text-primary outline-none w-36"
                 />
-                <span className="text-muted-foreground select-none">.doraf.app</span>
+                <span className="text-muted-foreground select-none">{sfConfig.suffix}</span>
               </div>
             ) : (
               <div
@@ -527,8 +529,8 @@ export function StoreEditor({
               {products && products.length > 0 ? (
                 products.map((item) => {
                   const hasPrice =
-                    item.pricing.retailPriceMinor !== null &&
-                    item.pricing.source === "AGENT_OVERRIDE"
+                    typeof item.pricing.retailPriceMinor === "number" &&
+                    item.pricing.retailPriceMinor > 0
 
                   return (
                     <div
