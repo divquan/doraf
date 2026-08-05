@@ -116,6 +116,31 @@ export class PaymentGatewayService {
     return normalizeRefundResult(payload);
   }
 
+  async resolveAccount(input: {
+    accountNumber: string;
+    network: string;
+  }): Promise<{ accountNumber: string; accountName: string }> {
+    const localPhone = toGhanaLocalPhone(input.accountNumber);
+    const bankCode = paystackMobileMoneyCode(input.network);
+    const payload = await this.request(
+      `/bank/resolve?account_number=${encodeURIComponent(localPhone)}&bank_code=${encodeURIComponent(bankCode)}`,
+      { method: 'GET' },
+    );
+    if (!isRecord(payload) || !isRecord(payload.data)) {
+      throw new BadGatewayException(
+        'Paystack returned an invalid account resolution',
+      );
+    }
+    const accountNumber = stringValue(payload.data.account_number);
+    const accountName = stringValue(payload.data.account_name);
+    if (!accountNumber || !accountName) {
+      throw new BadGatewayException(
+        'Could not resolve Mobile Money account name',
+      );
+    }
+    return { accountNumber, accountName };
+  }
+
   async createMobileMoneyRecipient(input: {
     name: string;
     phone: string;

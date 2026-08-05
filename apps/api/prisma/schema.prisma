@@ -910,6 +910,8 @@ model TransferRecipient {
   id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   agentId          String   @map("agent_id") @db.Uuid
   network          String   @db.VarChar(32)
+  accountName      String?  @map("account_name") @db.VarChar(120)
+  phoneCiphertext  Bytes?   @map("phone_ciphertext")
   phoneFingerprint Bytes    @map("phone_fingerprint")
   phoneMask        String   @map("phone_mask") @db.VarChar(32)
   recipientCode    String   @unique @map("recipient_code") @db.VarChar(100)
@@ -918,7 +920,7 @@ model TransferRecipient {
   updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   agent            Agent    @relation(fields: [agentId], references: [id], onDelete: Restrict)
 
-  @@unique([agentId, network, phoneFingerprint])
+  @@index([agentId, active])
   @@index([agentId, network, active])
   @@map("transfer_recipient")
 }

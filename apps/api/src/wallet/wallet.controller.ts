@@ -50,4 +50,25 @@ export class WalletController {
   ) {
     return this.withdrawals.request({ agentId: principal.agentId, ...request });
   }
+
+  @Get('payout-destination')
+  getPayoutDestination(@CurrentAgentPrincipal() principal: AgentPrincipal) {
+    return this.withdrawals.getPayoutDestination(principal.agentId);
+  }
+
+  @Post('payout-destination/validate')
+  validatePayoutDestination(
+    @Body() body: { network: string; accountNumber: string },
+    @CurrentAgentPrincipal() principal: AgentPrincipal,
+  ) {
+    return this.withdrawals.validatePayoutDestination(principal.agentId, body);
+  }
+
+  @Post('payout-destination')
+  savePayoutDestination(
+    @Body() body: { network: string; accountNumber: string },
+    @CurrentAgentPrincipal() principal: AgentPrincipal,
+  ) {
+    return this.withdrawals.savePayoutDestination(principal.agentId, body);
+  }
 }

@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
+import { AlertCircleIcon } from "@hugeicons/core-free-icons"
 import {
   Alert,
   AlertDescription,
@@ -22,30 +23,30 @@ import {
   InputOTPGroup,
   InputOTPSlot,
 } from "@workspace/ui/components/input-otp"
-import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@workspace/ui/components/native-select"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { pesewasToGhs } from "@workspace/ui/lib/format"
 import { type Step } from "../payout-panel"
+import { type PayoutDestinationData } from "./payout-destination-form"
 
 export function PayoutRequestForm({
   phoneMask,
+  destination,
   withdrawableMinor,
   readOnly,
   onRequestCreated,
   onCancel,
+  onOpenDestinationSetup,
 }: {
   phoneMask: string
+  destination: PayoutDestinationData | null
   withdrawableMinor: string
   readOnly: boolean
   onRequestCreated: () => void
   onCancel: () => void
+  onOpenDestinationSetup: () => void
 }) {
   const [step, setStep] = useState<Step>("details")
   const [amount, setAmount] = useState("")
-  const [network, setNetwork] = useState("MTN")
   const [challengeId, setChallengeId] = useState("")
   const [code, setCode] = useState("")
   const [payoutToken, setPayoutToken] = useState("")
@@ -59,11 +60,37 @@ export function PayoutRequestForm({
   const totalMinor = netAmountMinor === null ? null : netAmountMinor + 100n
   const canRequest =
     !readOnly &&
+    Boolean(destination) &&
     totalMinor !== null &&
     netAmountMinor !== null &&
     netAmountMinor >= 1_000n &&
     netAmountMinor <= 5_000_000n &&
     totalMinor <= BigInt(withdrawableMinor)
+
+  if (!destination) {
+    return (
+      <div className="space-y-4">
+        <Alert className="border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200">
+          <HugeiconsIcon icon={AlertCircleIcon} className="size-5 text-amber-600 dark:text-amber-400" />
+          <AlertTitle className="font-bold text-amber-900 dark:text-amber-200">
+            Payout Destination Required
+          </AlertTitle>
+          <AlertDescription className="mt-1">
+            You must set up and validate your Mobile Money account with Paystack before requesting payouts.
+          </AlertDescription>
+        </Alert>
+
+        <div className="flex justify-end gap-3 border-t pt-4">
+          <Button onClick={onCancel} type="button" variant="outline">
+            Cancel
+          </Button>
+          <Button onClick={onOpenDestinationSetup} type="button">
+            Set Up Destination
+          </Button>
+        </div>
+      </div>
+    )
+  }
 
   async function requestOtp(event: FormEvent) {
     event.preventDefault()
@@ -105,10 +132,10 @@ export function PayoutRequestForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ challengeId, code }),
       })
-      const body = await readResponse<{ token: string }>(response)
-      setPayoutToken(body.token)
+      const body = await readResponse<{ withdrawalToken: string }>(response)
+      setPayoutToken(body.withdrawalToken)
       setStep("verified")
-      await createPayout(body.token)
+      await createPayout(body.withdrawalToken)
     })
   }
 
@@ -118,18 +145,19 @@ export function PayoutRequestForm({
   }
 
   async function createPayout(token: string) {
-    if (netAmountMinor === null) return
-    await run(() =>
-      fetch("/api/payouts", {
+    if (netAmountMinor === null || !destination) return
+    await run(async () => {
+      const response = await fetch("/api/payouts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          amountMinor: netAmountMinor.toString(),
-          network,
+          netAmountMinor: netAmountMinor.toString(),
+          network: destination.network,
           withdrawalToken: token,
         }),
       })
-    )
+      await readResponse(response)
+    })
     setAmount("")
     setCode("")
     setPayoutToken("")
@@ -192,31 +220,21 @@ export function PayoutRequestForm({
                   value={amount}
                 />
                 <FieldDescription>
-                  The minimum payout is GHS 10.00. The maximum is GHS
-                  50,000.00.
+                  The minimum payout is GHS 10.00. The maximum is GHS 50,000.00.
                 </FieldDescription>
               </Field>
-              <Field>
-                <FieldLabel htmlFor="payout-network">
-                  Mobile Money network
-                </FieldLabel>
-                <NativeSelect
-                  id="payout-network"
-                  name="network"
-                  onChange={(event) => setNetwork(event.target.value)}
-                  value={network}
-                >
-                  <NativeSelectOption value="MTN">
-                    MTN Mobile Money
-                  </NativeSelectOption>
-                  <NativeSelectOption value="TELECEL">
-                    Telecel Cash
-                  </NativeSelectOption>
-                  <NativeSelectOption value="AIRTELTIGO">
-                    AT Money
-                  </NativeSelectOption>
-                </NativeSelect>
-              </Field>
+              
+              <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs space-y-1.5">
+                <div className="font-semibold text-foreground">Target Destination Account:</div>
+                <div className="text-sm font-bold text-foreground">
+                  {destination.accountName}
+                </div>
+                <div className="text-muted-foreground flex items-center gap-1.5 flex-wrap">
+                  <span className="font-medium text-foreground">{destination.network}</span>
+                  <span>•</span>
+                  <span className="font-mono text-foreground">{destination.phoneMask}</span>
+                </div>
+              </div>
             </FieldGroup>
           </form>
         ) : null}
@@ -290,6 +308,11 @@ export function PayoutRequestForm({
                 <FieldLegend className="sr-only">
                   Transaction breakdown
                 </FieldLegend>
+                <DestDetail
+                  label="Target account owner"
+                  value={destination.accountName}
+                  strong
+                />
                 <DestDetail
                   label="Gross payout amount"
                   value={money(netAmountMinor)}

@@ -1,13 +1,15 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { cn } from "@workspace/ui/lib/utils"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { MoneySend01Icon } from "@hugeicons/core-free-icons"
+import { MoneySend01Icon, SmartPhone01Icon, Settings02Icon, CheckmarkCircle02Icon } from "@hugeicons/core-free-icons"
 import { Button } from "@workspace/ui/components/button"
+import { Alert, AlertDescription, AlertTitle } from "@workspace/ui/components/alert"
 import { PayoutHistory } from "./_workspace/payout-history"
 import { PayoutRequestForm } from "./_workspace/payout-request-form"
+import { PayoutDestinationForm, PayoutDestinationData } from "./_workspace/payout-destination-form"
 import {
   Dialog,
   DialogDescription,
@@ -50,6 +52,7 @@ export interface AgentPayout {
 
 export function PayoutPanel({
   phoneMask,
+  destination,
   withdrawableMinor,
   payouts,
   readOnly,
@@ -57,6 +60,7 @@ export function PayoutPanel({
   pagination,
 }: {
   phoneMask: string
+  destination: PayoutDestinationData | null
   withdrawableMinor: string
   payouts: AgentPayout[]
   readOnly: boolean
@@ -66,13 +70,82 @@ export function PayoutPanel({
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<"ledger" | "payouts">("ledger")
   const [modalOpen, setModalOpen] = useState(false)
+  const [destModalOpen, setDestModalOpen] = useState(false)
+  const [currentDestination, setCurrentDestination] = useState<PayoutDestinationData | null>(destination)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   function handleRequestCreated() {
+    setActiveTab("payouts")
+    setSuccessMessage("Your payout request has been submitted successfully and is awaiting review.")
     router.refresh()
   }
 
   return (
     <div className="flex flex-col gap-4 w-full">
+      {/* Payout Destination Banner */}
+      <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <HugeiconsIcon icon={SmartPhone01Icon} className="size-5" />
+            </div>
+            <div>
+              <div className="text-xs font-medium text-muted-foreground">
+                Mobile Money Payout Destination
+              </div>
+              {currentDestination ? (
+                <div className="text-sm font-semibold text-foreground flex items-center gap-2">
+                  <span>{currentDestination.network}</span>
+                  <span className="text-muted-foreground">•</span>
+                  <span>{currentDestination.accountName}</span>
+                  <span className="text-muted-foreground">•</span>
+                  <span className="font-mono">{currentDestination.phoneMask}</span>
+                </div>
+              ) : (
+                <div className="text-sm font-medium text-amber-600 dark:text-amber-400">
+                  No payout destination set up yet
+                </div>
+              )}
+            </div>
+          </div>
+          <Button
+            onClick={() => setDestModalOpen(true)}
+            size="sm"
+            variant="outline"
+            disabled={readOnly}
+            className="font-medium gap-1.5"
+          >
+            <HugeiconsIcon icon={Settings02Icon} className="size-4" />
+            {currentDestination ? "Change Destination" : "Set Up Destination"}
+          </Button>
+        </div>
+      </div>
+
+      {successMessage ? (
+        <Alert className="border-emerald-500/30 bg-emerald-500/10 text-emerald-900 dark:text-emerald-200 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <HugeiconsIcon
+              icon={CheckmarkCircle02Icon}
+              className="size-5 text-emerald-600 dark:text-emerald-400"
+            />
+            <div>
+              <AlertTitle className="font-bold text-emerald-800 dark:text-emerald-300">
+                Payout Request Submitted
+              </AlertTitle>
+              <AlertDescription className="text-xs">
+                {successMessage}
+              </AlertDescription>
+            </div>
+          </div>
+          <button
+            onClick={() => setSuccessMessage(null)}
+            className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:underline cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </Alert>
+      ) : null}
+
       {/* Logs Header and Payout Trigger */}
       <div className="flex flex-wrap items-center justify-between border-b border-border pb-2 gap-4">
         <div className="flex border-b border-transparent">
@@ -101,7 +174,13 @@ export function PayoutPanel({
         </div>
 
         <Button
-          onClick={() => setModalOpen(true)}
+          onClick={() => {
+            if (!currentDestination) {
+              setDestModalOpen(true)
+            } else {
+              setModalOpen(true)
+            }
+          }}
           disabled={readOnly}
           size="sm"
           className="font-semibold gap-1.5"
@@ -123,18 +202,41 @@ export function PayoutPanel({
         )}
       </div>
 
-      {/* Payout Form Modal */}
+      {/* Payout Destination Setup Modal */}
+      <Dialog open={destModalOpen} onOpenChange={setDestModalOpen}>
+        <DialogPopup className="max-w-md p-6">
+          <DialogHeader className="mb-4">
+            <DialogTitle className="text-xl font-bold">
+              Payout destination setup
+            </DialogTitle>
+            <DialogDescription>
+              Validate your Mobile Money account name with Paystack to receive commission payouts.
+            </DialogDescription>
+          </DialogHeader>
+          <PayoutDestinationForm
+            currentDestination={currentDestination}
+            onSaved={(newDest) => {
+              setCurrentDestination(newDest)
+              setDestModalOpen(false)
+            }}
+            onCancel={() => setDestModalOpen(false)}
+          />
+        </DialogPopup>
+      </Dialog>
+
+      {/* Payout Request Form Modal */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogPopup className="max-w-md p-6">
           <DialogHeader className="mb-4">
             <DialogTitle className="text-xl font-bold">Request payout</DialogTitle>
             <DialogDescription>
-              Transfer available commissions to your registered Mobile Money account.
+              Transfer available commissions to your validated Mobile Money account.
             </DialogDescription>
           </DialogHeader>
           {modalOpen && (
             <PayoutRequestForm
               phoneMask={phoneMask}
+              destination={currentDestination}
               withdrawableMinor={withdrawableMinor}
               readOnly={readOnly}
               onRequestCreated={() => {
@@ -142,6 +244,10 @@ export function PayoutPanel({
                 setModalOpen(false)
               }}
               onCancel={() => setModalOpen(false)}
+              onOpenDestinationSetup={() => {
+                setModalOpen(false)
+                setDestModalOpen(true)
+              }}
             />
           )}
         </DialogPopup>

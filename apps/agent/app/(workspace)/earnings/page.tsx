@@ -10,6 +10,7 @@ import {
   PaginationMetadata,
 } from "@/components/transaction-history-table"
 import { AgentPayout, PayoutPanel } from "@/components/payout-panel"
+import { PayoutDestinationData } from "@/components/_workspace/payout-destination-form"
 import { apiJson, apiRequest } from "@/lib/agent-api"
 
 const MAX_EARNINGS_TRANSACTION_PAGE = 10_000
@@ -30,11 +31,18 @@ export default async function EarningsPage({
   const query = await searchParams
   const earningsPage = getEarningsPage(query.earningsPage)
 
-  const [sessionRes, walletSummaryRes, transactionsRes, withdrawalsRes] = await Promise.all([
+  const [
+    sessionRes,
+    walletSummaryRes,
+    transactionsRes,
+    withdrawalsRes,
+    destinationRes,
+  ] = await Promise.all([
     apiRequest("/agent-auth/session", {}, true),
     apiRequest("/agent-wallet/summary", {}, true),
     apiRequest(`/agent-wallet/transactions?page=${earningsPage}`, {}, true),
     apiRequest("/agent-wallet/withdrawals", {}, true),
+    apiRequest("/agent-wallet/payout-destination", {}, true),
   ])
 
   if (sessionRes.status === 401) {
@@ -48,6 +56,7 @@ export default async function EarningsPage({
     pagination: PaginationMetadata
   }
   const payouts = (await apiJson(withdrawalsRes)) as AgentPayout[]
+  const destination = (await apiJson(destinationRes)) as PayoutDestinationData | null
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-8">
@@ -61,6 +70,7 @@ export default async function EarningsPage({
       <section>
         <PayoutPanel
           phoneMask={agent.phoneMask}
+          destination={destination}
           readOnly={agent.status === "SUSPENDED"}
           withdrawableMinor={earningsSummary.withdrawableMinor}
           payouts={payouts}

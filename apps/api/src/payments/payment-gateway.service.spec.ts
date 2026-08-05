@@ -176,6 +176,42 @@ describe('PaymentGatewayService', () => {
     });
   });
 
+  it('resolves Mobile Money account name using Paystack bank/resolve endpoint', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          status: true,
+          message: 'Account number resolved',
+          data: {
+            account_number: '0241234567',
+            account_name: 'JOHN KOW KWOFIE',
+          },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+    const gateway = new PaymentGatewayService(
+      config({
+        PAYSTACK_MODE: 'sandbox',
+        PAYSTACK_SECRET_KEY: 'sk_test_gateway-secret',
+      }),
+    );
+
+    const result = await gateway.resolveAccount({
+      accountNumber: '0241234567',
+      network: 'MTN',
+    });
+
+    expect(result).toEqual({
+      accountNumber: '0241234567',
+      accountName: 'JOHN KOW KWOFIE',
+    });
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://api.paystack.co/bank/resolve?account_number=0241234567&bank_code=MTN',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
   it('does not release inventory for an unexpected charge-attempted response', async () => {
     jest
       .spyOn(global, 'fetch')

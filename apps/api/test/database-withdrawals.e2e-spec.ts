@@ -106,6 +106,17 @@ describe('Withdrawal settlement and database invariants (e2e)', () => {
         sourceId: randomUUID(),
       },
     });
+    await prisma.transferRecipient.create({
+      data: {
+        agentId: agent.id,
+        network: 'MTN',
+        accountName: 'Test Agent',
+        phoneMask: agent.phoneMask,
+        phoneFingerprint: randomBytes(32),
+        recipientCode: 'RCP_test_req',
+        active: true,
+      },
+    });
     const tokens = await Promise.all([
       createWithdrawalToken(prisma, otpTokens, agent),
       createWithdrawalToken(prisma, otpTokens, agent),

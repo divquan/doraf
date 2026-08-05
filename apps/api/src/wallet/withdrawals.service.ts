@@ -126,12 +126,31 @@ export class WithdrawalsService {
             throw new ConflictException(
               'Withdrawal verification was already used',
             );
+          const activeRecipient = await tx.transferRecipient.findFirst({
+            where: { agentId: input.agentId, active: true },
+            select: {
+              id: true,
+              network: true,
+              phoneMask: true,
+              accountName: true,
+              recipientCode: true,
+            },
+          });
+          if (!activeRecipient) {
+            throw new BadRequestException(
+              'A validated Mobile Money payout destination must be set up before requesting a withdrawal',
+            );
+          }
+          const destinationMask = activeRecipient.accountName
+            ? `${activeRecipient.accountName} (${activeRecipient.phoneMask})`
+            : activeRecipient.phoneMask;
+
           const created = await tx.withdrawal.create({
             data: {
               agentId: input.agentId,
               walletAccountId: wallet.id,
-              destinationMask: agent.phoneMask,
-              network: input.network,
+              destinationMask,
+              network: activeRecipient.network,
               netAmountMinor,
               feeAmountMinor: WITHDRAWAL_FEE_MINOR,
               holdAmountMinor,
@@ -651,6 +670,98 @@ export class WithdrawalsService {
     ]);
   }
 
+  async getPayoutDestination(agentId: string) {
+    const activeRecipient = await this.prisma.transferRecipient.findFirst({
+      where: { agentId, active: true },
+      select: {
+        id: true,
+        network: true,
+        accountName: true,
+        phoneMask: true,
+        createdAt: true,
+      },
+    });
+    if (!activeRecipient) return null;
+    return {
+      id: activeRecipient.id,
+      network: activeRecipient.network,
+      accountName: activeRecipient.accountName ?? '',
+      phoneMask: activeRecipient.phoneMask,
+      createdAt: activeRecipient.createdAt.toISOString(),
+    };
+  }
+
+  async validatePayoutDestination(
+    agentId: string,
+    input: { network: string; accountNumber: string },
+  ) {
+    const agent = await this.prisma.agent.findUnique({
+      where: { id: agentId },
+      select: { status: true },
+    });
+    if (!agent || agent.status !== 'ACTIVE') {
+      throw new ForbiddenException('Agent account is not active');
+    }
+    const resolved = await this.payments.resolveAccount({
+      accountNumber: input.accountNumber,
+      network: input.network,
+    });
+    const protectedPhone = this.phones.protect(input.accountNumber);
+    return {
+      network: input.network,
+      accountNumberMask: protectedPhone.mask,
+      accountName: resolved.accountName,
+    };
+  }
+
+  async savePayoutDestination(
+    agentId: string,
+    input: { network: string; accountNumber: string },
+  ) {
+    const agent = await this.prisma.agent.findUnique({
+      where: { id: agentId },
+      select: { status: true, name: true },
+    });
+    if (!agent || agent.status !== 'ACTIVE') {
+      throw new ForbiddenException('Agent account is not active');
+    }
+    const resolved = await this.payments.resolveAccount({
+      accountNumber: input.accountNumber,
+      network: input.network,
+    });
+    const recipient = await this.payments.createMobileMoneyRecipient({
+      name: resolved.accountName,
+      phone: input.accountNumber,
+      network: input.network,
+    });
+    const protectedPhone = this.phones.protect(input.accountNumber);
+
+    await this.prisma.$transaction([
+      this.prisma.transferRecipient.updateMany({
+        where: { agentId, active: true },
+        data: { active: false },
+      }),
+      this.prisma.transferRecipient.create({
+        data: {
+          agentId,
+          network: input.network,
+          accountName: resolved.accountName,
+          phoneCiphertext: Uint8Array.from(protectedPhone.ciphertext),
+          phoneFingerprint: Uint8Array.from(protectedPhone.fingerprint),
+          phoneMask: protectedPhone.mask,
+          recipientCode: recipient.recipientCode,
+          active: true,
+        },
+      }),
+    ]);
+
+    return {
+      network: input.network,
+      accountName: resolved.accountName,
+      phoneMask: protectedPhone.mask,
+    };
+  }
+
   private async findOrCreateRecipient(withdrawal: {
     agent: {
       id: string;
@@ -661,6 +772,15 @@ export class WithdrawalsService {
     };
     network: string;
   }) {
+    const activeRecipient = await this.prisma.transferRecipient.findFirst({
+      where: {
+        agentId: withdrawal.agent.id,
+        active: true,
+      },
+      select: { id: true, recipientCode: true },
+    });
+    if (activeRecipient) return activeRecipient.recipientCode;
+
     const current = await this.prisma.transferRecipient.findFirst({
       where: {
         agentId: withdrawal.agent.id,
