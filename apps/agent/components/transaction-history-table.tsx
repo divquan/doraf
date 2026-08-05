@@ -158,7 +158,7 @@ export function TransactionHistoryTable({
                     {hasPreviousPage ? (
                       <Button
                         render={
-                          <Link href={`?walletPage=${currentPage - 1}`} />
+                          <Link href={`?earningsPage=${currentPage - 1}`} />
                         }
                         variant="outline"
                         size="sm"
@@ -182,7 +182,7 @@ export function TransactionHistoryTable({
                     {hasNextPage ? (
                       <Button
                         render={
-                          <Link href={`?walletPage=${currentPage + 1}`} />
+                          <Link href={`?earningsPage=${currentPage + 1}`} />
                         }
                         variant="outline"
                         size="sm"

@@ -318,7 +318,7 @@ function PriceCard({
                     Your Net Profit / Sale
                   </p>
                   <p className="text-xs text-emerald-700 dark:text-emerald-400/80 mt-0.5">
-                    Credited to your wallet on purchase
+                    Credited to your earnings balance on purchase
                   </p>
                 </div>
                 <p className="font-mono text-2xl font-bold text-emerald-700 dark:text-emerald-400">

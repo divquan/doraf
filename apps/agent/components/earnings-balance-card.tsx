@@ -19,7 +19,7 @@ import {
 } from "@workspace/ui/components/card"
 import { pesewasToGhs } from "@workspace/ui/lib/format"
 
-export interface WalletSummary {
+export interface EarningsSummary {
   ledgerBalanceMinor: string
   activeHoldsMinor: string
   withdrawableMinor: string
@@ -28,11 +28,11 @@ export interface WalletSummary {
   negativeBalanceMinor: string
 }
 
-interface WalletBalanceCardProps {
-  summary: WalletSummary
+interface EarningsBalanceCardProps {
+  summary: EarningsSummary
 }
 
-export function WalletBalanceCard({ summary }: WalletBalanceCardProps) {
+export function EarningsBalanceCard({ summary }: EarningsBalanceCardProps) {
   const ledgerFormatted = pesewasToGhs(summary.ledgerBalanceMinor)
   const withdrawableFormatted = pesewasToGhs(summary.withdrawableMinor)
   const holdsFormatted = pesewasToGhs(summary.activeHoldsMinor)
@@ -46,15 +46,15 @@ export function WalletBalanceCard({ summary }: WalletBalanceCardProps) {
               <HugeiconsIcon icon={Wallet01Icon} strokeWidth={2} />
             </div>
             <div>
-              <CardTitle className="text-xl">Wallet balance</CardTitle>
+              <CardTitle className="text-xl">Earnings balance</CardTitle>
               <CardDescription>
-                Earnings from completed voucher sales
+                Commissions from completed voucher sales
               </CardDescription>
             </div>
           </div>
           <Badge variant={summary.isNegative ? "destructive" : "secondary"}>
             <HugeiconsIcon icon={CheckmarkCircle02Icon} />
-            {summary.isNegative ? "Debt balance" : "In good standing"}
+            {summary.isNegative ? "Negative adjustment" : "In good standing"}
           </Badge>
         </div>
       </CardHeader>
@@ -64,8 +64,8 @@ export function WalletBalanceCard({ summary }: WalletBalanceCardProps) {
             <HugeiconsIcon icon={AlertCircleIcon} />
             <AlertTitle>Negative balance</AlertTitle>
             <AlertDescription>
-              Your wallet balance is currently {ledgerFormatted}. Future sale
-              earnings will automatically apply toward this amount before funds
+              Your earnings balance is currently {ledgerFormatted}. Future sale
+              commissions will automatically apply toward this amount before funds
               become withdrawable.
             </AlertDescription>
           </Alert>
@@ -74,13 +74,13 @@ export function WalletBalanceCard({ summary }: WalletBalanceCardProps) {
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="flex flex-col gap-1 rounded-xl bg-muted/50 p-4">
             <span className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
-              Total balance
+              Total earnings
             </span>
             <span className="text-2xl font-bold tracking-tight">
               {ledgerFormatted}
             </span>
             <span className="text-xs text-muted-foreground">
-              Cumulative posted ledger sum
+              Cumulative posted commission sum
             </span>
           </div>
 
@@ -92,19 +92,19 @@ export function WalletBalanceCard({ summary }: WalletBalanceCardProps) {
               {withdrawableFormatted}
             </span>
             <span className="text-xs text-muted-foreground">
-              Withdrawable after holds
+              Payout amount after holds
             </span>
           </div>
 
           <div className="flex flex-col gap-1 rounded-xl bg-muted/50 p-4">
             <span className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
-              Active holds
+              Pending holds
             </span>
             <span className="text-2xl font-bold tracking-tight text-muted-foreground">
               {holdsFormatted}
             </span>
             <span className="text-xs text-muted-foreground">
-              Pending withdrawal holds
+              Commissions held for review
             </span>
           </div>
         </div>

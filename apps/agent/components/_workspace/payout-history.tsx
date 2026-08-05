@@ -26,37 +26,37 @@ import {
   TableRow,
 } from "@workspace/ui/components/table"
 import { pesewasToGhs, formatDate } from "@workspace/ui/lib/format"
-import { type AgentWithdrawal, type WithdrawalState } from "../withdrawal-panel"
+import { type AgentPayout, type PayoutState } from "../payout-panel"
 
-export function WithdrawalHistory({
-  withdrawals,
+export function PayoutHistory({
+  payouts,
 }: {
-  withdrawals: AgentWithdrawal[]
+  payouts: AgentPayout[]
 }) {
   return (
     <Card className="overflow-hidden border-border/75 shadow-sm">
       <CardHeader className="flex-row items-center justify-between gap-4 border-b bg-muted/20">
         <div>
-          <CardTitle className="text-xl">Withdrawal history</CardTitle>
+          <CardTitle className="text-xl">Payout history</CardTitle>
           <CardDescription>
             History of your Mobile Money payout requests.
           </CardDescription>
         </div>
-        {withdrawals.length > 0 ? (
+        {payouts.length > 0 ? (
           <Badge variant="outline">
-            {withdrawals.length}{" "}
-            {withdrawals.length === 1 ? "request" : "requests"}
+            {payouts.length}{" "}
+            {payouts.length === 1 ? "request" : "requests"}
           </Badge>
         ) : null}
       </CardHeader>
       <CardContent className="p-0">
-        {withdrawals.length === 0 ? (
+        {payouts.length === 0 ? (
           <Empty className="min-h-[180px]">
             <EmptyHeader>
               <EmptyMedia variant="icon">
                 <HugeiconsIcon icon={ReceiptTextIcon} strokeWidth={1.8} />
               </EmptyMedia>
-              <EmptyTitle>No withdrawals yet</EmptyTitle>
+              <EmptyTitle>No payouts yet</EmptyTitle>
               <EmptyDescription>
                 Your requests will appear here after SMS verification.
               </EmptyDescription>
@@ -73,27 +73,27 @@ export function WithdrawalHistory({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {withdrawals.map((withdrawal) => (
-                <TableRow key={withdrawal.id}>
-                  <TableCell>{formatDate(withdrawal.requestedAt)}</TableCell>
+              {payouts.map((payout) => (
+                <TableRow key={payout.id}>
+                  <TableCell>{formatDate(payout.requestedAt)}</TableCell>
                   <TableCell>
-                    {withdrawal.destinationMask}
+                    {payout.destinationMask}
                     <span className="block text-xs text-muted-foreground">
-                      {networkLabel(withdrawal.network)}
+                      {networkLabel(payout.network)}
                     </span>
                   </TableCell>
                   <TableCell>
-                    <StatusBadge state={withdrawal.state} />
-                    {withdrawal.decisionReason ? (
+                    <StatusBadge state={payout.state} />
+                    {payout.decisionReason ? (
                       <span className="mt-1 block max-w-48 text-xs whitespace-normal text-muted-foreground">
-                        {withdrawal.decisionReason}
+                        {payout.decisionReason}
                       </span>
                     ) : null}
                   </TableCell>
                   <TableCell className="text-right font-medium">
-                    {pesewasToGhs(withdrawal.netAmountMinor)}
+                    {pesewasToGhs(payout.netAmountMinor)}
                     <span className="block text-xs font-normal text-muted-foreground">
-                      + {pesewasToGhs(withdrawal.feeAmountMinor)} fee
+                      + {pesewasToGhs(payout.feeAmountMinor)} fee
                     </span>
                   </TableCell>
                 </TableRow>
@@ -106,7 +106,7 @@ export function WithdrawalHistory({
   )
 }
 
-function StatusBadge({ state }: { state: WithdrawalState }) {
+function StatusBadge({ state }: { state: PayoutState }) {
   const terminalFailure = ["REJECTED", "CANCELLED", "FAILED"].includes(state)
   return (
     <Badge
@@ -132,8 +132,8 @@ function networkLabel(network: string) {
       : "AT Money"
 }
 
-function statusLabel(state: WithdrawalState) {
-  const labels: Record<WithdrawalState, string> = {
+function statusLabel(state: PayoutState) {
+  const labels: Record<PayoutState, string> = {
     REQUESTED: "Awaiting review",
     APPROVED: "Approved",
     REJECTED: "Rejected",
@@ -148,7 +148,7 @@ function statusLabel(state: WithdrawalState) {
   return labels[state] ?? state
 }
 
-function statusBadgeVariant(state: WithdrawalState): string | undefined {
+function statusBadgeVariant(state: PayoutState): string | undefined {
   if (state === "SUCCESS") return "bg-emerald-500/10 text-emerald-700 border-emerald-500/20 hover:bg-emerald-500/10"
   if (state === "REQUESTED") return "bg-amber-500/10 text-amber-700 border-amber-500/20 hover:bg-amber-500/10"
   return undefined

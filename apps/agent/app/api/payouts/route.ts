@@ -20,6 +20,6 @@ export async function POST(request: NextRequest) {
       )
     )
   } catch (error) {
-    return routeError(error, "The withdrawal request could not be created")
+    return routeError(error, "The payout request could not be created")
   }
 }

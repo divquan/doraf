@@ -6,8 +6,8 @@ import { cn } from "@workspace/ui/lib/utils"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { MoneySend01Icon } from "@hugeicons/core-free-icons"
 import { Button } from "@workspace/ui/components/button"
-import { WithdrawalHistory } from "./_workspace/withdrawal-history"
-import { WithdrawalRequestForm } from "./_workspace/withdrawal-request-form"
+import { PayoutHistory } from "./_workspace/payout-history"
+import { PayoutRequestForm } from "./_workspace/payout-request-form"
 import {
   Dialog,
   DialogDescription,
@@ -23,7 +23,7 @@ import {
 
 export type Step = "details" | "otp" | "verified"
 
-export type WithdrawalState =
+export type PayoutState =
   | "REQUESTED"
   | "APPROVED"
   | "REJECTED"
@@ -35,9 +35,9 @@ export type WithdrawalState =
   | "FAILED"
   | "REVERSED"
 
-export interface AgentWithdrawal {
+export interface AgentPayout {
   id: string
-  state: WithdrawalState
+  state: PayoutState
   netAmountMinor: string
   feeAmountMinor: string
   holdAmountMinor: string
@@ -48,23 +48,23 @@ export interface AgentWithdrawal {
   decisionReason: string | null
 }
 
-export function WithdrawalPanel({
+export function PayoutPanel({
   phoneMask,
   withdrawableMinor,
-  withdrawals,
+  payouts,
   readOnly,
   transactions,
   pagination,
 }: {
   phoneMask: string
   withdrawableMinor: string
-  withdrawals: AgentWithdrawal[]
+  payouts: AgentPayout[]
   readOnly: boolean
   transactions: TransactionItem[]
   pagination: PaginationMetadata
 }) {
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState<"ledger" | "withdrawals">("ledger")
+  const [activeTab, setActiveTab] = useState<"ledger" | "payouts">("ledger")
   const [modalOpen, setModalOpen] = useState(false)
 
   function handleRequestCreated() {
@@ -73,7 +73,7 @@ export function WithdrawalPanel({
 
   return (
     <div className="flex flex-col gap-4 w-full">
-      {/* Logs Header and Withdraw Trigger */}
+      {/* Logs Header and Payout Trigger */}
       <div className="flex flex-wrap items-center justify-between border-b border-border pb-2 gap-4">
         <div className="flex border-b border-transparent">
           <button
@@ -88,10 +88,10 @@ export function WithdrawalPanel({
             Ledger History
           </button>
           <button
-            onClick={() => setActiveTab("withdrawals")}
+            onClick={() => setActiveTab("payouts")}
             className={cn(
               "px-4 py-2 text-sm font-semibold border-b-2 transition-all cursor-pointer outline-none -mb-[10px]",
-              activeTab === "withdrawals"
+              activeTab === "payouts"
                 ? "border-primary text-foreground font-semibold"
                 : "border-transparent text-muted-foreground hover:text-foreground"
             )}
@@ -107,7 +107,7 @@ export function WithdrawalPanel({
           className="font-semibold gap-1.5"
         >
           <HugeiconsIcon icon={MoneySend01Icon} className="size-4" />
-          Withdraw Funds
+          Request Payout
         </Button>
       </div>
 
@@ -119,21 +119,21 @@ export function WithdrawalPanel({
             pagination={pagination}
           />
         ) : (
-          <WithdrawalHistory withdrawals={withdrawals} />
+          <PayoutHistory payouts={payouts} />
         )}
       </div>
 
-      {/* Withdrawal Form Modal */}
+      {/* Payout Form Modal */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogPopup className="max-w-md p-6">
           <DialogHeader className="mb-4">
-            <DialogTitle className="text-xl font-bold">Withdraw funds</DialogTitle>
+            <DialogTitle className="text-xl font-bold">Request payout</DialogTitle>
             <DialogDescription>
-              Send available earnings to your registered Mobile Money account.
+              Transfer available commissions to your registered Mobile Money account.
             </DialogDescription>
           </DialogHeader>
           {modalOpen && (
-            <WithdrawalRequestForm
+            <PayoutRequestForm
               phoneMask={phoneMask}
               withdrawableMinor={withdrawableMinor}
               readOnly={readOnly}

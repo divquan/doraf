@@ -34,7 +34,7 @@ export function WorkspaceTopbar({
     "/my-store": "My Store",
     "/sales": "My Store",
     "/pricing": "Pricing Setup",
-    "/wallet": "Wallet Balance",
+    "/earnings": "Earnings Balance",
     "/settings": "Settings",
   }
 

@@ -30,7 +30,7 @@ export default async function PricingPage() {
     <div className="mx-auto flex max-w-6xl flex-col gap-8">
       <PageHeader
         title="Pricing Setup"
-        description="Configure custom retail pricing for each exam checker. Profit margins are credited directly to your wallet."
+        description="Configure custom retail pricing for each exam checker. Profit margins are credited directly to your earnings balance."
       />
       <section>
         <PricingGrid

@@ -13,6 +13,7 @@ const workspacePaths = [
   "/sales",
   "/pricing",
   "/wallet",
+  "/earnings",
   "/withdrawals",
   "/settings",
 ]
@@ -48,6 +49,7 @@ export const config = {
     "/sales/:path*",
     "/pricing/:path*",
     "/wallet/:path*",
+    "/earnings/:path*",
     "/withdrawals/:path*",
     "/settings/:path*",
     "/login",

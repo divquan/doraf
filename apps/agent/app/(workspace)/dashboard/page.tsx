@@ -6,6 +6,8 @@ import {
   ShoppingBag01Icon,
   Tag01Icon,
   MoneySend01Icon,
+  Wallet01Icon,
+  AlertCircleIcon,
 } from "@hugeicons/core-free-icons"
 import {
   Alert,
@@ -28,9 +30,10 @@ import {
   PaginationMetadata,
 } from "@/components/transaction-history-table"
 import {
-  WalletBalanceCard,
-  WalletSummary,
-} from "@/components/wallet-balance-card"
+  EarningsSummary,
+} from "@/components/earnings-balance-card"
+import { type AgentPayout } from "@/components/payout-panel"
+import { pesewasToGhs } from "@workspace/ui/lib/format"
 import { apiJson, apiRequest } from "@/lib/agent-api"
 import Link from "next/link"
 
@@ -50,11 +53,13 @@ export default async function DashboardPage() {
     pricesRes,
     walletSummaryRes,
     transactionsRes,
+    withdrawalsRes,
   ] = await Promise.all([
     apiRequest("/agent-auth/session", {}, true),
     apiRequest("/agent-auth/prices", {}, true),
     apiRequest("/agent-wallet/summary", {}, true),
     apiRequest("/agent-wallet/transactions?page=1", {}, true),
+    apiRequest("/agent-wallet/withdrawals", {}, true),
   ])
 
   if (sessionRes.status === 401) {
@@ -63,11 +68,12 @@ export default async function DashboardPage() {
 
   const { agent } = (await apiJson(sessionRes)) as AgentSession
   const prices = (await apiJson(pricesRes)) as AgentPricingRow[]
-  const walletSummary = (await apiJson(walletSummaryRes)) as WalletSummary
+  const earningsSummary = (await apiJson(walletSummaryRes)) as EarningsSummary
   const transactionsData = (await apiJson(transactionsRes)) as {
     items: TransactionItem[]
     pagination: PaginationMetadata
   }
+  const payouts = (await apiJson(withdrawalsRes)) as AgentPayout[]
 
   const firstName = agent.name.split(/\s+/)[0] ?? agent.name
 
@@ -83,6 +89,15 @@ export default async function DashboardPage() {
     ...transactionsData.pagination,
     totalPages: 1, // hides pagination controls
   }
+
+  // Calculate withdrawal metrics
+  const totalWithdrawnMinor = payouts
+    .filter((w) => w.state === "SUCCESS")
+    .reduce((sum, w) => sum + Number(w.netAmountMinor), 0)
+
+  const pendingWithdrawalsCount = payouts.filter((w) =>
+    ["REQUESTED", "APPROVED", "AWAITING_MERCHANT_OTP", "SUBMITTED", "PENDING"].includes(w.state)
+  ).length
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-8">
@@ -122,9 +137,87 @@ export default async function DashboardPage() {
         </Alert>
       ) : null}
 
-      {/* Wallet Balance Overview */}
-      <section>
-        <WalletBalanceCard summary={walletSummary} />
+      {/* Dashboard Stats Cards */}
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Card 1: Available Payout */}
+        <Card className="flex flex-col justify-between p-5 border bg-card/60 backdrop-blur-xs shadow-xs">
+          <div className="flex items-start justify-between">
+            <div className="space-y-1">
+              <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                Available payout
+              </span>
+              <p className="text-3xl font-extrabold tracking-tight text-foreground">
+                {pesewasToGhs(earningsSummary.withdrawableMinor)}
+              </p>
+            </div>
+            <div className="flex size-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <HugeiconsIcon icon={MoneySend01Icon} className="size-5" />
+            </div>
+          </div>
+          <p className="mt-3 text-xs text-muted-foreground leading-normal">
+            Ready for instant mobile money transfer.
+          </p>
+        </Card>
+
+        {/* Card 2: Total Earnings */}
+        <Card className="flex flex-col justify-between p-5 border bg-card/60 backdrop-blur-xs shadow-xs">
+          <div className="flex items-start justify-between">
+            <div className="space-y-1">
+              <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                Total earnings
+              </span>
+              <p className="text-3xl font-extrabold tracking-tight text-foreground">
+                {pesewasToGhs(earningsSummary.ledgerBalanceMinor)}
+              </p>
+            </div>
+            <div className="flex size-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+              <HugeiconsIcon icon={Wallet01Icon} className="size-5" />
+            </div>
+          </div>
+          <p className="mt-3 text-xs text-muted-foreground leading-normal">
+            Cumulative posted commission sum.
+          </p>
+        </Card>
+
+        {/* Card 3: Total Paid Out */}
+        <Card className="flex flex-col justify-between p-5 border bg-card/60 backdrop-blur-xs shadow-xs">
+          <div className="flex items-start justify-between">
+            <div className="space-y-1">
+              <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                Total paid out
+              </span>
+              <p className="text-3xl font-extrabold tracking-tight text-foreground">
+                {pesewasToGhs(totalWithdrawnMinor.toString())}
+              </p>
+            </div>
+            <div className="flex size-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <HugeiconsIcon icon={CheckmarkCircle02Icon} className="size-5" />
+            </div>
+          </div>
+          <p className="mt-3 text-xs text-muted-foreground leading-normal">
+            Paid out successfully to MoMo.
+          </p>
+        </Card>
+
+        {/* Card 4: Active Holds */}
+        <Card className="flex flex-col justify-between p-5 border bg-card/60 backdrop-blur-xs shadow-xs">
+          <div className="flex items-start justify-between">
+            <div className="space-y-1">
+              <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                Pending holds
+              </span>
+              <p className="text-3xl font-extrabold tracking-tight text-foreground">
+                {pesewasToGhs(earningsSummary.activeHoldsMinor)}
+              </p>
+            </div>
+            <div className="flex size-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+              <HugeiconsIcon icon={AlertCircleIcon} className="size-5" />
+            </div>
+          </div>
+          <p className="mt-3 text-xs text-muted-foreground leading-normal">
+            {pendingWithdrawalsCount} pending request{pendingWithdrawalsCount === 1 ? "" : "s"} in review.
+          </p>
+        </Card>
       </section>
 
       {/* Dashboard Sub-sections */}
@@ -137,10 +230,10 @@ export default async function DashboardPage() {
                 Recent Transactions
               </h2>
               <p className="text-sm text-muted-foreground">
-                Your latest wallet ledger entries.
+                Your latest earnings ledger entries.
               </p>
             </div>
-            <Link href="/wallet" className="text-sm font-medium text-primary hover:underline">
+            <Link href="/earnings" className="text-sm font-medium text-primary hover:underline">
               View all
             </Link>
           </div>
@@ -198,27 +291,27 @@ export default async function DashboardPage() {
                 </Link>
               </div>
 
-              {/* Withdrawals Shortcut */}
+              {/* Payouts Shortcut */}
               <div className="flex items-center justify-between gap-4 p-3 rounded-lg border bg-muted/20">
                 <div className="flex items-center gap-3">
                   <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
                     <HugeiconsIcon icon={MoneySend01Icon} className="size-5" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium leading-tight">Withdraw Funds</p>
+                    <p className="text-sm font-medium leading-tight">Request Payout</p>
                     <p className="text-xs text-muted-foreground mt-0.5">Request Mobile Money payout</p>
                   </div>
                 </div>
                 {agent.status === "SUSPENDED" ? (
                   <Button disabled size="sm" variant="outline">
-                    Withdraw
+                    Request
                   </Button>
                 ) : (
                   <Link
-                    href="/withdrawals"
+                    href="/earnings"
                     className={buttonVariants({ variant: "outline", size: "sm" })}
                   >
-                    Withdraw
+                    Request
                   </Link>
                 )}
               </div>

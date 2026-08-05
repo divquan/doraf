@@ -3,12 +3,6 @@
 import { FormEvent, useState } from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
-  CheckmarkCircle02Icon,
-  InformationCircleIcon,
-  MoneyReceiveCircleIcon,
-  SecurityCheckIcon,
-} from "@hugeicons/core-free-icons"
-import {
   Alert,
   AlertDescription,
   AlertTitle,
@@ -19,8 +13,8 @@ import {
   FieldDescription,
   FieldGroup,
   FieldLabel,
-  FieldLegend,
   FieldSet,
+  FieldLegend,
 } from "@workspace/ui/components/field"
 import { Input } from "@workspace/ui/components/input"
 import {
@@ -34,9 +28,9 @@ import {
 } from "@workspace/ui/components/native-select"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { pesewasToGhs } from "@workspace/ui/lib/format"
-import { type Step } from "../withdrawal-panel"
+import { type Step } from "../payout-panel"
 
-export function WithdrawalRequestForm({
+export function PayoutRequestForm({
   phoneMask,
   withdrawableMinor,
   readOnly,
@@ -54,7 +48,7 @@ export function WithdrawalRequestForm({
   const [network, setNetwork] = useState("MTN")
   const [challengeId, setChallengeId] = useState("")
   const [code, setCode] = useState("")
-  const [withdrawalToken, setWithdrawalToken] = useState("")
+  const [payoutToken, setPayoutToken] = useState("")
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   
@@ -76,7 +70,7 @@ export function WithdrawalRequestForm({
     if (!canRequest || netAmountMinor === null) return
 
     await run(async () => {
-      const response = await fetch("/api/withdrawals/otp", {
+      const response = await fetch("/api/payouts/otp", {
         method: "POST",
       })
       const body = await readResponse<{ challengeId: string }>(response)
@@ -89,7 +83,7 @@ export function WithdrawalRequestForm({
     setResendPending(true)
     setResendStatus(null)
     try {
-      const response = await fetch("/api/withdrawals/otp", {
+      const response = await fetch("/api/payouts/otp", {
         method: "POST",
       })
       await readResponse(response)
@@ -106,27 +100,27 @@ export function WithdrawalRequestForm({
     if (!canRequest || netAmountMinor === null) return
 
     await run(async () => {
-      const response = await fetch("/api/withdrawals/verify", {
+      const response = await fetch("/api/payouts/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ challengeId, code }),
       })
       const body = await readResponse<{ token: string }>(response)
-      setWithdrawalToken(body.token)
+      setPayoutToken(body.token)
       setStep("verified")
-      await createWithdrawal(body.token)
+      await createPayout(body.token)
     })
   }
 
   async function retryCreate() {
-    if (!withdrawalToken) return
-    await run(() => createWithdrawal(withdrawalToken))
+    if (!payoutToken) return
+    await run(() => createPayout(payoutToken))
   }
 
-  async function createWithdrawal(token: string) {
+  async function createPayout(token: string) {
     if (netAmountMinor === null) return
     await run(() =>
-      fetch("/api/withdrawals", {
+      fetch("/api/payouts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -138,7 +132,7 @@ export function WithdrawalRequestForm({
     )
     setAmount("")
     setCode("")
-    setWithdrawalToken("")
+    setPayoutToken("")
     setStep("details")
     onRequestCreated()
   }
@@ -159,7 +153,7 @@ export function WithdrawalRequestForm({
     setStep("details")
     setChallengeId("")
     setCode("")
-    setWithdrawalToken("")
+    setPayoutToken("")
     setError(null)
   }
 
@@ -174,11 +168,11 @@ export function WithdrawalRequestForm({
 
       <div className="space-y-4">
         {step === "details" ? (
-          <form id="withdrawal-details" onSubmit={requestOtp}>
+          <form id="payout-details" onSubmit={requestOtp}>
             <FieldGroup>
               <Field>
                 <div className="flex justify-between items-baseline mb-1.5">
-                  <FieldLabel htmlFor="withdrawal-amount">
+                  <FieldLabel htmlFor="payout-amount">
                     Amount to receive (GHS)
                   </FieldLabel>
                   <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
@@ -186,7 +180,7 @@ export function WithdrawalRequestForm({
                   </span>
                 </div>
                 <Input
-                  id="withdrawal-amount"
+                  id="payout-amount"
                   inputMode="decimal"
                   min="10.00"
                   name="amount"
@@ -198,16 +192,16 @@ export function WithdrawalRequestForm({
                   value={amount}
                 />
                 <FieldDescription>
-                  The minimum withdrawal is GHS 10.00. The maximum is GHS
+                  The minimum payout is GHS 10.00. The maximum is GHS
                   50,000.00.
                 </FieldDescription>
               </Field>
               <Field>
-                <FieldLabel htmlFor="withdrawal-network">
+                <FieldLabel htmlFor="payout-network">
                   Mobile Money network
                 </FieldLabel>
                 <NativeSelect
-                  id="withdrawal-network"
+                  id="payout-network"
                   name="network"
                   onChange={(event) => setNetwork(event.target.value)}
                   value={network}
@@ -228,15 +222,15 @@ export function WithdrawalRequestForm({
         ) : null}
 
         {step === "otp" ? (
-          <form id="withdrawal-verification" onSubmit={verifyOtp}>
+          <form id="payout-verification" onSubmit={verifyOtp}>
             <FieldGroup>
               <Field>
-                <FieldLabel htmlFor="withdrawal-code">
+                <FieldLabel htmlFor="payout-code">
                   Verification code
                 </FieldLabel>
                 <InputOTP
                   autoComplete="one-time-code"
-                  id="withdrawal-code"
+                  id="payout-code"
                   inputMode="numeric"
                   maxLength={6}
                   onChange={setCode}
@@ -305,7 +299,7 @@ export function WithdrawalRequestForm({
                   value={money(100n)}
                 />
                 <DestDetail
-                  label="Total wallet debit"
+                  label="Total earnings debit"
                   strong
                   value={money(totalMinor)}
                 />
@@ -322,7 +316,7 @@ export function WithdrawalRequestForm({
                 <Button
                   className="flex-1"
                   disabled={pending || !canRequest}
-                  form="withdrawal-details"
+                  form="payout-details"
                   type="submit"
                 >
                   {pending ? <Spinner data-icon="inline-start" /> : null}
@@ -345,7 +339,7 @@ export function WithdrawalRequestForm({
               <Button
                 className="flex-1"
                 disabled={pending || code.length !== 6}
-                form="withdrawal-verification"
+                form="payout-verification"
                 type="submit"
               >
                 {pending ? <Spinner data-icon="inline-start" /> : null}

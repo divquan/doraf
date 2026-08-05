@@ -79,7 +79,7 @@ export default async function MyStorePage() {
             <EmptyTitle>Order history is coming soon</EmptyTitle>
             <EmptyDescription>
               Your sales link is active and customer purchases will
-              automatically credit your wallet balance in real time. Order
+              automatically credit your earnings balance in real time. Order
               tracking details will be available in a future update.
             </EmptyDescription>
           </EmptyHeader>

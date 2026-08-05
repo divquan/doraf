@@ -41,8 +41,8 @@ const navItems: NavItem[] = [
     icon: Tag01Icon,
   },
   {
-    href: "/wallet",
-    label: "Wallet Balance",
+    href: "/earnings",
+    label: "Earnings Balance",
     icon: Wallet02Icon,
   },
   {
