@@ -7,6 +7,7 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import { MoneySend01Icon, SmartPhone01Icon, Settings02Icon, CheckmarkCircle02Icon } from "@hugeicons/core-free-icons"
 import { Button } from "@workspace/ui/components/button"
 import { Alert, AlertDescription, AlertTitle } from "@workspace/ui/components/alert"
+import { EarningsBalanceCard, EarningsSummary } from "./earnings-balance-card"
 import { PayoutHistory } from "./_workspace/payout-history"
 import { PayoutRequestForm } from "./_workspace/payout-request-form"
 import { PayoutDestinationForm, PayoutDestinationData } from "./_workspace/payout-destination-form"
@@ -54,6 +55,7 @@ export function PayoutPanel({
   phoneMask,
   destination,
   withdrawableMinor,
+  earningsSummary,
   payouts,
   readOnly,
   transactions,
@@ -62,6 +64,7 @@ export function PayoutPanel({
   phoneMask: string
   destination: PayoutDestinationData | null
   withdrawableMinor: string
+  earningsSummary?: EarningsSummary
   payouts: AgentPayout[]
   readOnly: boolean
   transactions: TransactionItem[]
@@ -74,6 +77,14 @@ export function PayoutPanel({
   const [currentDestination, setCurrentDestination] = useState<PayoutDestinationData | null>(destination)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
+  function handleOpenRequestModal() {
+    if (!currentDestination) {
+      setDestModalOpen(true)
+    } else {
+      setModalOpen(true)
+    }
+  }
+
   function handleRequestCreated() {
     setActiveTab("payouts")
     setSuccessMessage("Your payout request has been submitted successfully and is awaiting review.")
@@ -81,9 +92,18 @@ export function PayoutPanel({
   }
 
   return (
-    <div className="flex flex-col gap-4 w-full">
-      {/* Payout Destination Banner */}
-      <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+    <div className="flex flex-col gap-6 w-full">
+      {/* 1. Top Earnings Balance Summary Card with Primary Request Payout Action */}
+      {earningsSummary ? (
+        <EarningsBalanceCard
+          summary={earningsSummary}
+          onRequestPayout={handleOpenRequestModal}
+          readOnly={readOnly}
+        />
+      ) : null}
+
+      {/* 2. Payout Destination & Secondary Request Action Banner */}
+      <div className="rounded-xl border border-border bg-card p-4 shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -108,16 +128,29 @@ export function PayoutPanel({
               )}
             </div>
           </div>
-          <Button
-            onClick={() => setDestModalOpen(true)}
-            size="sm"
-            variant="outline"
-            disabled={readOnly}
-            className="font-medium gap-1.5"
-          >
-            <HugeiconsIcon icon={Settings02Icon} className="size-4" />
-            {currentDestination ? "Change Destination" : "Set Up Destination"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => setDestModalOpen(true)}
+              size="sm"
+              variant="outline"
+              disabled={readOnly}
+              className="font-medium gap-1.5 text-xs"
+            >
+              <HugeiconsIcon icon={Settings02Icon} className="size-3.5" />
+              {currentDestination ? "Change Destination" : "Set Up Destination"}
+            </Button>
+            {!earningsSummary ? (
+              <Button
+                onClick={handleOpenRequestModal}
+                disabled={readOnly}
+                size="sm"
+                className="font-semibold gap-1.5 text-xs"
+              >
+                <HugeiconsIcon icon={MoneySend01Icon} className="size-3.5" />
+                Request Payout
+              </Button>
+            ) : null}
+          </div>
         </div>
       </div>
 

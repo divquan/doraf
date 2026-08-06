@@ -59,20 +59,18 @@ export default async function EarningsPage({
   const destination = (await apiJson(destinationRes)) as PayoutDestinationData | null
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-8">
+    <div className="mx-auto flex max-w-6xl flex-col gap-6">
       <PageHeader
         title="Earnings & Ledger"
         description="Monitor your sales commissions, view pending payouts, and track your ledger history."
       />
-      <section>
-        <EarningsBalanceCard summary={earningsSummary} />
-      </section>
       <section>
         <PayoutPanel
           phoneMask={agent.phoneMask}
           destination={destination}
           readOnly={agent.status === "SUSPENDED"}
           withdrawableMinor={earningsSummary.withdrawableMinor}
+          earningsSummary={earningsSummary}
           payouts={payouts}
           transactions={transactionsData.items}
           pagination={transactionsData.pagination}

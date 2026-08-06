@@ -3,6 +3,7 @@ import {
   AlertCircleIcon,
   CheckmarkCircle02Icon,
   Wallet01Icon,
+  MoneySend01Icon,
 } from "@hugeicons/core-free-icons"
 import {
   Alert,
@@ -10,6 +11,7 @@ import {
   AlertTitle,
 } from "@workspace/ui/components/alert"
 import { Badge } from "@workspace/ui/components/badge"
+import { Button } from "@workspace/ui/components/button"
 import {
   Card,
   CardContent,
@@ -30,9 +32,15 @@ export interface EarningsSummary {
 
 interface EarningsBalanceCardProps {
   summary: EarningsSummary
+  onRequestPayout?: () => void
+  readOnly?: boolean
 }
 
-export function EarningsBalanceCard({ summary }: EarningsBalanceCardProps) {
+export function EarningsBalanceCard({
+  summary,
+  onRequestPayout,
+  readOnly,
+}: EarningsBalanceCardProps) {
   const ledgerFormatted = pesewasToGhs(summary.ledgerBalanceMinor)
   const withdrawableFormatted = pesewasToGhs(summary.withdrawableMinor)
   const holdsFormatted = pesewasToGhs(summary.activeHoldsMinor)
@@ -40,7 +48,7 @@ export function EarningsBalanceCard({ summary }: EarningsBalanceCardProps) {
   return (
     <Card className="flex flex-col justify-between">
       <CardHeader>
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <HugeiconsIcon icon={Wallet01Icon} strokeWidth={2} />
@@ -52,10 +60,25 @@ export function EarningsBalanceCard({ summary }: EarningsBalanceCardProps) {
               </CardDescription>
             </div>
           </div>
-          <Badge variant={summary.isNegative ? "destructive" : "secondary"}>
-            <HugeiconsIcon icon={CheckmarkCircle02Icon} />
-            {summary.isNegative ? "Negative adjustment" : "In good standing"}
-          </Badge>
+
+          <div className="flex items-center gap-2">
+            <Badge variant={summary.isNegative ? "destructive" : "secondary"}>
+              <HugeiconsIcon icon={CheckmarkCircle02Icon} />
+              {summary.isNegative ? "Negative adjustment" : "In good standing"}
+            </Badge>
+
+            {onRequestPayout ? (
+              <Button
+                onClick={onRequestPayout}
+                disabled={readOnly}
+                size="sm"
+                className="font-semibold gap-1.5"
+              >
+                <HugeiconsIcon icon={MoneySend01Icon} className="size-4" />
+                Request Payout
+              </Button>
+            ) : null}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">

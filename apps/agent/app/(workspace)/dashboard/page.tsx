@@ -9,6 +9,7 @@ import {
   Wallet01Icon,
   Calendar01Icon,
   ChartLineIcon,
+  ArrowRight02Icon,
 } from "@hugeicons/core-free-icons"
 import {
   Alert,
@@ -169,8 +170,9 @@ export default async function DashboardPage() {
           </span>
           <span className="text-xs text-muted-foreground flex items-center justify-between mt-1">
             <span>Ready for transfer</span>
-            <Link href="/earnings" className="font-semibold text-primary hover:underline">
-              Withdraw →
+            <Link href="/earnings" className="inline-flex items-center gap-1 font-semibold text-primary hover:underline">
+              <span>Withdraw</span>
+              <HugeiconsIcon icon={ArrowRight02Icon} className="size-3.5" />
             </Link>
           </span>
         </div>

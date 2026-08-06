@@ -81,9 +81,10 @@ export function RecentOrdersTable({
             {viewAllHref ? (
               <Link
                 href={viewAllHref}
-                className="text-xs font-medium text-primary hover:underline"
+                className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
               >
-                View all →
+                <span>View all</span>
+                <HugeiconsIcon icon={ArrowRight02Icon} className="size-3.5" />
               </Link>
             ) : null}
             {totalCount > 0 ? (
