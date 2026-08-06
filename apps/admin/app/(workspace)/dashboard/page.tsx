@@ -1,142 +1,115 @@
+import Link from "next/link"
 import { redirect } from "next/navigation"
-import { AgentManagement } from "@/components/agent-management"
-import { InviteInternalUserForm } from "@/components/invite-internal-user-form"
-import { LogoutButton } from "@/components/logout-button"
-import { ManualInventoryForm } from "@/components/manual-inventory-form"
+import { ArrowRight01Icon } from "@hugeicons/core-free-icons"
+import { HugeiconsIcon } from "@hugeicons/react"
 import {
-  InventoryOverview,
-  type InventoryOverviewData,
-} from "@/components/inventory-overview"
-import { PricingControls } from "@/components/pricing-controls"
-import { ProductAvailability } from "@/components/product-availability"
-import { apiJson, apiRequest } from "@/lib/internal-api"
-import {
-  AdminWithdrawal,
-  WithdrawalOperations,
-} from "@/components/withdrawal-operations"
-
+  Card,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@workspace/ui/components/card"
+import { PageHeader } from "@/components/_workspace/page-header"
 import {
   AdminReportingOverviewData,
   OperationsDashboard,
 } from "@/components/operations-dashboard"
+import { apiJson, apiRequest } from "@/lib/internal-api"
+import type { AdminRole } from "@/components/_workspace/workspace-sidebar"
+
+interface DashboardSession {
+  operator: {
+    id: string
+    displayName: string
+    role: AdminRole
+  }
+}
+
+const quickLinks: Array<{
+  href: string
+  label: string
+  description: string
+  roles: AdminRole[]
+}> = [
+  {
+    href: "/inventory",
+    label: "Inventory",
+    description: "Stock counts and batch history",
+    roles: ["ADMINISTRATOR", "SUPPORT"],
+  },
+  {
+    href: "/pricing",
+    label: "Pricing",
+    description: "Product ranges and agent exceptions",
+    roles: ["ADMINISTRATOR", "SUPPORT"],
+  },
+  {
+    href: "/withdrawals",
+    label: "Withdrawals",
+    description: "Held funds and transfer approvals",
+    roles: ["ADMINISTRATOR"],
+  },
+  {
+    href: "/agents",
+    label: "Agents",
+    description: "Agent access and suspension",
+    roles: ["ADMINISTRATOR"],
+  },
+]
 
 export default async function DashboardPage() {
-  const [pricingResponse, inventoryResponse, reportingResponse] =
-    await Promise.all([
-      apiRequest("/admin/products/pricing", {}, true),
-      apiRequest("/admin/inventory", {}, true),
-      apiRequest("/admin/reporting/overview", {}, true),
-    ])
-  if (
-    pricingResponse.status === 401 ||
-    inventoryResponse.status === 401 ||
-    reportingResponse.status === 401
-  ) {
+  const [sessionResponse, reportingResponse] = await Promise.all([
+    apiRequest("/internal-auth/session", {}, true),
+    apiRequest("/admin/reporting/overview", {}, true),
+  ])
+
+  if (sessionResponse.status === 401 || reportingResponse.status === 401) {
     redirect("/login")
   }
-  const pricing = (await apiJson(pricingResponse)) as Parameters<
-    typeof PricingControls
-  >[0]["data"]
-  const inventory = (await apiJson(inventoryResponse)) as InventoryOverviewData
+
+  const { operator } = (await apiJson(sessionResponse)) as DashboardSession
   const reporting = (await apiJson(
     reportingResponse
   )) as AdminReportingOverviewData
-  const withdrawals =
-    pricing.viewerRole === "ADMINISTRATOR"
-      ? ((await apiJson(
-          await apiRequest("/admin/withdrawals", {}, true)
-        )) as AdminWithdrawal[])
-      : []
-  return (
-    <main className="mx-auto flex min-h-svh max-w-5xl flex-col gap-10 p-6 md:p-10">
-      <header className="flex items-center justify-between gap-4">
-        <div>
-          <p className="text-sm font-medium text-muted-foreground">
-            Doraf Administration
-          </p>
-          <h1 className="font-heading text-4xl">Operations workspace</h1>
-        </div>
-        <LogoutButton />
-      </header>
+  const visible = quickLinks.filter((link) =>
+    link.roles.includes(operator.role)
+  )
 
-      <section className="flex flex-col gap-4">
-        <div>
-          <h2 className="text-2xl font-semibold">Executive overview</h2>
-          <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
-            Live financial performance, fulfillment status, and operational
-            queue metrics.
-          </p>
-        </div>
+  return (
+    <div className="mx-auto flex max-w-6xl flex-col gap-8">
+      <PageHeader
+        title="Operations workspace"
+        description="Live financial performance, fulfillment status, and operational queue metrics."
+      />
+      <section>
         <OperationsDashboard data={reporting} />
       </section>
       <section className="flex flex-col gap-4">
-        <div>
-          <h2 className="text-2xl font-semibold">Inventory operations</h2>
-          <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
-            Monitor authoritative stock counts and review securely masked batch
-            history.
-          </p>
+        <h2 className="text-2xl font-semibold">Quick links</h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {visible.map((link) => (
+            <Link
+              className="group rounded-lg border border-border bg-card text-card-foreground shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              href={link.href}
+              key={link.href}
+            >
+              <Card className="border-0 bg-transparent shadow-none">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    {link.label}
+                    <HugeiconsIcon
+                      className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-accent-foreground"
+                      icon={ArrowRight01Icon}
+                    />
+                  </CardTitle>
+                  <CardDescription className="leading-6">
+                    {link.description}
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            </Link>
+          ))}
         </div>
-        <InventoryOverview data={inventory} />
-        {pricing.viewerRole === "ADMINISTRATOR" ? (
-          <ManualInventoryForm products={pricing.products} />
-        ) : null}
       </section>
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-2xl font-semibold">Pricing operations</h2>
-          <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
-            Configure effective product ranges and targeted agent exceptions.
-            Every change is audited.
-          </p>
-        </div>
-        <PricingControls data={pricing} />
-        {pricing.viewerRole === "ADMINISTRATOR" ? (
-          <ProductAvailability
-            products={
-              pricing.products as Parameters<
-                typeof ProductAvailability
-              >[0]["products"]
-            }
-          />
-        ) : null}
-      </section>
-      {pricing.viewerRole === "ADMINISTRATOR" ? (
-        <section className="flex flex-col gap-4">
-          <div>
-            <h2 className="text-2xl font-semibold">Withdrawal operations</h2>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Review held wallet funds, approve Mobile Money transfers, and
-              reconcile Paystack outcomes.
-            </p>
-          </div>
-          <WithdrawalOperations withdrawals={withdrawals} />
-        </section>
-      ) : null}
-      {pricing.viewerRole === "ADMINISTRATOR" ? (
-        <section className="flex flex-col gap-4">
-          <div>
-            <h2 className="text-2xl font-semibold">Agent management</h2>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Control whether an agent can accept new sales while preserving
-              their account and historical access.
-            </p>
-          </div>
-          <AgentManagement
-            agents={
-              pricing.agents as Parameters<typeof AgentManagement>[0]["agents"]
-            }
-          />
-        </section>
-      ) : null}
-      <section className="flex flex-col gap-3 rounded-lg border p-6">
-        <h2 className="text-xl font-semibold">Invite an internal operator</h2>
-        <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-          Only Administrators can issue enrollment tokens. The token is shown
-          once and must be transferred through an approved secure channel.
-        </p>
-        <InviteInternalUserForm />
-      </section>
-    </main>
+    </div>
   )
 }

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   Post,
   UseGuards,
   UseInterceptors,
@@ -52,6 +53,18 @@ export class PasskeyAuthController {
       request.ceremonyId,
       request.response,
     );
+  }
+
+  @Get('session')
+  @UseGuards(InternalSessionGuard)
+  session(@CurrentInternalPrincipal() principal: InternalPrincipal) {
+    return {
+      operator: {
+        id: principal.userId,
+        displayName: principal.displayName,
+        role: principal.role,
+      },
+    };
   }
 
   @Post('logout')

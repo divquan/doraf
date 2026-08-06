@@ -17,7 +17,6 @@ import {
   TableRow,
 } from "@workspace/ui/components/table"
 import { formatDateTime, formatMoney } from "@/components/inventory-overview"
-import { LogoutButton } from "@/components/logout-button"
 import { ApiError, apiJson, apiRequest } from "@/lib/internal-api"
 
 interface InventoryBatchDetail {
@@ -70,9 +69,9 @@ export default async function InventoryBatchPage({
         <div className="space-y-3">
           <Link
             className="text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-            href="/dashboard"
+            href="/inventory"
           >
-            ← Back to operations
+            ← Back to inventory
           </Link>
           <div>
             <p className="text-sm font-medium text-muted-foreground">
@@ -81,7 +80,6 @@ export default async function InventoryBatchPage({
             <h1 className="font-heading text-4xl">Inventory batch</h1>
           </div>
         </div>
-        <LogoutButton />
       </header>
 
       <Card>
