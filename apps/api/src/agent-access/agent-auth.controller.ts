@@ -7,6 +7,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -21,6 +22,7 @@ import { AgentNoStoreInterceptor } from './agent-no-store.interceptor';
 import { PricingService } from '../pricing/pricing.service';
 import { SetAgentRetailPriceRequest } from '../pricing/dto/set-agent-retail-price.request';
 import { SalesChannelService } from './sales-channel.service';
+import { OrdersService } from '../orders/orders.service';
 
 @Controller('agent-auth')
 @UseInterceptors(AgentNoStoreInterceptor)
@@ -29,6 +31,7 @@ export class AgentAuthController {
     private readonly authentication: AgentAuthService,
     private readonly pricing: PricingService,
     private readonly salesChannels: SalesChannelService,
+    private readonly orders: OrdersService,
   ) {}
 
   @Post('registration/otp')
@@ -131,6 +134,24 @@ export class AgentAuthController {
   @UseGuards(AgentSessionGuard)
   salesChannel(@CurrentAgentPrincipal() principal: AgentPrincipal) {
     return this.salesChannels.getForAgent(principal.agentId);
+  }
+
+  @Get('orders')
+  @UseGuards(AgentSessionGuard)
+  listOrders(
+    @CurrentAgentPrincipal() principal: AgentPrincipal,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const pageNum = page && /^\d+$/.test(page) ? parseInt(page, 10) : 1;
+    const limitNum = limit && /^\d+$/.test(limit) ? parseInt(limit, 10) : 10;
+    return this.orders.listOrdersForAgent(principal.agentId, pageNum, limitNum);
+  }
+
+  @Get('sales-summary')
+  @UseGuards(AgentSessionGuard)
+  salesSummary(@CurrentAgentPrincipal() principal: AgentPrincipal) {
+    return this.orders.getAgentSalesSummary(principal.agentId);
   }
 }
 

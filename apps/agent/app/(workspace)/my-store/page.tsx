@@ -1,18 +1,12 @@
 import { redirect } from "next/navigation"
-import { ShoppingBag01Icon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import { PageHeader } from "@/components/_workspace/page-header"
-import { StoreEditor, type StorefrontData } from "@/components/store-editor"
+import { type StorefrontData } from "@/components/store-editor"
 import { type AgentPricingRow } from "@/components/pricing-grid"
+import { type AgentOrderItem } from "@/components/_workspace/recent-orders-table"
+import { MyStoreTabPanel } from "@/components/_workspace/my-store-tab-panel"
+import { type PaginationMetadata } from "@/components/transaction-history-table"
 import { apiJson, apiRequest } from "@/lib/agent-api"
 import { qrDataUrl } from "@/lib/qr"
-import {
-  Empty,
-  EmptyHeader,
-  EmptyTitle,
-  EmptyDescription,
-  EmptyMedia,
-} from "@workspace/ui/components/empty"
 
 interface AgentSession {
   agent: {
@@ -28,11 +22,22 @@ interface SalesChannel extends StorefrontData {
   type: "WEB"
 }
 
-export default async function MyStorePage() {
-  const [sessionRes, channelRes, pricesRes] = await Promise.all([
+interface PaginatedOrdersResponse {
+  items: AgentOrderItem[]
+  pagination: PaginationMetadata
+}
+
+export default async function MyStorePage(props: {
+  searchParams?: Promise<{ ordersPage?: string }>
+}) {
+  const searchParams = await props.searchParams
+  const ordersPage = searchParams?.ordersPage ?? "1"
+
+  const [sessionRes, channelRes, pricesRes, ordersRes] = await Promise.all([
     apiRequest("/agent-auth/session", {}, true),
     apiRequest("/agent-auth/sales-channel", {}, true),
     apiRequest("/agent-auth/prices", {}, true),
+    apiRequest(`/agent-auth/orders?page=${ordersPage}`, {}, true),
   ])
 
   if (sessionRes.status === 401) {
@@ -43,48 +48,29 @@ export default async function MyStorePage() {
   const channel = (await apiJson(channelRes)) as SalesChannel
   const prices = pricesRes.ok ? ((await apiJson(pricesRes)) as AgentPricingRow[]) : []
 
+  const ordersData = ordersRes.ok
+    ? ((await apiJson(ordersRes)) as PaginatedOrdersResponse)
+    : { items: [], pagination: { totalItems: 0, totalPages: 0, currentPage: 1, limit: 10, hasNextPage: false } }
+
   const salesUrl = channel.subdomainUrl
   const qr = await qrDataUrl(salesUrl)
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-8">
+    <div className="mx-auto flex max-w-6xl flex-col gap-6">
       <PageHeader
         title="My Store"
         description="Customize your storefront and share your store link to sell checkers."
       />
 
-      <StoreEditor
-        initialData={channel}
-        products={prices}
+      <MyStoreTabPanel
+        channel={channel}
+        prices={prices}
         readOnly={agent.status === "SUSPENDED"}
         qrDataUrl={qr}
+        orders={ordersData.items}
+        ordersPagination={ordersData.pagination}
+        initialTab={searchParams?.ordersPage ? "orders" : "store"}
       />
-
-      {/* Recent Orders Section */}
-      <section className="space-y-4">
-        <div>
-          <h2 className="font-heading text-2xl font-semibold">
-            Recent Orders
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Real-time history of customer voucher purchases.
-          </p>
-        </div>
-
-        <Empty className="border border-dashed bg-muted/10 p-10">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <HugeiconsIcon icon={ShoppingBag01Icon} />
-            </EmptyMedia>
-            <EmptyTitle>Order history is coming soon</EmptyTitle>
-            <EmptyDescription>
-              Your sales link is active and customer purchases will
-              automatically credit your earnings balance in real time. Order
-              tracking details will be available in a future update.
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      </section>
     </div>
   )
 }

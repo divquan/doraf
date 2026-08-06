@@ -1,13 +1,14 @@
 import { redirect } from "next/navigation"
+import Link from "next/link"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
-  CheckmarkCircle02Icon,
   SecurityCheckIcon,
   ShoppingBag01Icon,
   Tag01Icon,
   MoneySend01Icon,
   Wallet01Icon,
-  AlertCircleIcon,
+  Calendar01Icon,
+  ChartLineIcon,
 } from "@hugeicons/core-free-icons"
 import {
   Alert,
@@ -22,20 +23,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@workspace/ui/components/card"
-import { buttonVariants, Button } from "@workspace/ui/components/button"
+import { Button } from "@workspace/ui/components/button"
 import { AgentPricingRow } from "@/components/pricing-grid"
-import {
-  TransactionHistoryTable,
-  TransactionItem,
-  PaginationMetadata,
-} from "@/components/transaction-history-table"
-import {
-  EarningsSummary,
-} from "@/components/earnings-balance-card"
-import { type AgentPayout } from "@/components/payout-panel"
+import { EarningsSummary } from "@/components/earnings-balance-card"
+import { RecentOrdersTable, AgentOrderItem } from "@/components/_workspace/recent-orders-table"
+import { StoreShareBanner } from "@/components/_workspace/store-share-banner"
+import { PayoutDestinationData } from "@/components/_workspace/payout-destination-form"
 import { pesewasToGhs } from "@workspace/ui/lib/format"
 import { apiJson, apiRequest } from "@/lib/agent-api"
-import Link from "next/link"
+import { qrDataUrl } from "@/lib/qr"
 
 interface AgentSession {
   agent: {
@@ -47,19 +43,51 @@ interface AgentSession {
   }
 }
 
+interface SalesChannel {
+  type: "WEB"
+  subdomainUrl: string
+  subdomain: string
+}
+
+interface SalesSummaryResponse {
+  today: {
+    orderCount: number
+    unitsSold: number
+    profitMinor: string
+  }
+  thisWeek: {
+    orderCount: number
+    unitsSold: number
+    profitMinor: string
+  }
+  total: {
+    orderCount: number
+    unitsSold: number
+    profitMinor: string
+  }
+}
+
+interface PaginatedOrdersResponse {
+  items: AgentOrderItem[]
+}
+
 export default async function DashboardPage() {
   const [
     sessionRes,
     pricesRes,
+    channelRes,
     walletSummaryRes,
-    transactionsRes,
-    withdrawalsRes,
+    salesSummaryRes,
+    ordersRes,
+    destinationRes,
   ] = await Promise.all([
     apiRequest("/agent-auth/session", {}, true),
     apiRequest("/agent-auth/prices", {}, true),
+    apiRequest("/agent-auth/sales-channel", {}, true),
     apiRequest("/agent-wallet/summary", {}, true),
-    apiRequest("/agent-wallet/transactions?page=1", {}, true),
-    apiRequest("/agent-wallet/withdrawals", {}, true),
+    apiRequest("/agent-auth/sales-summary", {}, true),
+    apiRequest("/agent-auth/orders?page=1&limit=5", {}, true),
+    apiRequest("/agent-wallet/payout-destination", {}, true),
   ])
 
   if (sessionRes.status === 401) {
@@ -67,51 +95,41 @@ export default async function DashboardPage() {
   }
 
   const { agent } = (await apiJson(sessionRes)) as AgentSession
-  const prices = (await apiJson(pricesRes)) as AgentPricingRow[]
-  const earningsSummary = (await apiJson(walletSummaryRes)) as EarningsSummary
-  const transactionsData = (await apiJson(transactionsRes)) as {
-    items: TransactionItem[]
-    pagination: PaginationMetadata
-  }
-  const payouts = (await apiJson(withdrawalsRes)) as AgentPayout[]
+  const prices = pricesRes.ok ? ((await apiJson(pricesRes)) as AgentPricingRow[]) : []
+  const channel = channelRes.ok ? ((await apiJson(channelRes)) as SalesChannel) : null
+  const earningsSummary = walletSummaryRes.ok
+    ? ((await apiJson(walletSummaryRes)) as EarningsSummary)
+    : { withdrawableMinor: "0", ledgerBalanceMinor: "0", activeHoldsMinor: "0", currency: "GHS" }
+  const salesSummary = salesSummaryRes.ok
+    ? ((await apiJson(salesSummaryRes)) as SalesSummaryResponse)
+    : {
+        today: { orderCount: 0, unitsSold: 0, profitMinor: "0" },
+        thisWeek: { orderCount: 0, unitsSold: 0, profitMinor: "0" },
+        total: { orderCount: 0, unitsSold: 0, profitMinor: "0" },
+      }
+  const ordersData = ordersRes.ok
+    ? ((await apiJson(ordersRes)) as PaginatedOrdersResponse)
+    : { items: [] }
+  const destination = destinationRes.ok
+    ? ((await apiJson(destinationRes)) as PayoutDestinationData | null)
+    : null
 
   const firstName = agent.name.split(/\s+/)[0] ?? agent.name
+  const salesUrl = channel?.subdomainUrl ?? ""
+  const qr = salesUrl ? await qrDataUrl(salesUrl) : null
 
-  // Derived dashboard metrics
-  const setPricesCount = prices.filter(
-    (p) => p.pricing.retailPriceMinor !== null
-  ).length
+  const setPricesCount = prices.filter((p) => p.pricing.retailPriceMinor !== null).length
   const totalPricesCount = prices.length
 
-  // Sliced transactions (recent 5)
-  const recentTransactions = transactionsData.items.slice(0, 5)
-  const dashboardPagination: PaginationMetadata = {
-    ...transactionsData.pagination,
-    totalPages: 1, // hides pagination controls
-  }
-
-  // Calculate withdrawal metrics
-  const totalWithdrawnMinor = payouts
-    .filter((w) => w.state === "SUCCESS")
-    .reduce((sum, w) => sum + Number(w.netAmountMinor), 0)
-
-  const pendingWithdrawalsCount = payouts.filter((w) =>
-    ["REQUESTED", "APPROVED", "AWAITING_MERCHANT_OTP", "SUBMITTED", "PENDING"].includes(w.state)
-  ).length
-
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-8">
-      {/* Welcome & Account Badge */}
-      <section className="flex flex-col gap-3">
-        <Badge className="w-fit" variant="secondary">
-          <HugeiconsIcon icon={CheckmarkCircle02Icon} />
-          Account ready
-        </Badge>
-        <h1 className="font-heading text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
+    <div className="w-full flex flex-col gap-6">
+      {/* Welcome Header */}
+      <section className="flex flex-col gap-1">
+        <h1 className="font-heading text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
           Welcome, {firstName}.
         </h1>
-        <p className="max-w-2xl text-base leading-7 text-pretty text-muted-foreground">
-          Review your business overview, monitor recent sales activity, and access quick actions.
+        <p className="text-sm text-muted-foreground">
+          Track real-time sales velocity, share your storefront, and manage earnings.
         </p>
       </section>
 
@@ -129,190 +147,187 @@ export default async function DashboardPage() {
               <a href="mailto:support@doraf.com?subject=Agent%20Account%20Suspension" className="hover:text-red-400">
                 Contact Support
               </a>
-              <a href="#learn-more" className="hover:text-red-400">
-                Learn More
-              </a>
             </div>
           </AlertDescription>
         </Alert>
       ) : null}
 
-      {/* Dashboard Stats Cards */}
+      {/* Hero Store Share Banner */}
+      {salesUrl ? (
+        <StoreShareBanner subdomainUrl={salesUrl} qrDataUrl={qr} />
+      ) : null}
+
+      {/* Dashboard Metrics Grid */}
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Card 1: Available Payout */}
-        <Card className="flex flex-col justify-between p-5 border bg-card/60 backdrop-blur-xs shadow-xs">
-          <div className="flex items-start justify-between">
-            <div className="space-y-1">
-              <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-                Available payout
-              </span>
-              <p className="text-3xl font-extrabold tracking-tight text-foreground">
-                {pesewasToGhs(earningsSummary.withdrawableMinor)}
-              </p>
-            </div>
-            <div className="flex size-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-              <HugeiconsIcon icon={MoneySend01Icon} className="size-5" />
-            </div>
-          </div>
-          <p className="mt-3 text-xs text-muted-foreground leading-normal">
-            Ready for instant mobile money transfer.
-          </p>
-        </Card>
+        <div className="flex flex-col justify-between gap-1 rounded-xl bg-muted/50 p-4">
+          <span className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+            Available payout
+          </span>
+          <span className="text-2xl font-bold tracking-tight font-mono text-foreground">
+            {pesewasToGhs(earningsSummary.withdrawableMinor)}
+          </span>
+          <span className="text-xs text-muted-foreground flex items-center justify-between mt-1">
+            <span>Ready for transfer</span>
+            <Link href="/earnings" className="font-semibold text-primary hover:underline">
+              Withdraw →
+            </Link>
+          </span>
+        </div>
 
-        {/* Card 2: Total Earnings */}
-        <Card className="flex flex-col justify-between p-5 border bg-card/60 backdrop-blur-xs shadow-xs">
-          <div className="flex items-start justify-between">
-            <div className="space-y-1">
-              <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-                Total earnings
-              </span>
-              <p className="text-3xl font-extrabold tracking-tight text-foreground">
-                {pesewasToGhs(earningsSummary.ledgerBalanceMinor)}
-              </p>
-            </div>
-            <div className="flex size-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
-              <HugeiconsIcon icon={Wallet01Icon} className="size-5" />
-            </div>
-          </div>
-          <p className="mt-3 text-xs text-muted-foreground leading-normal">
-            Cumulative posted commission sum.
-          </p>
-        </Card>
+        {/* Card 2: Today's Sales */}
+        <div className="flex flex-col justify-between gap-1 rounded-xl bg-muted/50 p-4">
+          <span className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+            Today's Sales
+          </span>
+          <span className="text-2xl font-bold tracking-tight text-foreground">
+            {salesSummary.today.unitsSold}{" "}
+            <span className="text-xs font-normal text-muted-foreground">checkers</span>
+          </span>
+          <span className="text-xs text-muted-foreground flex items-center justify-between mt-1">
+            <span>Profit today</span>
+            <span className="font-semibold text-foreground">
+              + {pesewasToGhs(salesSummary.today.profitMinor)}
+            </span>
+          </span>
+        </div>
 
-        {/* Card 3: Total Paid Out */}
-        <Card className="flex flex-col justify-between p-5 border bg-card/60 backdrop-blur-xs shadow-xs">
-          <div className="flex items-start justify-between">
-            <div className="space-y-1">
-              <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-                Total paid out
-              </span>
-              <p className="text-3xl font-extrabold tracking-tight text-foreground">
-                {pesewasToGhs(totalWithdrawnMinor.toString())}
-              </p>
-            </div>
-            <div className="flex size-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-              <HugeiconsIcon icon={CheckmarkCircle02Icon} className="size-5" />
-            </div>
-          </div>
-          <p className="mt-3 text-xs text-muted-foreground leading-normal">
-            Paid out successfully to MoMo.
-          </p>
-        </Card>
+        {/* Card 3: This Week's Sales */}
+        <div className="flex flex-col justify-between gap-1 rounded-xl bg-muted/50 p-4">
+          <span className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+            This Week's Sales
+          </span>
+          <span className="text-2xl font-bold tracking-tight text-foreground">
+            {salesSummary.thisWeek.unitsSold}{" "}
+            <span className="text-xs font-normal text-muted-foreground">checkers</span>
+          </span>
+          <span className="text-xs text-muted-foreground flex items-center justify-between mt-1">
+            <span>Profit this week</span>
+            <span className="font-semibold text-foreground">
+              + {pesewasToGhs(salesSummary.thisWeek.profitMinor)}
+            </span>
+          </span>
+        </div>
 
-        {/* Card 4: Active Holds */}
-        <Card className="flex flex-col justify-between p-5 border bg-card/60 backdrop-blur-xs shadow-xs">
-          <div className="flex items-start justify-between">
-            <div className="space-y-1">
-              <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-                Pending holds
-              </span>
-              <p className="text-3xl font-extrabold tracking-tight text-foreground">
-                {pesewasToGhs(earningsSummary.activeHoldsMinor)}
-              </p>
-            </div>
-            <div className="flex size-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
-              <HugeiconsIcon icon={AlertCircleIcon} className="size-5" />
-            </div>
-          </div>
-          <p className="mt-3 text-xs text-muted-foreground leading-normal">
-            {pendingWithdrawalsCount} pending request{pendingWithdrawalsCount === 1 ? "" : "s"} in review.
-          </p>
-        </Card>
+        {/* Card 4: Total Earnings */}
+        <div className="flex flex-col justify-between gap-1 rounded-xl bg-muted/50 p-4">
+          <span className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+            Total Earnings
+          </span>
+          <span className="text-2xl font-bold tracking-tight font-mono text-foreground">
+            {pesewasToGhs(earningsSummary.ledgerBalanceMinor)}
+          </span>
+          <span className="text-xs text-muted-foreground flex items-center justify-between mt-1">
+            <span>Checkers sold</span>
+            <span className="font-semibold text-foreground">
+              {salesSummary.total.unitsSold} units
+            </span>
+          </span>
+        </div>
       </section>
 
-      {/* Dashboard Sub-sections */}
-      <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-        {/* Left Column: Recent Transactions */}
-        <section className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="font-heading text-2xl font-semibold">
-                Recent Transactions
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Your latest earnings ledger entries.
-              </p>
-            </div>
-            <Link href="/earnings" className="text-sm font-medium text-primary hover:underline">
-              View all
-            </Link>
-          </div>
-          <TransactionHistoryTable
-            items={recentTransactions}
-            pagination={dashboardPagination}
+      {/* Main Dashboard Layout */}
+      <div className="grid w-full gap-6 lg:grid-cols-12">
+        {/* Left Column: Recent Purchases Table */}
+        <section className="lg:col-span-7 xl:col-span-8">
+          <RecentOrdersTable
+            orders={ordersData.items}
+            title="Recent Purchases"
+            description="Live stream of customer orders placed via your store link."
+            viewAllHref="/my-store?ordersPage=1"
           />
         </section>
 
-        {/* Right Column: Quick Summaries & Action CTAs */}
-        <section className="flex flex-col gap-6">
-          <Card className="shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-lg">Quick Actions</CardTitle>
-              <CardDescription>Direct shortcuts to manage your workspace.</CardDescription>
+        {/* Right Column: Payout Destination & Quick Shortcuts */}
+        <section className="flex flex-col gap-6 lg:col-span-5 xl:col-span-4">
+          {/* Payout Destination Card */}
+          <Card>
+            <CardHeader className="flex flex-row items-start justify-between pb-2">
+              <div>
+                <CardTitle className="text-base font-semibold">Payout Destination</CardTitle>
+                <CardDescription className="text-xs">
+                  Mobile Money account for earnings payouts.
+                </CardDescription>
+              </div>
+              <Link href="/earnings" className="text-xs font-medium text-primary hover:underline">
+                Manage
+              </Link>
             </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-              {/* Sales Link Shortcut */}
-              <div className="flex items-center justify-between gap-4 p-3 rounded-lg border bg-muted/20">
-                <div className="flex items-center gap-3">
-                  <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <HugeiconsIcon icon={ShoppingBag01Icon} className="size-5" />
+            <CardContent>
+              {destination ? (
+                <div className="flex items-center justify-between rounded-md border p-3">
+                  <div className="flex flex-col gap-0.5">
+                    <div className="text-xs font-semibold text-foreground">
+                      {destination.network} • {destination.accountName}
+                    </div>
+                    <div className="text-xs font-mono text-muted-foreground">
+                      {destination.phoneMask}
+                    </div>
                   </div>
+                  <Badge variant="secondary" className="text-[10px]">
+                    Verified
+                  </Badge>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between rounded-md border p-3">
+                  <span className="text-xs text-muted-foreground">No MoMo destination set up</span>
+                  <Button render={<Link href="/earnings" />} size="sm" variant="outline">
+                    Set Up
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Quick Shortcuts Card */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-semibold">Quick Shortcuts</CardTitle>
+              <CardDescription className="text-xs">Direct access to key workspace tools.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-1">
+              <div className="flex items-center justify-between py-2 border-b last:border-0">
+                <div className="flex items-center gap-3">
+                  <HugeiconsIcon icon={ShoppingBag01Icon} className="size-4 text-muted-foreground" />
                   <div>
-                    <p className="text-sm font-medium leading-tight">My Store</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">Share store checkout link</p>
+                    <p className="text-xs font-medium leading-none">My Store & Orders</p>
+                    <p className="text-[11px] text-muted-foreground mt-1">Storefront setup & order history</p>
                   </div>
                 </div>
-                <Link
-                  href="/my-store"
-                  className={buttonVariants({ variant: "outline", size: "sm" })}
-                >
+                <Button render={<Link href="/my-store" />} size="sm" variant="outline">
                   Go
-                </Link>
+                </Button>
               </div>
 
-              {/* Pricing Shortcut */}
-              <div className="flex items-center justify-between gap-4 p-3 rounded-lg border bg-muted/20">
+              <div className="flex items-center justify-between py-2 border-b last:border-0">
                 <div className="flex items-center gap-3">
-                  <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <HugeiconsIcon icon={Tag01Icon} className="size-5" />
-                  </div>
+                  <HugeiconsIcon icon={Tag01Icon} className="size-4 text-muted-foreground" />
                   <div>
-                    <p className="text-sm font-medium leading-tight">Pricing Setup</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
+                    <p className="text-xs font-medium leading-none">Pricing Setup</p>
+                    <p className="text-[11px] text-muted-foreground mt-1">
                       {setPricesCount} of {totalPricesCount} checkers configured
                     </p>
                   </div>
                 </div>
-                <Link
-                  href="/pricing"
-                  className={buttonVariants({ variant: "outline", size: "sm" })}
-                >
+                <Button render={<Link href="/pricing" />} size="sm" variant="outline">
                   Edit
-                </Link>
+                </Button>
               </div>
 
-              {/* Payouts Shortcut */}
-              <div className="flex items-center justify-between gap-4 p-3 rounded-lg border bg-muted/20">
+              <div className="flex items-center justify-between py-2">
                 <div className="flex items-center gap-3">
-                  <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <HugeiconsIcon icon={MoneySend01Icon} className="size-5" />
-                  </div>
+                  <HugeiconsIcon icon={MoneySend01Icon} className="size-4 text-muted-foreground" />
                   <div>
-                    <p className="text-sm font-medium leading-tight">Request Payout</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">Request Mobile Money payout</p>
+                    <p className="text-xs font-medium leading-none">Request Payout</p>
+                    <p className="text-[11px] text-muted-foreground mt-1">Transfer earnings to MoMo</p>
                   </div>
                 </div>
                 {agent.status === "SUSPENDED" ? (
-                  <Button disabled size="sm" variant="outline">
+                  <Button disabled size="sm" variant="outline">Request</Button>
+                ) : (
+                  <Button render={<Link href="/earnings" />} size="sm" variant="outline">
                     Request
                   </Button>
-                ) : (
-                  <Link
-                    href="/earnings"
-                    className={buttonVariants({ variant: "outline", size: "sm" })}
-                  >
-                    Request
-                  </Link>
                 )}
               </div>
             </CardContent>

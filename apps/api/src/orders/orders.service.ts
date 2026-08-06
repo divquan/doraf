@@ -420,6 +420,109 @@ export class OrdersService {
     };
   }
 
+  async listOrdersForAgent(
+    agentId: string,
+    page: number = 1,
+    limit: number = 10,
+  ) {
+    const safePage = Math.max(1, page);
+    const safeLimit = Math.min(Math.max(1, limit), 50);
+
+    const totalItems = await this.prisma.order.count({
+      where: { agentId },
+    });
+    const totalPages = Math.ceil(totalItems / safeLimit);
+    const currentPage = totalPages > 0 ? Math.min(safePage, totalPages) : 1;
+
+    const orders = await this.prisma.order.findMany({
+      where: { agentId },
+      orderBy: { createdAt: 'desc' },
+      skip: (currentPage - 1) * safeLimit,
+      take: safeLimit,
+      select: {
+        id: true,
+        publicReference: true,
+        quantity: true,
+        retailTotalMinor: true,
+        agentProfitTotalMinor: true,
+        deliveryPhoneMask: true,
+        paymentState: true,
+        fulfillmentState: true,
+        createdAt: true,
+        product: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    });
+
+    return {
+      items: orders.map((order) => ({
+        id: order.id,
+        publicReference: order.publicReference,
+        productName: order.product.name,
+        quantity: order.quantity,
+        retailTotalMinor: order.retailTotalMinor.toString(),
+        agentProfitTotalMinor: order.agentProfitTotalMinor.toString(),
+        deliveryPhoneMask: order.deliveryPhoneMask,
+        paymentState: order.paymentState,
+        fulfillmentState: order.fulfillmentState,
+        createdAt: order.createdAt.toISOString(),
+      })),
+      pagination: {
+        totalItems,
+        totalPages,
+        currentPage,
+        limit: safeLimit,
+        hasNextPage: currentPage < totalPages,
+      },
+    };
+  }
+
+  async getAgentSalesSummary(agentId: string) {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const dayOfWeek = (now.getDay() + 6) % 7;
+    const startOfWeek = new Date(startOfToday.getTime() - dayOfWeek * 86_400_000);
+
+    const [todayOrders, weekOrders, totalOrders] = await Promise.all([
+      this.prisma.order.aggregate({
+        where: { agentId, createdAt: { gte: startOfToday } },
+        _sum: { quantity: true, agentProfitTotalMinor: true },
+        _count: { id: true },
+      }),
+      this.prisma.order.aggregate({
+        where: { agentId, createdAt: { gte: startOfWeek } },
+        _sum: { quantity: true, agentProfitTotalMinor: true },
+        _count: { id: true },
+      }),
+      this.prisma.order.aggregate({
+        where: { agentId },
+        _sum: { quantity: true, agentProfitTotalMinor: true },
+        _count: { id: true },
+      }),
+    ]);
+
+    return {
+      today: {
+        orderCount: todayOrders._count.id,
+        unitsSold: todayOrders._sum.quantity ?? 0,
+        profitMinor: (todayOrders._sum.agentProfitTotalMinor ?? 0n).toString(),
+      },
+      thisWeek: {
+        orderCount: weekOrders._count.id,
+        unitsSold: weekOrders._sum.quantity ?? 0,
+        profitMinor: (weekOrders._sum.agentProfitTotalMinor ?? 0n).toString(),
+      },
+      total: {
+        orderCount: totalOrders._count.id,
+        unitsSold: totalOrders._sum.quantity ?? 0,
+        profitMinor: (totalOrders._sum.agentProfitTotalMinor ?? 0n).toString(),
+      },
+    };
+  }
+
   private async withSerializableRetry<T>(operation: () => Promise<T>) {
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       try {
