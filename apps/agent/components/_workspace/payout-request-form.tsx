@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { AlertCircleIcon } from "@hugeicons/core-free-icons"
+import { AlertCircleIcon, SmartPhone01Icon } from "@hugeicons/core-free-icons"
 import {
   Alert,
   AlertDescription,
@@ -26,7 +26,7 @@ import {
 import { Spinner } from "@workspace/ui/components/spinner"
 import { pesewasToGhs } from "@workspace/ui/lib/format"
 import { type Step } from "../payout-panel"
-import { type PayoutDestinationData } from "./payout-destination-form"
+import { type PayoutDestinationData } from "./payout-destination"
 
 export function PayoutRequestForm({
   phoneMask,
@@ -67,18 +67,30 @@ export function PayoutRequestForm({
     netAmountMinor <= 5_000_000n &&
     totalMinor <= BigInt(withdrawableMinor)
 
+  const amountIssues = getAmountIssues({
+    netAmountMinor,
+    totalMinor,
+    withdrawableMinor: BigInt(withdrawableMinor),
+  })
+
   if (!destination) {
     return (
       <div className="space-y-4">
-        <Alert className="border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200">
-          <HugeiconsIcon icon={AlertCircleIcon} className="size-5 text-amber-600 dark:text-amber-400" />
-          <AlertTitle className="font-bold text-amber-900 dark:text-amber-200">
-            Payout Destination Required
-          </AlertTitle>
-          <AlertDescription className="mt-1">
-            You must set up and validate your Mobile Money account with Paystack before requesting payouts.
-          </AlertDescription>
-        </Alert>
+        <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed p-6 text-center">
+          <div className="flex size-11 items-center justify-center rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400">
+            <HugeiconsIcon icon={SmartPhone01Icon} className="size-6" />
+          </div>
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-foreground">
+              No payout destination set up yet
+            </p>
+            <p className="mx-auto max-w-xs text-xs leading-relaxed text-muted-foreground">
+              You must set up and validate your Mobile Money account with
+              Paystack before you can request a payout. This only takes a
+              minute.
+            </p>
+          </div>
+        </div>
 
         <div className="flex justify-end gap-3 border-t pt-4">
           <Button onClick={onCancel} type="button" variant="outline">
@@ -219,9 +231,26 @@ export function PayoutRequestForm({
                   type="number"
                   value={amount}
                 />
-                <FieldDescription>
-                  The minimum payout is GHS 10.00. The maximum is GHS 50,000.00.
-                </FieldDescription>
+                {amount.trim() !== "" && amountIssues.length > 0 ? (
+                  <ul className="mt-1 space-y-1.5">
+                    {amountIssues.map((issue, index) => (
+                      <li
+                        key={index}
+                        className="flex items-start gap-1.5 text-xs font-medium text-destructive"
+                      >
+                        <HugeiconsIcon
+                          icon={AlertCircleIcon}
+                          className="mt-px size-3.5 shrink-0"
+                        />
+                        <span>{issue}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <FieldDescription>
+                    The minimum payout is GHS 10.00. The maximum is GHS 50,000.00.
+                  </FieldDescription>
+                )}
               </Field>
               
               <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs space-y-1.5">
@@ -394,11 +423,41 @@ function DestDetail({
 }
 
 function parseGhs(value: string): bigint | null {
-  const match = /^(\d{1,5})(?:\.(\d{0,2}))?$/.exec(value.trim())
+  const match = /^(\d{1,7})(?:\.(\d{0,2}))?$/.exec(value.trim())
   if (!match) return null
   return (
     BigInt(match[1] ?? "0") * 100n + BigInt((match[2] ?? "").padEnd(2, "0"))
   )
+}
+
+function getAmountIssues({
+  netAmountMinor,
+  totalMinor,
+  withdrawableMinor,
+}: {
+  netAmountMinor: bigint | null
+  totalMinor: bigint | null
+  withdrawableMinor: bigint
+}): string[] {
+  const issues: string[] = []
+  if (netAmountMinor === null || totalMinor === null) return issues
+
+  if (netAmountMinor < 1_000n) {
+    issues.push(
+      `The minimum payout is ${money(1_000n)}. Please enter at least ${money(1_000n)}.`
+    )
+  }
+  if (netAmountMinor > 5_000_000n) {
+    issues.push(
+      `The maximum payout is ${money(5_000_000n)}. Please enter a smaller amount.`
+    )
+  }
+  if (totalMinor > withdrawableMinor) {
+    issues.push(
+      `Insufficient available balance. The total debit of ${money(totalMinor)} (payout plus a ${money(100n)} fee) exceeds your available ${money(withdrawableMinor)}.`
+    )
+  }
+  return issues
 }
 
 function money(value: bigint | null) {

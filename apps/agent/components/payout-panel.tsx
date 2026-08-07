@@ -10,7 +10,11 @@ import { Alert, AlertDescription, AlertTitle } from "@workspace/ui/components/al
 import { EarningsBalanceCard, EarningsSummary } from "./earnings-balance-card"
 import { PayoutHistory } from "./_workspace/payout-history"
 import { PayoutRequestForm } from "./_workspace/payout-request-form"
-import { PayoutDestinationForm, PayoutDestinationData } from "./_workspace/payout-destination-form"
+import { PayoutDestinationForm } from "./_workspace/payout-destination-form"
+import {
+  isPayoutDestination,
+  PayoutDestinationData,
+} from "./_workspace/payout-destination"
 import {
   Dialog,
   DialogDescription,
@@ -74,13 +78,32 @@ export function PayoutPanel({
   const [activeTab, setActiveTab] = useState<"ledger" | "payouts">("ledger")
   const [modalOpen, setModalOpen] = useState(false)
   const [destModalOpen, setDestModalOpen] = useState(false)
-  const [currentDestination, setCurrentDestination] = useState<PayoutDestinationData | null>(destination)
+  const [currentDestination, setCurrentDestination] = useState<PayoutDestinationData | null>(
+    isPayoutDestination(destination) ? destination : null
+  )
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [destSetupReturnsToRequest, setDestSetupReturnsToRequest] = useState(false)
 
   function handleOpenRequestModal() {
-    if (!currentDestination) {
-      setDestModalOpen(true)
-    } else {
+    setModalOpen(true)
+  }
+
+  function handleOpenDestinationSetup() {
+    setDestSetupReturnsToRequest(true)
+    setModalOpen(false)
+    setDestModalOpen(true)
+  }
+
+  function handleCloseDestinationSetup() {
+    setDestSetupReturnsToRequest(false)
+    setDestModalOpen(false)
+  }
+
+  function handleDestinationSaved(newDestination: PayoutDestinationData) {
+    setCurrentDestination(newDestination)
+    setDestModalOpen(false)
+    if (destSetupReturnsToRequest) {
+      setDestSetupReturnsToRequest(false)
       setModalOpen(true)
     }
   }
@@ -130,7 +153,7 @@ export function PayoutPanel({
           </div>
           <div className="flex items-center gap-2">
             <Button
-              onClick={() => setDestModalOpen(true)}
+              onClick={handleCloseDestinationSetup}
               size="sm"
               variant="outline"
               disabled={readOnly}
@@ -179,8 +202,8 @@ export function PayoutPanel({
         </Alert>
       ) : null}
 
-      {/* Logs Header and Payout Trigger */}
-      <div className="flex flex-wrap items-center justify-between border-b border-border pb-2 gap-4">
+      {/* Logs Header */}
+      <div className="flex items-center border-b border-border pb-2">
         <div className="flex border-b border-transparent">
           <button
             onClick={() => setActiveTab("ledger")}
@@ -205,22 +228,6 @@ export function PayoutPanel({
             Payout Requests
           </button>
         </div>
-
-        <Button
-          onClick={() => {
-            if (!currentDestination) {
-              setDestModalOpen(true)
-            } else {
-              setModalOpen(true)
-            }
-          }}
-          disabled={readOnly}
-          size="sm"
-          className="font-semibold gap-1.5"
-        >
-          <HugeiconsIcon icon={MoneySend01Icon} className="size-4" />
-          Request Payout
-        </Button>
       </div>
 
       {/* History table log */}
@@ -236,7 +243,13 @@ export function PayoutPanel({
       </div>
 
       {/* Payout Destination Setup Modal */}
-      <Dialog open={destModalOpen} onOpenChange={setDestModalOpen}>
+      <Dialog
+        open={destModalOpen}
+        onOpenChange={(open) => {
+          if (!open) handleCloseDestinationSetup()
+          else setDestModalOpen(true)
+        }}
+      >
         <DialogPopup className="max-w-md p-6">
           <DialogHeader className="mb-4">
             <DialogTitle className="text-xl font-bold">
@@ -248,11 +261,8 @@ export function PayoutPanel({
           </DialogHeader>
           <PayoutDestinationForm
             currentDestination={currentDestination}
-            onSaved={(newDest) => {
-              setCurrentDestination(newDest)
-              setDestModalOpen(false)
-            }}
-            onCancel={() => setDestModalOpen(false)}
+            onSaved={handleDestinationSaved}
+            onCancel={handleCloseDestinationSetup}
           />
         </DialogPopup>
       </Dialog>
@@ -277,10 +287,7 @@ export function PayoutPanel({
                 setModalOpen(false)
               }}
               onCancel={() => setModalOpen(false)}
-              onOpenDestinationSetup={() => {
-                setModalOpen(false)
-                setDestModalOpen(true)
-              }}
+              onOpenDestinationSetup={handleOpenDestinationSetup}
             />
           )}
         </DialogPopup>

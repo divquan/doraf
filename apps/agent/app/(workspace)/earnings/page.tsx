@@ -10,7 +10,10 @@ import {
   PaginationMetadata,
 } from "@/components/transaction-history-table"
 import { AgentPayout, PayoutPanel } from "@/components/payout-panel"
-import { PayoutDestinationData } from "@/components/_workspace/payout-destination-form"
+import {
+  isPayoutDestination,
+  PayoutDestinationData,
+} from "@/components/_workspace/payout-destination"
 import { apiJson, apiRequest } from "@/lib/agent-api"
 
 const MAX_EARNINGS_TRANSACTION_PAGE = 10_000
@@ -56,7 +59,8 @@ export default async function EarningsPage({
     pagination: PaginationMetadata
   }
   const payouts = (await apiJson(withdrawalsRes)) as AgentPayout[]
-  const destination = (await apiJson(destinationRes)) as PayoutDestinationData | null
+  const rawDestination = (await apiJson(destinationRes)) as PayoutDestinationData | null
+  const destination = isPayoutDestination(rawDestination) ? rawDestination : null
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">

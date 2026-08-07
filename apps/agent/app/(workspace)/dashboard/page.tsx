@@ -27,9 +27,15 @@ import {
 import { Button } from "@workspace/ui/components/button"
 import { AgentPricingRow } from "@/components/pricing-grid"
 import { EarningsSummary } from "@/components/earnings-balance-card"
-import { RecentOrdersTable, AgentOrderItem } from "@/components/_workspace/recent-orders-table"
+import {
+  RecentOrdersTable,
+  AgentOrderItem,
+} from "@/components/_workspace/recent-orders-table"
 import { StoreShareBanner } from "@/components/_workspace/store-share-banner"
-import { PayoutDestinationData } from "@/components/_workspace/payout-destination-form"
+import {
+  isPayoutDestination,
+  PayoutDestinationData,
+} from "@/components/_workspace/payout-destination"
 import { pesewasToGhs } from "@workspace/ui/lib/format"
 import { apiJson, apiRequest } from "@/lib/agent-api"
 import { qrDataUrl } from "@/lib/qr"
@@ -96,11 +102,20 @@ export default async function DashboardPage() {
   }
 
   const { agent } = (await apiJson(sessionRes)) as AgentSession
-  const prices = pricesRes.ok ? ((await apiJson(pricesRes)) as AgentPricingRow[]) : []
-  const channel = channelRes.ok ? ((await apiJson(channelRes)) as SalesChannel) : null
+  const prices = pricesRes.ok
+    ? ((await apiJson(pricesRes)) as AgentPricingRow[])
+    : []
+  const channel = channelRes.ok
+    ? ((await apiJson(channelRes)) as SalesChannel)
+    : null
   const earningsSummary = walletSummaryRes.ok
     ? ((await apiJson(walletSummaryRes)) as EarningsSummary)
-    : { withdrawableMinor: "0", ledgerBalanceMinor: "0", activeHoldsMinor: "0", currency: "GHS" }
+    : {
+        withdrawableMinor: "0",
+        ledgerBalanceMinor: "0",
+        activeHoldsMinor: "0",
+        currency: "GHS",
+      }
   const salesSummary = salesSummaryRes.ok
     ? ((await apiJson(salesSummaryRes)) as SalesSummaryResponse)
     : {
@@ -111,26 +126,29 @@ export default async function DashboardPage() {
   const ordersData = ordersRes.ok
     ? ((await apiJson(ordersRes)) as PaginatedOrdersResponse)
     : { items: [] }
-  const destination = destinationRes.ok
+  const rawDestination = destinationRes.ok
     ? ((await apiJson(destinationRes)) as PayoutDestinationData | null)
     : null
-
+  const destination = isPayoutDestination(rawDestination) ? rawDestination : null
   const firstName = agent.name.split(/\s+/)[0] ?? agent.name
   const salesUrl = channel?.subdomainUrl ?? ""
   const qr = salesUrl ? await qrDataUrl(salesUrl) : null
 
-  const setPricesCount = prices.filter((p) => p.pricing.retailPriceMinor !== null).length
+  const setPricesCount = prices.filter(
+    (p) => p.pricing.retailPriceMinor !== null
+  ).length
   const totalPricesCount = prices.length
 
   return (
-    <div className="w-full flex flex-col gap-6">
+    <div className="flex w-full flex-col gap-6">
       {/* Welcome Header */}
       <section className="flex flex-col gap-1">
         <h1 className="font-heading text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
           Welcome, {firstName}.
         </h1>
         <p className="text-sm text-muted-foreground">
-          Track real-time sales velocity, share your storefront, and manage earnings.
+          Track real-time sales velocity, share your storefront, and manage
+          earnings.
         </p>
       </section>
 
@@ -145,7 +163,10 @@ export default async function DashboardPage() {
               changes are disabled while the account is suspended.
             </p>
             <div className="flex gap-4 text-xs font-semibold underline underline-offset-2">
-              <a href="mailto:support@doraf.com?subject=Agent%20Account%20Suspension" className="hover:text-red-400">
+              <a
+                href="mailto:support@doraf.com?subject=Agent%20Account%20Suspension"
+                className="hover:text-red-400"
+              >
                 Contact Support
               </a>
             </div>
@@ -165,12 +186,19 @@ export default async function DashboardPage() {
           <span className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
             Available payout
           </span>
-          <span className="text-2xl font-bold tracking-tight font-mono text-foreground">
+          <span className="font-mono text-2xl font-bold tracking-tight text-foreground">
             {pesewasToGhs(earningsSummary.withdrawableMinor)}
           </span>
-          <span className="text-xs text-muted-foreground flex items-center justify-between mt-1">
-            <span>Ready for transfer</span>
-            <Link href="/earnings" className="inline-flex items-center gap-1 font-semibold text-primary hover:underline">
+          <span className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
+            <span>
+              {destination
+                ? "Ready for transfer"
+                : "Set up a destination to withdraw"}
+            </span>
+            <Link
+              href="/earnings"
+              className="inline-flex items-center gap-1 font-semibold text-primary hover:underline"
+            >
               <span>Withdraw</span>
               <HugeiconsIcon icon={ArrowRight02Icon} className="size-3.5" />
             </Link>
@@ -184,9 +212,11 @@ export default async function DashboardPage() {
           </span>
           <span className="text-2xl font-bold tracking-tight text-foreground">
             {salesSummary.today.unitsSold}{" "}
-            <span className="text-xs font-normal text-muted-foreground">checkers</span>
+            <span className="text-xs font-normal text-muted-foreground">
+              checkers
+            </span>
           </span>
-          <span className="text-xs text-muted-foreground flex items-center justify-between mt-1">
+          <span className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
             <span>Profit today</span>
             <span className="font-semibold text-foreground">
               + {pesewasToGhs(salesSummary.today.profitMinor)}
@@ -201,9 +231,11 @@ export default async function DashboardPage() {
           </span>
           <span className="text-2xl font-bold tracking-tight text-foreground">
             {salesSummary.thisWeek.unitsSold}{" "}
-            <span className="text-xs font-normal text-muted-foreground">checkers</span>
+            <span className="text-xs font-normal text-muted-foreground">
+              checkers
+            </span>
           </span>
-          <span className="text-xs text-muted-foreground flex items-center justify-between mt-1">
+          <span className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
             <span>Profit this week</span>
             <span className="font-semibold text-foreground">
               + {pesewasToGhs(salesSummary.thisWeek.profitMinor)}
@@ -216,10 +248,10 @@ export default async function DashboardPage() {
           <span className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
             Total Earnings
           </span>
-          <span className="text-2xl font-bold tracking-tight font-mono text-foreground">
+          <span className="font-mono text-2xl font-bold tracking-tight text-foreground">
             {pesewasToGhs(earningsSummary.ledgerBalanceMinor)}
           </span>
-          <span className="text-xs text-muted-foreground flex items-center justify-between mt-1">
+          <span className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
             <span>Checkers sold</span>
             <span className="font-semibold text-foreground">
               {salesSummary.total.unitsSold} units
@@ -246,12 +278,17 @@ export default async function DashboardPage() {
           <Card>
             <CardHeader className="flex flex-row items-start justify-between pb-2">
               <div>
-                <CardTitle className="text-base font-semibold">Payout Destination</CardTitle>
+                <CardTitle className="text-base font-semibold">
+                  Payout Destination
+                </CardTitle>
                 <CardDescription className="text-xs">
                   Mobile Money account for earnings payouts.
                 </CardDescription>
               </div>
-              <Link href="/earnings" className="text-xs font-medium text-primary hover:underline">
+              <Link
+                href="/earnings"
+                className="text-xs font-medium text-primary hover:underline"
+              >
                 Manage
               </Link>
             </CardHeader>
@@ -262,7 +299,7 @@ export default async function DashboardPage() {
                     <div className="text-xs font-semibold text-foreground">
                       {destination.network} • {destination.accountName}
                     </div>
-                    <div className="text-xs font-mono text-muted-foreground">
+                    <div className="font-mono text-xs text-muted-foreground">
                       {destination.phoneMask}
                     </div>
                   </div>
@@ -271,9 +308,20 @@ export default async function DashboardPage() {
                   </Badge>
                 </div>
               ) : (
-                <div className="flex items-center justify-between rounded-md border p-3">
-                  <span className="text-xs text-muted-foreground">No MoMo destination set up</span>
-                  <Button render={<Link href="/earnings" />} size="sm" variant="outline">
+                <div className="flex items-center justify-between gap-3 rounded-md border p-3">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-xs font-semibold text-foreground">
+                      No payout destination yet
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      Set up a Mobile Money account to receive payouts.
+                    </span>
+                  </div>
+                  <Button
+                    render={<Link href="/earnings" />}
+                    size="sm"
+                    variant="outline"
+                  >
                     Set Up
                   </Button>
                 </div>
@@ -284,50 +332,87 @@ export default async function DashboardPage() {
           {/* Quick Shortcuts Card */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base font-semibold">Quick Shortcuts</CardTitle>
-              <CardDescription className="text-xs">Direct access to key workspace tools.</CardDescription>
+              <CardTitle className="text-base font-semibold">
+                Quick Shortcuts
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Direct access to key workspace tools.
+              </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-1">
-              <div className="flex items-center justify-between py-2 border-b last:border-0">
+              <div className="flex items-center justify-between border-b py-2 last:border-0">
                 <div className="flex items-center gap-3">
-                  <HugeiconsIcon icon={ShoppingBag01Icon} className="size-4 text-muted-foreground" />
+                  <HugeiconsIcon
+                    icon={ShoppingBag01Icon}
+                    className="size-4 text-muted-foreground"
+                  />
                   <div>
-                    <p className="text-xs font-medium leading-none">My Store & Orders</p>
-                    <p className="text-[11px] text-muted-foreground mt-1">Storefront setup & order history</p>
+                    <p className="text-xs leading-none font-medium">
+                      My Store & Orders
+                    </p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Storefront setup & order history
+                    </p>
                   </div>
                 </div>
-                <Button render={<Link href="/my-store" />} size="sm" variant="outline">
+                <Button
+                  render={<Link href="/my-store" />}
+                  size="sm"
+                  variant="outline"
+                >
                   Go
                 </Button>
               </div>
 
-              <div className="flex items-center justify-between py-2 border-b last:border-0">
+              <div className="flex items-center justify-between border-b py-2 last:border-0">
                 <div className="flex items-center gap-3">
-                  <HugeiconsIcon icon={Tag01Icon} className="size-4 text-muted-foreground" />
+                  <HugeiconsIcon
+                    icon={Tag01Icon}
+                    className="size-4 text-muted-foreground"
+                  />
                   <div>
-                    <p className="text-xs font-medium leading-none">Pricing Setup</p>
-                    <p className="text-[11px] text-muted-foreground mt-1">
+                    <p className="text-xs leading-none font-medium">
+                      Pricing Setup
+                    </p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
                       {setPricesCount} of {totalPricesCount} checkers configured
                     </p>
                   </div>
                 </div>
-                <Button render={<Link href="/pricing" />} size="sm" variant="outline">
+                <Button
+                  render={<Link href="/pricing" />}
+                  size="sm"
+                  variant="outline"
+                >
                   Edit
                 </Button>
               </div>
 
               <div className="flex items-center justify-between py-2">
                 <div className="flex items-center gap-3">
-                  <HugeiconsIcon icon={MoneySend01Icon} className="size-4 text-muted-foreground" />
+                  <HugeiconsIcon
+                    icon={MoneySend01Icon}
+                    className="size-4 text-muted-foreground"
+                  />
                   <div>
-                    <p className="text-xs font-medium leading-none">Request Payout</p>
-                    <p className="text-[11px] text-muted-foreground mt-1">Transfer earnings to MoMo</p>
+                    <p className="text-xs leading-none font-medium">
+                      Request Payout
+                    </p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Transfer earnings to MoMo
+                    </p>
                   </div>
                 </div>
                 {agent.status === "SUSPENDED" ? (
-                  <Button disabled size="sm" variant="outline">Request</Button>
+                  <Button disabled size="sm" variant="outline">
+                    Request
+                  </Button>
                 ) : (
-                  <Button render={<Link href="/earnings" />} size="sm" variant="outline">
+                  <Button
+                    render={<Link href="/earnings" />}
+                    size="sm"
+                    variant="outline"
+                  >
                     Request
                   </Button>
                 )}

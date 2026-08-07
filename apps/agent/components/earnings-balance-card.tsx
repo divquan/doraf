@@ -1,7 +1,6 @@
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   AlertCircleIcon,
-  CheckmarkCircle02Icon,
   Wallet01Icon,
   MoneySend01Icon,
 } from "@hugeicons/core-free-icons"
@@ -10,7 +9,6 @@ import {
   AlertDescription,
   AlertTitle,
 } from "@workspace/ui/components/alert"
-import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import {
   Card,
@@ -62,11 +60,6 @@ export function EarningsBalanceCard({
           </div>
 
           <div className="flex items-center gap-2">
-            <Badge variant={summary.isNegative ? "destructive" : "secondary"}>
-              <HugeiconsIcon icon={CheckmarkCircle02Icon} />
-              {summary.isNegative ? "Negative adjustment" : "In good standing"}
-            </Badge>
-
             {onRequestPayout ? (
               <Button
                 onClick={onRequestPayout}

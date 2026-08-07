@@ -21,14 +21,9 @@ import {
   NativeSelectOption,
 } from "@workspace/ui/components/native-select"
 import { Spinner } from "@workspace/ui/components/spinner"
+import { type PayoutDestinationData } from "./payout-destination"
 
-export interface PayoutDestinationData {
-  id?: string
-  network: string
-  accountName: string
-  phoneMask: string
-  createdAt?: string
-}
+export type { PayoutDestinationData } from "./payout-destination"
 
 export function PayoutDestinationForm({
   currentDestination,
