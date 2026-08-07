@@ -33,6 +33,7 @@ import {
   TableRow,
 } from "@workspace/ui/components/table"
 import { pesewasToGhs, formatDate } from "@workspace/ui/lib/format"
+import { cn } from "@workspace/ui/lib/utils"
 import { PaginationMetadata } from "../transaction-history-table"
 
 export interface AgentOrderItem {
@@ -124,77 +125,112 @@ export function RecentOrdersTable({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {orders.map((order) => (
-                    <TableRow key={order.id}>
-                      <TableCell>
-                        <div className="font-mono text-xs font-medium text-foreground truncate max-w-[130px] lg:max-w-none">
-                          {order.publicReference}
-                        </div>
-                        <div className="text-[11px] text-muted-foreground">
-                          {formatDate(order.createdAt)}
-                        </div>
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell font-mono text-xs text-muted-foreground">
-                        {order.deliveryPhoneMask}
-                      </TableCell>
-                      <TableCell>
-                        <span className="font-medium text-foreground text-xs">
-                          {order.productName}
-                        </span>
-                        <span className="ml-1 text-xs text-muted-foreground">
-                          × {order.quantity}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          <PaymentBadge state={order.paymentState} />
-                          <FulfillmentBadge state={order.fulfillmentState} />
-                        </div>
-                      </TableCell>
-                      <TableCell className="hidden lg:table-cell text-right font-medium text-xs">
-                        {pesewasToGhs(order.retailTotalMinor)}
-                      </TableCell>
-                      <TableCell className="text-right font-bold text-xs text-foreground">
-                        + {pesewasToGhs(order.agentProfitTotalMinor)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {orders.map((order) => {
+                    const isUnpaid = order.paymentState === "UNPAID"
+                    return (
+                      <TableRow
+                        key={order.id}
+                        className={cn(
+                          "transition-colors",
+                          isUnpaid &&
+                            "bg-destructive/5 dark:bg-destructive/10"
+                        )}
+                      >
+                        <TableCell>
+                          <div className="font-mono text-xs font-medium text-foreground truncate max-w-[130px] lg:max-w-none">
+                            {order.publicReference}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground">
+                            {formatDate(order.createdAt)}
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell font-mono text-xs text-muted-foreground">
+                          {order.deliveryPhoneMask}
+                        </TableCell>
+                        <TableCell>
+                          <span className="font-medium text-foreground text-xs">
+                            {order.productName}
+                          </span>
+                          <span className="ml-1 text-xs text-muted-foreground">
+                            × {order.quantity}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            <PaymentBadge state={order.paymentState} />
+                            <FulfillmentBadge state={order.fulfillmentState} />
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell text-right font-medium text-xs">
+                          {pesewasToGhs(order.retailTotalMinor)}
+                        </TableCell>
+                        <TableCell
+                          className={cn(
+                            "text-right text-xs",
+                            isUnpaid
+                              ? "font-medium text-muted-foreground"
+                              : "font-bold text-foreground"
+                          )}
+                        >
+                          + {pesewasToGhs(order.agentProfitTotalMinor)}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
                 </TableBody>
               </Table>
             </div>
 
             {/* Mobile Card List View (Visible only on mobile) */}
             <div className="block sm:hidden divide-y">
-              {orders.map((order) => (
-                <div key={order.id} className="flex flex-col gap-2 p-3.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex flex-col min-w-0">
-                      <span className="font-mono text-xs font-semibold text-foreground truncate">
-                        {order.publicReference}
-                      </span>
-                      <span className="text-[11px] text-muted-foreground">
-                        {formatDate(order.createdAt)}
+              {orders.map((order) => {
+                const isUnpaid = order.paymentState === "UNPAID"
+                return (
+                  <div
+                    key={order.id}
+                    className={cn(
+                      "flex flex-col gap-2 p-3.5",
+                      isUnpaid && "bg-destructive/5 dark:bg-destructive/10"
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-mono text-xs font-semibold text-foreground truncate">
+                          {order.publicReference}
+                        </span>
+                        <span className="text-[11px] text-muted-foreground">
+                          {formatDate(order.createdAt)}
+                        </span>
+                      </div>
+                      <span
+                        className={cn(
+                          "text-xs shrink-0",
+                          isUnpaid
+                            ? "font-medium text-muted-foreground"
+                            : "font-bold text-foreground"
+                        )}
+                      >
+                        + {pesewasToGhs(order.agentProfitTotalMinor)}
                       </span>
                     </div>
-                    <span className="font-bold text-xs text-foreground shrink-0">
-                      + {pesewasToGhs(order.agentProfitTotalMinor)}
-                    </span>
-                  </div>
 
-                  <div className="flex items-center justify-between gap-2 text-xs pt-1 border-t border-border/40">
-                    <div className="flex items-center gap-1 min-w-0">
-                      <span className="font-medium text-foreground truncate">
-                        {order.productName}
-                      </span>
-                      <span className="text-muted-foreground shrink-0">× {order.quantity}</span>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <PaymentBadge state={order.paymentState} />
-                      <FulfillmentBadge state={order.fulfillmentState} />
+                    <div className="flex items-center justify-between gap-2 text-xs pt-1 border-t border-border/40">
+                      <div className="flex items-center gap-1 min-w-0">
+                        <span className="font-medium text-foreground truncate">
+                          {order.productName}
+                        </span>
+                        <span className="text-muted-foreground shrink-0">
+                          × {order.quantity}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <PaymentBadge state={order.paymentState} />
+                        <FulfillmentBadge state={order.fulfillmentState} />
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
 
             {totalPages > 1 ? (
@@ -265,9 +301,15 @@ export function RecentOrdersTable({
 
 function PaymentBadge({ state }: { state: string }) {
   const isPaid = state === "PAID"
+  const isUnpaid = state === "UNPAID"
+  const label = isPaid ? "Paid" : isUnpaid ? "Unpaid" : state
+  const variant = isPaid ? "secondary" : isUnpaid ? "destructive" : "outline"
   return (
-    <Badge variant={isPaid ? "secondary" : "outline"} className="text-[10px] uppercase font-medium px-1.5 py-0">
-      {isPaid ? "Paid" : state}
+    <Badge
+      variant={variant}
+      className="text-[10px] uppercase font-medium px-1.5 py-0"
+    >
+      {label}
     </Badge>
   )
 }

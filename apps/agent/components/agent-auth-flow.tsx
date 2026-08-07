@@ -202,7 +202,7 @@ export function AgentAuthFlow({ mode }: { mode: Mode }) {
                   value={phone}
                 />
                 <FieldDescription>
-                  Use an active Ghana number that can receive SMS.
+                  We&apos;ll text a one-time code to this number.
                 </FieldDescription>
               </Field>
               <Field>
@@ -215,7 +215,7 @@ export function AgentAuthFlow({ mode }: { mode: Mode }) {
                       data-icon="inline-end"
                     />
                   )}
-                  {isSubmitting ? "Sending code…" : "Continue securely"}
+                  {isSubmitting ? "Sending code…" : "Send code"}
                 </Button>
               </Field>
             </FieldGroup>
@@ -342,28 +342,25 @@ export function AgentAuthFlow({ mode }: { mode: Mode }) {
 function authCopy(mode: Mode, step: Step) {
   if (step === "otp") {
     return {
-      title: "Check your messages",
-      description:
-        "Enter the one-time code to confirm that this phone number belongs to you.",
+      title: "Enter the code",
+      description: "Enter the 6-digit code sent to your phone.",
     }
   }
   if (step === "profile") {
     return {
-      title: "Make it yours",
+      title: "What&apos;s your name?",
       description:
-        "One last detail and your private agent workspace will be ready.",
+        "This is shown to your buyers and on your sales channels.",
     }
   }
   return mode === "register"
     ? {
-        title: "Start selling with Doraf",
-        description:
-          "Create your individual agent account with a phone number—no password required.",
+        title: "Create your account",
+        description: "Enter your phone number to get started. No password needed.",
       }
     : {
         title: "Welcome back",
-        description:
-          "Sign in to your agent workspace with a secure code sent to your phone.",
+        description: "Enter your phone number and we&apos;ll send you a one-time login code.",
       }
 }
 

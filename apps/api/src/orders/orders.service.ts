@@ -525,7 +525,11 @@ export class OrdersService {
 
   private aggregateAgentSalesSince(agentId: string, since?: Date) {
     return this.prisma.order.aggregate({
-      where: { agentId, ...(since ? { createdAt: { gte: since } } : {}) },
+      where: {
+        agentId,
+        paymentState: 'PAID',
+        ...(since ? { createdAt: { gte: since } } : {}),
+      },
       _sum: {
         quantity: true,
         agentProfitTotalMinor: true,
