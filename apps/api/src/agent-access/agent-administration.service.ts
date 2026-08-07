@@ -11,6 +11,23 @@ import { PrismaService } from '../database/prisma.service';
 export class AgentAdministrationService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async getById(agentId: string) {
+    const agent = await this.prisma.agent.findUnique({
+      where: { id: agentId },
+      select: {
+        id: true,
+        name: true,
+        phoneMask: true,
+        status: true,
+        createdAt: true,
+      },
+    });
+    if (!agent) {
+      throw new NotFoundException('Agent not found');
+    }
+    return agent;
+  }
+
   async changeStatus(input: {
     agentId: string;
     status: AgentStatus;

@@ -1,10 +1,12 @@
 import {
   Body,
   Controller,
+  Get,
   Headers,
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -16,6 +18,7 @@ import { InternalRolesGuard } from '../internal-access/internal-roles.guard';
 import { InternalSessionGuard } from '../internal-access/internal-session.guard';
 import type { InternalPrincipal } from '../internal-access/internal-access.types';
 import { NoStoreInterceptor } from '../internal-access/no-store.interceptor';
+import { OrdersService } from '../orders/orders.service';
 import { AgentAdministrationService } from './agent-administration.service';
 import { ChangeAgentStatusRequest } from './dto/change-agent-status.request';
 
@@ -24,7 +27,35 @@ import { ChangeAgentStatusRequest } from './dto/change-agent-status.request';
 @InternalRoles(InternalRole.ADMINISTRATOR)
 @UseInterceptors(NoStoreInterceptor)
 export class AgentAdministrationController {
-  constructor(private readonly agents: AgentAdministrationService) {}
+  constructor(
+    private readonly agents: AgentAdministrationService,
+    private readonly orders: OrdersService,
+  ) {}
+
+  @Get(':agentId')
+  getAgent(
+    @Param('agentId', new ParseUUIDPipe({ version: '4' })) agentId: string,
+  ) {
+    return this.agents.getById(agentId);
+  }
+
+  @Get(':agentId/summary')
+  salesSummary(
+    @Param('agentId', new ParseUUIDPipe({ version: '4' })) agentId: string,
+  ) {
+    return this.orders.getAgentSalesSummaryForAdmin(agentId);
+  }
+
+  @Get(':agentId/orders')
+  listOrders(
+    @Param('agentId', new ParseUUIDPipe({ version: '4' })) agentId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const pageNum = page && /^\d+$/.test(page) ? parseInt(page, 10) : 1;
+    const limitNum = limit && /^\d+$/.test(limit) ? parseInt(limit, 10) : 10;
+    return this.orders.listOrdersForAgent(agentId, pageNum, limitNum);
+  }
 
   @Post(':agentId/suspend')
   suspend(

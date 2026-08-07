@@ -101,7 +101,12 @@ export class OrdersService {
           }
 
           const agent = await transaction.agent.findFirst({
-            where: { OR: [{ webSalesId: input.webSalesId }, { slug: input.webSalesId }] },
+            where: {
+              OR: [
+                { webSalesId: input.webSalesId },
+                { slug: input.webSalesId },
+              ],
+            },
             select: {
               id: true,
               tenantId: true,
@@ -481,46 +486,53 @@ export class OrdersService {
   }
 
   async getAgentSalesSummary(agentId: string) {
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const dayOfWeek = (now.getDay() + 6) % 7;
-    const startOfWeek = new Date(startOfToday.getTime() - dayOfWeek * 86_400_000);
-
-    const [todayOrders, weekOrders, totalOrders] = await Promise.all([
-      this.prisma.order.aggregate({
-        where: { agentId, createdAt: { gte: startOfToday } },
-        _sum: { quantity: true, agentProfitTotalMinor: true },
-        _count: { id: true },
-      }),
-      this.prisma.order.aggregate({
-        where: { agentId, createdAt: { gte: startOfWeek } },
-        _sum: { quantity: true, agentProfitTotalMinor: true },
-        _count: { id: true },
-      }),
-      this.prisma.order.aggregate({
-        where: { agentId },
-        _sum: { quantity: true, agentProfitTotalMinor: true },
-        _count: { id: true },
-      }),
-    ]);
-
+    const { today, thisWeek, total } = await this.aggregateAgentSales(agentId);
     return {
-      today: {
-        orderCount: todayOrders._count.id,
-        unitsSold: todayOrders._sum.quantity ?? 0,
-        profitMinor: (todayOrders._sum.agentProfitTotalMinor ?? 0n).toString(),
-      },
-      thisWeek: {
-        orderCount: weekOrders._count.id,
-        unitsSold: weekOrders._sum.quantity ?? 0,
-        profitMinor: (weekOrders._sum.agentProfitTotalMinor ?? 0n).toString(),
-      },
-      total: {
-        orderCount: totalOrders._count.id,
-        unitsSold: totalOrders._sum.quantity ?? 0,
-        profitMinor: (totalOrders._sum.agentProfitTotalMinor ?? 0n).toString(),
-      },
+      today: toAgentWindow(today),
+      thisWeek: toAgentWindow(thisWeek),
+      total: toAgentWindow(total),
     };
+  }
+
+  async getAgentSalesSummaryForAdmin(agentId: string) {
+    const { today, thisWeek, total } = await this.aggregateAgentSales(agentId);
+    return {
+      today: toAdminWindow(today),
+      thisWeek: toAdminWindow(thisWeek),
+      total: toAdminWindow(total),
+    };
+  }
+
+  private async aggregateAgentSales(agentId: string) {
+    const now = new Date();
+    const startOfToday = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    );
+    const dayOfWeek = (now.getDay() + 6) % 7;
+    const startOfWeek = new Date(
+      startOfToday.getTime() - dayOfWeek * 86_400_000,
+    );
+
+    const [today, thisWeek, total] = await Promise.all([
+      this.aggregateAgentSalesSince(agentId, startOfToday),
+      this.aggregateAgentSalesSince(agentId, startOfWeek),
+      this.aggregateAgentSalesSince(agentId),
+    ]);
+    return { today, thisWeek, total };
+  }
+
+  private aggregateAgentSalesSince(agentId: string, since?: Date) {
+    return this.prisma.order.aggregate({
+      where: { agentId, ...(since ? { createdAt: { gte: since } } : {}) },
+      _sum: {
+        quantity: true,
+        agentProfitTotalMinor: true,
+        retailTotalMinor: true,
+      },
+      _count: { id: true },
+    });
   }
 
   private async withSerializableRetry<T>(operation: () => Promise<T>) {
@@ -539,6 +551,35 @@ export class OrdersService {
     }
     throw new ConflictException('Checkout could not be completed');
   }
+}
+
+type SalesAggregate = {
+  _count: { id: number };
+  _sum: {
+    quantity: number | null;
+    agentProfitTotalMinor: bigint | null;
+    retailTotalMinor: bigint | null;
+  };
+};
+
+function toAgentWindow(aggregate: SalesAggregate) {
+  return {
+    orderCount: aggregate._count.id,
+    unitsSold: aggregate._sum.quantity ?? 0,
+    profitMinor: (aggregate._sum.agentProfitTotalMinor ?? 0n).toString(),
+  };
+}
+
+function toAdminWindow(aggregate: SalesAggregate) {
+  const retailTotalMinor = aggregate._sum.retailTotalMinor ?? 0n;
+  const agentProfitMinor = aggregate._sum.agentProfitTotalMinor ?? 0n;
+  return {
+    orderCount: aggregate._count.id,
+    unitsSold: aggregate._sum.quantity ?? 0,
+    agentProfitMinor: agentProfitMinor.toString(),
+    platformProfitMinor: (retailTotalMinor - agentProfitMinor).toString(),
+    retailTotalMinor: retailTotalMinor.toString(),
+  };
 }
 
 function randomReference(prefix: string, bytes: number): string {

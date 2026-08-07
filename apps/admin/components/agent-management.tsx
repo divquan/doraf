@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Badge } from "@workspace/ui/components/badge"
@@ -144,6 +145,14 @@ function AgentRow({ agent }: { agent: AgentSummary }) {
       <TableCell className="text-right">
         <div className="flex flex-col items-end gap-1.5">
           <div className="flex items-center justify-end gap-2">
+            <Button
+              render={<Link href={`/agents/${agent.id}`} />}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              View
+            </Button>
             <Button
               disabled={pending}
               onClick={() => setConfirmOpen(true)}
