@@ -10,7 +10,9 @@ import {
   AgentSalesSummary,
   AgentSalesSummaryGrid,
 } from "@/components/agent-sales-summary"
+import { AgentPricingOverrides } from "@/components/agent-pricing-overrides"
 import { ApiError, apiJson, apiRequest } from "@/lib/internal-api"
+import type { AgentPricingOverridesData } from "@/lib/pricing"
 
 const MAX_ORDERS_PAGE = 10_000
 
@@ -33,7 +35,7 @@ export default async function AgentDetailPage({
   const query = await searchParams
   const page = getOrdersPage(query.page)
 
-  const [identityRes, summaryRes, ordersRes] = await Promise.all([
+  const [identityRes, summaryRes, ordersRes, pricingRes] = await Promise.all([
     apiRequest(`/admin/agents/${encodeURIComponent(agentId)}`, {}, true),
     apiRequest(
       `/admin/agents/${encodeURIComponent(agentId)}/summary`,
@@ -42,6 +44,11 @@ export default async function AgentDetailPage({
     ),
     apiRequest(
       `/admin/agents/${encodeURIComponent(agentId)}/orders?page=${page}`,
+      {},
+      true
+    ),
+    apiRequest(
+      `/admin/agents/${encodeURIComponent(agentId)}/pricing-overrides`,
       {},
       true
     ),
@@ -57,6 +64,7 @@ export default async function AgentDetailPage({
   let identity: AgentIdentity
   let summary: AgentSalesSummary
   let ordersData: { items: AgentOrderItem[]; pagination: OrderPagination }
+  let pricingData: AgentPricingOverridesData
   try {
     identity = (await apiJson(identityRes)) as AgentIdentity
     summary = (await apiJson(summaryRes)) as AgentSalesSummary
@@ -64,6 +72,7 @@ export default async function AgentDetailPage({
       items: AgentOrderItem[]
       pagination: OrderPagination
     }
+    pricingData = (await apiJson(pricingRes)) as AgentPricingOverridesData
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) notFound()
     throw error
@@ -93,6 +102,10 @@ export default async function AgentDetailPage({
 
       <section>
         <AgentSalesSummaryGrid summary={summary} />
+      </section>
+
+      <section>
+        <AgentPricingOverrides agentId={agentId} data={pricingData} />
       </section>
 
       <section>

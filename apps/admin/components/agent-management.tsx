@@ -3,6 +3,12 @@
 import Link from "next/link"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { HugeiconsIcon } from "@hugeicons/react"
+import {
+  ArrowLeft02Icon,
+  ArrowRight02Icon,
+  Search01Icon,
+} from "@hugeicons/core-free-icons"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -43,6 +49,7 @@ interface AgentSummary {
   name: string
   phoneMask: string
   status: "ACTIVE" | "SUSPENDED"
+  overrideCount: number
 }
 
 interface RowMessage {
@@ -50,36 +57,122 @@ interface RowMessage {
   tone: "success" | "error"
 }
 
+const PAGE_SIZE = 10
+
 export function AgentManagement({ agents }: { agents: AgentSummary[] }) {
+  const [query, setQuery] = useState("")
+  const [page, setPage] = useState(1)
+
+  const normalizedQuery = query.trim().toLowerCase()
+  const filtered = normalizedQuery
+    ? agents.filter(
+        (agent) =>
+          agent.name.toLowerCase().includes(normalizedQuery) ||
+          agent.phoneMask.toLowerCase().includes(normalizedQuery)
+      )
+    : agents
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages)
+  const start = (currentPage - 1) * PAGE_SIZE
+  const visible = filtered.slice(start, start + PAGE_SIZE)
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Agent access</CardTitle>
-        <CardDescription className="leading-6">
-          Suspend an agent to stop new sales, or restore access after review.
-          Every change requires a reason and is written to the audit trail.
-        </CardDescription>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <CardTitle>Agent access</CardTitle>
+            <CardDescription className="leading-6">
+              Suspend an agent to stop new sales, or restore access after
+              review. Every change requires a reason and is written to the audit
+              trail.
+            </CardDescription>
+          </div>
+          <div className="flex items-center gap-3">
+            <Badge variant="outline">
+              {agents.length} {agents.length === 1 ? "agent" : "agents"}
+            </Badge>
+            <div className="relative">
+              <HugeiconsIcon
+                className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+                icon={Search01Icon}
+              />
+              <Input
+                aria-label="Search agents"
+                className="w-full pl-8 sm:w-56"
+                onChange={(event) => {
+                  setQuery(event.target.value)
+                  setPage(1)
+                }}
+                placeholder="Search by name or phone"
+                value={query}
+              />
+            </div>
+          </div>
+        </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex flex-col gap-4">
         {agents.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             No agent accounts have been created yet.
           </p>
+        ) : visible.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No agents match “{query.trim()}”.
+          </p>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Agent</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {agents.map((agent) => (
-                <AgentRow agent={agent} key={agent.id} />
-              ))}
-            </TableBody>
-          </Table>
+          <>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Agent</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Pricing</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {visible.map((agent) => (
+                  <AgentRow agent={agent} key={agent.id} />
+                ))}
+              </TableBody>
+            </Table>
+            {filtered.length > PAGE_SIZE ? (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    disabled={currentPage === 1}
+                    onClick={() => setPage(currentPage - 1)}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    <HugeiconsIcon
+                      data-icon="inline-start"
+                      icon={ArrowLeft02Icon}
+                    />
+                    Previous
+                  </Button>
+                  <Button
+                    disabled={currentPage === totalPages}
+                    onClick={() => setPage(currentPage + 1)}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    Next
+                    <HugeiconsIcon
+                      data-icon="inline-end"
+                      icon={ArrowRight02Icon}
+                    />
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+          </>
         )}
       </CardContent>
     </Card>
@@ -141,6 +234,18 @@ function AgentRow({ agent }: { agent: AgentSummary }) {
         <Badge variant={isActive ? "secondary" : "destructive"}>
           {isActive ? "Active" : "Suspended"}
         </Badge>
+      </TableCell>
+      <TableCell>
+        {agent.overrideCount > 0 ? (
+          <Badge variant="outline">
+            {agent.overrideCount} active{" "}
+            {agent.overrideCount === 1 ? "override" : "overrides"}
+          </Badge>
+        ) : (
+          <span className="text-sm text-muted-foreground">
+            Inherits default
+          </span>
+        )}
       </TableCell>
       <TableCell className="text-right">
         <div className="flex flex-col items-end gap-1.5">

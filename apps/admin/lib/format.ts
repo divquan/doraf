@@ -20,3 +20,7 @@ export function formatDateTime(
     timeZone,
   }).format(new Date(value))
 }
+
+export function formatCount(value: number): string {
+  return new Intl.NumberFormat("en-GH").format(value)
+}

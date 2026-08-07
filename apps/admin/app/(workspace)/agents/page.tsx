@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation"
 import { AgentManagement } from "@/components/agent-management"
 import { PageHeader } from "@/components/_workspace/page-header"
-import { PricingControls } from "@/components/pricing-controls"
 import { apiJson, apiRequest } from "@/lib/internal-api"
+import type { AdminPricingData } from "@/lib/pricing"
 
 export default async function AgentsPage() {
   const pricingResponse = await apiRequest("/admin/products/pricing", {}, true)
@@ -14,9 +14,7 @@ export default async function AgentsPage() {
     redirect("/dashboard")
   }
 
-  const pricing = (await apiJson(pricingResponse)) as Parameters<
-    typeof PricingControls
-  >[0]["data"]
+  const pricing = (await apiJson(pricingResponse)) as AdminPricingData
 
   if (pricing.viewerRole !== "ADMINISTRATOR") {
     redirect("/dashboard")

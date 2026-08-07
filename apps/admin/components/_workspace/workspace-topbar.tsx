@@ -11,7 +11,6 @@ import type { AdminRole } from "@/components/_workspace/workspace-sidebar"
 const routeMap: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/inventory": "Inventory",
-  "/pricing": "Pricing",
   "/withdrawals": "Withdrawals",
   "/agents": "Agents",
   "/operators": "Operators",

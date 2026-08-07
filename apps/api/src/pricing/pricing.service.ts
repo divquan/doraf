@@ -516,6 +516,16 @@ export class PricingService {
           phoneMask: true,
           status: true,
           webSalesId: true,
+          _count: {
+            select: {
+              pricingOverrides: {
+                where: {
+                  effectiveFrom: { lte: now },
+                  OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
+                },
+              },
+            },
+          },
         },
       }),
     ]);
@@ -529,8 +539,152 @@ export class PricingService {
           ? serializePolicy(product.pricingPolicies[0])
           : null,
       })),
-      agents,
+      agents: agents.map((agent) => ({
+        id: agent.id,
+        name: agent.name,
+        phoneMask: agent.phoneMask,
+        status: agent.status,
+        webSalesId: agent.webSalesId,
+        overrideCount: agent._count.pricingOverrides,
+      })),
     };
+  }
+
+  async listOverridesForAgent(agentId: string) {
+    const now = new Date();
+    const [overrides, products] = await Promise.all([
+      this.prisma.agentPricingOverride.findMany({
+        where: {
+          agentId,
+          effectiveFrom: { lte: now },
+          OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
+        },
+        orderBy: { effectiveFrom: 'desc' },
+        include: {
+          product: { select: { id: true, code: true, name: true } },
+        },
+      }),
+      this.prisma.product.findMany({
+        orderBy: { displayOrder: 'asc' },
+        include: {
+          pricingPolicies: {
+            where: {
+              effectiveFrom: { lte: now },
+              OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
+            },
+            orderBy: { effectiveFrom: 'desc' },
+            take: 1,
+          },
+        },
+      }),
+    ]);
+    return {
+      overrides: overrides.map((override) => ({
+        id: override.id,
+        productId: override.productId,
+        productCode: override.product.code,
+        productName: override.product.name,
+        basePriceMinor:
+          override.basePriceMinor === null
+            ? null
+            : Number(override.basePriceMinor),
+        maximumRetailPriceMinor:
+          override.maximumRetailPriceMinor === null
+            ? null
+            : Number(override.maximumRetailPriceMinor),
+        effectiveFrom: override.effectiveFrom.toISOString(),
+        effectiveTo: override.effectiveTo?.toISOString() ?? null,
+        reason: override.reason,
+        createdAt: override.createdAt.toISOString(),
+      })),
+      products: products.map((product) => ({
+        id: product.id,
+        code: product.code,
+        name: product.name,
+        status: product.status,
+        policy: product.pricingPolicies[0]
+          ? serializePolicy(product.pricingPolicies[0])
+          : null,
+      })),
+    };
+  }
+
+  async closeOverride(input: {
+    agentId: string;
+    overrideId: string;
+    reason: string;
+    requestId: string;
+    actor: InternalPrincipal;
+  }) {
+    return this.prisma.$transaction(
+      async (transaction) => {
+        const override = await transaction.agentPricingOverride.findUnique({
+          where: { id: input.overrideId },
+        });
+        if (!override || override.agentId !== input.agentId) {
+          throw new NotFoundException('Pricing override not found');
+        }
+        const now = new Date();
+        if (
+          override.effectiveFrom > now ||
+          (override.effectiveTo !== null && override.effectiveTo <= now)
+        ) {
+          throw new ConflictException('Pricing override is already inactive');
+        }
+        const updated = await transaction.agentPricingOverride.update({
+          where: { id: override.id },
+          data: { effectiveTo: now },
+        });
+        await transaction.auditEvent.create({
+          data: {
+            actorInternalUserId: input.actor.userId,
+            actorRole: input.actor.role,
+            action: 'AGENT_PRICING_OVERRIDE_CLOSED',
+            entityType: 'AGENT_PRICING_OVERRIDE',
+            entityId: override.id,
+            reason: input.reason.trim(),
+            authenticationStrength: input.actor.authenticationStrength,
+            requestId: input.requestId,
+            safeMetadata: {
+              agentId: override.agentId,
+              productId: override.productId,
+            },
+          },
+        });
+        await this.outbox.enqueue(transaction, {
+          eventType: 'AGENT_PRICING_OVERRIDE_CLOSED',
+          aggregateType: 'AGENT_PRICING_OVERRIDE',
+          aggregateId: override.id,
+          aggregateVersion: 1,
+          payload: { agentId: override.agentId, productId: override.productId },
+        });
+        const defaultPolicy = await transaction.productPricingPolicy.findFirst({
+          where: {
+            productId: override.productId,
+            effectiveFrom: { lte: now },
+            OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
+          },
+          orderBy: { effectiveFrom: 'desc' },
+        });
+        const clampedPriceCount = defaultPolicy
+          ? await this.clampAffectedPrices(transaction, {
+              productId: override.productId,
+              agentId: override.agentId,
+              defaultBasePriceMinor: defaultPolicy.basePriceMinor,
+              defaultMaximumRetailPriceMinor:
+                defaultPolicy.maximumRetailPriceMinor,
+              reason: input.reason,
+              requestId: input.requestId,
+              actor: input.actor,
+            })
+          : 0;
+        return {
+          override: serializeOverride(updated),
+          clampedPriceCount,
+        };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
   }
 
   async changeProductStatus(input: {

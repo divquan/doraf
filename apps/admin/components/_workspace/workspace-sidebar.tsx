@@ -8,7 +8,6 @@ import {
   DashboardSquare01Icon,
   MoneyReceiveCircleIcon,
   Settings02Icon,
-  Tag01Icon,
   UserAdd02Icon,
   UserGroupIcon,
 } from "@hugeicons/core-free-icons"
@@ -36,12 +35,6 @@ const navItems: NavItem[] = [
     href: "/inventory",
     label: "Inventory",
     icon: BoxIcon,
-    roles: ["ADMINISTRATOR", "SUPPORT"],
-  },
-  {
-    href: "/pricing",
-    label: "Pricing",
-    icon: Tag01Icon,
     roles: ["ADMINISTRATOR", "SUPPORT"],
   },
   {

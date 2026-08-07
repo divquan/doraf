@@ -1,8 +1,6 @@
 import Link from "next/link"
-import { Badge } from "@workspace/ui/components/badge"
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -22,7 +20,9 @@ import {
   TableHeader,
   TableRow,
 } from "@workspace/ui/components/table"
-import { formatDateTime, formatMoney } from "@/lib/format"
+import { formatCount, formatDateTime, formatMoney } from "@/lib/format"
+import type { AdminViewerRole, PricingProduct } from "@/lib/pricing"
+import { InventoryProductCard } from "./inventory-product-card"
 
 export interface InventoryOverviewData {
   products: Array<{
@@ -56,43 +56,29 @@ export interface InventoryOverviewData {
   }>
 }
 
-export function InventoryOverview({ data }: { data: InventoryOverviewData }) {
+export function InventoryOverview({
+  data,
+  viewerRole,
+  pricingProducts,
+}: {
+  data: InventoryOverviewData
+  viewerRole: AdminViewerRole
+  pricingProducts: PricingProduct[]
+}) {
+  const policyByProduct = new Map(
+    pricingProducts.map((product) => [product.id, product.policy])
+  )
+
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2">
         {data.products.map((product) => (
-          <Card key={product.id} size="sm">
-            <CardHeader>
-              <CardTitle>{product.name}</CardTitle>
-              <CardDescription>{product.code}</CardDescription>
-              <CardAction>
-                <Badge
-                  variant={
-                    product.status === "ACTIVE" ? "secondary" : "outline"
-                  }
-                >
-                  {product.status === "ACTIVE" ? "Active" : "Unavailable"}
-                </Badge>
-              </CardAction>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-baseline gap-2">
-                <p className="text-2xl font-semibold tabular-nums">
-                  {formatCount(product.counts.available)}
-                </p>
-                <p className="text-sm text-muted-foreground">available now</p>
-              </div>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t pt-3 text-sm">
-                <Count label="Reserved" value={product.counts.reserved} />
-                <Count label="Sold" value={product.counts.sold} />
-                <Count label="Quarantined" value={product.counts.quarantined} />
-                <Count label="Void" value={product.counts.void} />
-                <Count label="Replaced" value={product.counts.replaced} />
-                <Count label="Refunded" value={product.counts.refunded} />
-                <Count label="Total" value={product.counts.total} />
-              </div>
-            </CardContent>
-          </Card>
+          <InventoryProductCard
+            key={product.id}
+            policy={policyByProduct.get(product.id) ?? null}
+            product={product}
+            viewerRole={viewerRole}
+          />
         ))}
       </div>
 
@@ -168,17 +154,4 @@ export function InventoryOverview({ data }: { data: InventoryOverviewData }) {
       </Card>
     </div>
   )
-}
-
-function Count({ label, value }: { label: string; value: number }) {
-  return (
-    <span className="flex items-baseline gap-1.5 whitespace-nowrap">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium tabular-nums">{formatCount(value)}</span>
-    </span>
-  )
-}
-
-function formatCount(value: number) {
-  return new Intl.NumberFormat("en-GH").format(value)
 }

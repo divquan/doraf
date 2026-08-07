@@ -19,6 +19,8 @@ import { InternalSessionGuard } from '../internal-access/internal-session.guard'
 import type { InternalPrincipal } from '../internal-access/internal-access.types';
 import { NoStoreInterceptor } from '../internal-access/no-store.interceptor';
 import { OrdersService } from '../orders/orders.service';
+import { PricingService } from '../pricing/pricing.service';
+import { CloseAgentPricingOverrideRequest } from '../pricing/dto/close-agent-pricing-override.request';
 import { AgentAdministrationService } from './agent-administration.service';
 import { ChangeAgentStatusRequest } from './dto/change-agent-status.request';
 
@@ -30,6 +32,7 @@ export class AgentAdministrationController {
   constructor(
     private readonly agents: AgentAdministrationService,
     private readonly orders: OrdersService,
+    private readonly pricing: PricingService,
   ) {}
 
   @Get(':agentId')
@@ -55,6 +58,31 @@ export class AgentAdministrationController {
     const pageNum = page && /^\d+$/.test(page) ? parseInt(page, 10) : 1;
     const limitNum = limit && /^\d+$/.test(limit) ? parseInt(limit, 10) : 10;
     return this.orders.listOrdersForAgent(agentId, pageNum, limitNum);
+  }
+
+  @Get(':agentId/pricing-overrides')
+  pricingOverrides(
+    @Param('agentId', new ParseUUIDPipe({ version: '4' })) agentId: string,
+  ) {
+    return this.pricing.listOverridesForAgent(agentId);
+  }
+
+  @Post(':agentId/pricing-overrides/:overrideId/close')
+  closePricingOverride(
+    @Param('agentId', new ParseUUIDPipe({ version: '4' })) agentId: string,
+    @Param('overrideId', new ParseUUIDPipe({ version: '4' }))
+    overrideId: string,
+    @Body() request: CloseAgentPricingOverrideRequest,
+    @CurrentInternalPrincipal() actor: InternalPrincipal,
+    @Headers('x-request-id') requestId?: string,
+  ) {
+    return this.pricing.closeOverride({
+      agentId,
+      overrideId,
+      reason: request.reason,
+      requestId: safeRequestId(requestId),
+      actor,
+    });
   }
 
   @Post(':agentId/suspend')

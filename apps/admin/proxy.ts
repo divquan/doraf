@@ -4,7 +4,6 @@ const sessionCookieName = "doraf_internal_session"
 const workspacePaths = [
   "/dashboard",
   "/inventory",
-  "/pricing",
   "/withdrawals",
   "/agents",
   "/operators",
@@ -25,7 +24,6 @@ export const config = {
   matcher: [
     "/dashboard/:path*",
     "/inventory/:path*",
-    "/pricing/:path*",
     "/withdrawals/:path*",
     "/agents/:path*",
     "/operators/:path*",

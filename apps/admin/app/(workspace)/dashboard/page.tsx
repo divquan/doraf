@@ -33,13 +33,7 @@ const quickLinks: Array<{
   {
     href: "/inventory",
     label: "Inventory",
-    description: "Stock counts and batch history",
-    roles: ["ADMINISTRATOR", "SUPPORT"],
-  },
-  {
-    href: "/pricing",
-    label: "Pricing",
-    description: "Product ranges and agent exceptions",
+    description: "Stock counts, checker pricing, and batch history",
     roles: ["ADMINISTRATOR", "SUPPORT"],
   },
   {

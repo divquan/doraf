@@ -10,11 +10,11 @@ import {
 
 export async function POST(
   request: NextRequest,
-  context: RouteContext<"/api/withdrawals/[withdrawalId]">
+  { params }: { params: Promise<{ withdrawalId: string }> }
 ) {
   try {
     requireSameOrigin(request)
-    const { withdrawalId } = await context.params
+    const { withdrawalId } = await params
     const body = (await request.json()) as {
       action?: "approve" | "reject" | "verify" | "finalize"
       reason?: string
