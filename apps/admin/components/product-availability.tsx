@@ -12,6 +12,14 @@ import {
   CardTitle,
 } from "@workspace/ui/components/card"
 import {
+  Dialog,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogPopup,
+  DialogTitle,
+} from "@workspace/ui/components/dialog"
+import {
   Field,
   FieldDescription,
   FieldGroup,
@@ -55,21 +63,25 @@ function ProductStatusControl({ product }: { product: ProductSummary }) {
   const router = useRouter()
   const [pending, setPending] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [reason, setReason] = useState("")
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const isActive = product.status === "ACTIVE"
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const formElement = event.currentTarget
+    setConfirmOpen(true)
+  }
+
+  async function changeStatus() {
     setPending(true)
     setMessage(null)
-    const form = new FormData(formElement)
     try {
       const response = await fetch(`/api/products/${product.id}/status`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           status: isActive ? "UNAVAILABLE" : "ACTIVE",
-          reason: String(form.get("reason") ?? "").trim(),
+          reason: reason.trim(),
         }),
       })
       const result = (await response.json().catch(() => ({}))) as {
@@ -79,7 +91,7 @@ function ProductStatusControl({ product }: { product: ProductSummary }) {
         throw new Error(result.message ?? "The status could not be changed")
       }
       setMessage(isActive ? "Product made unavailable." : "Product published.")
-      formElement.reset()
+      setReason("")
       router.refresh()
     } catch (error) {
       setMessage(
@@ -117,12 +129,14 @@ function ProductStatusControl({ product }: { product: ProductSummary }) {
             id={`product-reason-${product.id}`}
             minLength={5}
             name="reason"
+            onChange={(event) => setReason(event.target.value)}
             placeholder={
               isActive
                 ? "Why should new checkout stop?"
                 : "Why is this product ready to publish?"
             }
             required
+            value={reason}
           />
           <FieldDescription>
             Product availability changes are retained in the audit trail.
@@ -148,6 +162,41 @@ function ProductStatusControl({ product }: { product: ProductSummary }) {
           </p>
         ) : null}
       </div>
+      <Dialog onOpenChange={setConfirmOpen} open={confirmOpen}>
+        <DialogPopup>
+          <DialogHeader>
+            <DialogTitle>
+              {isActive
+                ? "Make this product unavailable?"
+                : "Publish this product?"}
+            </DialogTitle>
+            <DialogDescription>
+              {isActive
+                ? "New checkout will be prevented immediately. Existing records are unchanged."
+                : "The checker will be available for new checkout once published."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              onClick={() => setConfirmOpen(false)}
+              type="button"
+              variant="outline"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                setConfirmOpen(false)
+                void changeStatus()
+              }}
+              type="button"
+              variant={isActive ? "destructive" : "default"}
+            >
+              {isActive ? "Make unavailable" : "Publish product"}
+            </Button>
+          </DialogFooter>
+        </DialogPopup>
+      </Dialog>
     </form>
   )
 }

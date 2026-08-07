@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation"
 import { OperatorIdentityCard } from "@/components/_workspace/operator-identity-card"
 import { PageHeader } from "@/components/_workspace/page-header"
+import { ThemeSelector } from "@/components/_workspace/theme-selector"
 import { apiJson, apiRequest } from "@/lib/internal-api"
 import type { AdminRole } from "@/components/_workspace/workspace-sidebar"
 import {
@@ -38,6 +39,20 @@ export default async function SettingsPage() {
           displayName={operator.displayName}
           role={operator.role}
         />
+      </section>
+      <section>
+        <Card>
+          <CardHeader>
+            <CardTitle>Appearance</CardTitle>
+            <CardDescription className="leading-6">
+              Choose how the administration workspace looks. System follows your
+              device setting.
+            </CardDescription>
+          </CardHeader>
+          <div className="px-6 pb-6">
+            <ThemeSelector />
+          </div>
+        </Card>
       </section>
       <section className="flex flex-col gap-4">
         <Card>

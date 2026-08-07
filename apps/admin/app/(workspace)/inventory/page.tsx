@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation"
 import { PageHeader } from "@/components/_workspace/page-header"
+import { InventoryImportDialog } from "@/components/inventory-import-dialog"
 import {
   InventoryOverview,
   type InventoryOverviewData,
 } from "@/components/inventory-overview"
-import { ManualInventoryForm } from "@/components/manual-inventory-form"
 import { PricingControls } from "@/components/pricing-controls"
 import { apiJson, apiRequest } from "@/lib/internal-api"
 
@@ -28,15 +28,15 @@ export default async function InventoryPage() {
       <PageHeader
         title="Inventory"
         description="Monitor authoritative stock counts and review securely masked batch history."
+        actions={
+          pricing.viewerRole === "ADMINISTRATOR" ? (
+            <InventoryImportDialog products={pricing.products} />
+          ) : undefined
+        }
       />
       <section>
         <InventoryOverview data={inventory} />
       </section>
-      {pricing.viewerRole === "ADMINISTRATOR" ? (
-        <section>
-          <ManualInventoryForm products={pricing.products} />
-        </section>
-      ) : null}
     </div>
   )
 }

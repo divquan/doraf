@@ -1,24 +1,31 @@
 "use client"
 
-import { FormEvent, useState } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
-  CheckmarkCircle02Icon,
+  ArrowLeft02Icon,
+  ArrowRight02Icon,
   MoneyReceiveCircleIcon,
   RefreshIcon,
 } from "@hugeicons/core-free-icons"
-import { Alert, AlertDescription } from "@workspace/ui/components/alert"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@workspace/ui/components/card"
+import {
+  Dialog,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogPopup,
+  DialogTitle,
+} from "@workspace/ui/components/dialog"
 import {
   Empty,
   EmptyDescription,
@@ -38,8 +45,17 @@ import {
   InputOTPGroup,
   InputOTPSlot,
 } from "@workspace/ui/components/input-otp"
-import { Separator } from "@workspace/ui/components/separator"
 import { Spinner } from "@workspace/ui/components/spinner"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@workspace/ui/components/table"
+import { cn } from "@workspace/ui/lib/utils"
+import { formatDateTime, formatMoney } from "@/lib/format"
 
 export interface AdminWithdrawal {
   id: string
@@ -73,101 +89,130 @@ type WithdrawalState =
   | "FAILED"
   | "REVERSED"
 
+interface RowMessage {
+  text: string
+  tone: "success" | "error"
+}
+
+const PAGE_SIZE = 10
+
 export function WithdrawalOperations({
   withdrawals,
 }: {
   withdrawals: AdminWithdrawal[]
 }) {
-  const active = withdrawals.filter((item) => !isTerminal(item.state))
-  const recent = withdrawals
-    .filter((item) => isTerminal(item.state))
-    .slice(0, 12)
+  const [page, setPage] = useState(1)
+  const sorted = sortWithdrawals(withdrawals)
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages)
+  const start = (currentPage - 1) * PAGE_SIZE
+  const visible = sorted.slice(start, start + PAGE_SIZE)
 
   return (
-    <div className="flex flex-col gap-5">
-      {active.length === 0 ? (
-        <Empty className="min-h-48 border">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <HugeiconsIcon icon={MoneyReceiveCircleIcon} />
-            </EmptyMedia>
-            <EmptyTitle>No withdrawals need attention</EmptyTitle>
-            <EmptyDescription>
-              New agent requests and transfers awaiting Paystack action will
-              appear here.
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {active.map((withdrawal) => (
-            <WithdrawalCard key={withdrawal.id} withdrawal={withdrawal} />
-          ))}
-        </div>
-      )}
-
-      {recent.length > 0 ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent outcomes</CardTitle>
+    <Card>
+      <CardHeader>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <CardTitle>Withdrawal requests</CardTitle>
             <CardDescription>
-              The latest completed, rejected, failed, or reversed requests.
+              Review held wallet funds, approve Mobile Money transfers, and
+              reconcile Paystack outcomes.
             </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            {recent.map((withdrawal, index) => (
-              <div key={withdrawal.id}>
-                {index > 0 ? <Separator className="mb-3" /> : null}
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-medium">
-                      {withdrawal.agent.name}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatDate(withdrawal.requestedAt)} ·{" "}
-                      {withdrawal.destinationMask}
-                    </p>
-                    {withdrawal.decisionReason ? (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {withdrawal.decisionReason}
-                      </p>
-                    ) : null}
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold">
-                      {money(withdrawal.netAmountMinor)}
-                    </p>
-                    <StateBadge state={withdrawal.state} />
-                  </div>
+          </div>
+          <Badge variant="outline">
+            {withdrawals.length}{" "}
+            {withdrawals.length === 1 ? "request" : "requests"}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        {visible.length === 0 ? (
+          <Empty className="min-h-48 border">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <HugeiconsIcon icon={MoneyReceiveCircleIcon} />
+              </EmptyMedia>
+              <EmptyTitle>No withdrawals yet</EmptyTitle>
+              <EmptyDescription>
+                Agent payout requests will appear here for review.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        ) : (
+          <>
+            <div className="overflow-x-auto rounded-lg border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Agent</TableHead>
+                    <TableHead>Requested</TableHead>
+                    <TableHead>Destination</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {visible.map((withdrawal) => (
+                    <WithdrawalRow
+                      key={withdrawal.id}
+                      withdrawal={withdrawal}
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            {sorted.length > PAGE_SIZE ? (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    disabled={currentPage === 1}
+                    onClick={() => setPage(currentPage - 1)}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    <HugeiconsIcon
+                      data-icon="inline-start"
+                      icon={ArrowLeft02Icon}
+                    />
+                    Previous
+                  </Button>
+                  <Button
+                    disabled={currentPage === totalPages}
+                    onClick={() => setPage(currentPage + 1)}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    Next
+                    <HugeiconsIcon
+                      data-icon="inline-end"
+                      icon={ArrowRight02Icon}
+                    />
+                  </Button>
                 </div>
               </div>
-            ))}
-          </CardContent>
-        </Card>
-      ) : null}
-    </div>
+            ) : null}
+          </>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 
-function WithdrawalCard({ withdrawal }: { withdrawal: AdminWithdrawal }) {
+function WithdrawalRow({ withdrawal }: { withdrawal: AdminWithdrawal }) {
   const router = useRouter()
+  const [pending, setPending] = useState(false)
+  const [message, setMessage] = useState<RowMessage | null>(null)
   const [reason, setReason] = useState("")
   const [otp, setOtp] = useState("")
-  const [pending, setPending] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
-
-  async function decide(action: "approve" | "reject") {
-    if (reason.trim().length < 3) {
-      setMessage("Enter a decision reason of at least three characters.")
-      return
-    }
-    await perform(action, { reason: reason.trim() })
-  }
-
-  async function finalize(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    await perform("finalize", { otp })
-  }
+  const [confirm, setConfirm] = useState<
+    "approve" | "reject" | "finalize" | null
+  >(null)
 
   async function perform(
     action: "approve" | "reject" | "verify" | "finalize",
@@ -186,16 +231,30 @@ function WithdrawalCard({ withdrawal }: { withdrawal: AdminWithdrawal }) {
       }
       if (!response.ok)
         throw new Error(body.message ?? "The action could not be completed")
-      setMessage(actionMessage(action))
+      setMessage({ text: actionMessage(action), tone: "success" })
       router.refresh()
     } catch (cause) {
-      setMessage(
-        cause instanceof Error
-          ? cause.message
-          : "The action could not be completed"
-      )
+      setMessage({
+        text:
+          cause instanceof Error
+            ? cause.message
+            : "The action could not be completed",
+        tone: "error",
+      })
     } finally {
       setPending(false)
+    }
+  }
+
+  function confirmDialogAction() {
+    const action = confirm
+    setConfirm(null)
+    if (action === "approve") {
+      void perform("approve", { reason: reason.trim() })
+    } else if (action === "reject") {
+      void perform("reject", { reason: reason.trim() })
+    } else {
+      void perform("finalize", { otp })
     }
   }
 
@@ -204,70 +263,151 @@ function WithdrawalCard({ withdrawal }: { withdrawal: AdminWithdrawal }) {
   const canVerify =
     Boolean(withdrawal.transferStatus) &&
     ["APPROVED", "SUBMITTED", "PENDING"].includes(withdrawal.state)
+  const confirmValid =
+    confirm === "approve" || confirm === "reject"
+      ? reason.trim().length >= 3
+      : otp.length === 6
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <CardTitle>{withdrawal.agent.name}</CardTitle>
-            <CardDescription className="mt-1">
-              Requested {formatDate(withdrawal.requestedAt)}
-            </CardDescription>
-          </div>
-          <StateBadge state={withdrawal.state} />
-        </div>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <div className="grid grid-cols-2 gap-3 text-sm">
-          <Metric
-            label="Agent receives"
-            value={money(withdrawal.netAmountMinor)}
-          />
-          <Metric
-            label="Wallet hold"
-            value={money(withdrawal.holdAmountMinor)}
-          />
-          <Metric label="Destination" value={withdrawal.destinationMask} />
-          <Metric label="Network" value={networkLabel(withdrawal.network)} />
-        </div>
+    <TableRow>
+      <TableCell>
+        <p className="font-medium">{withdrawal.agent.name}</p>
+        <p className="text-xs text-muted-foreground">
+          {withdrawal.agent.phoneMask}
+        </p>
         {withdrawal.agent.status !== "ACTIVE" ? (
-          <Alert variant="destructive">
-            <AlertDescription>
-              This agent is suspended. Approval will cancel the request during
-              eligibility revalidation.
-            </AlertDescription>
-          </Alert>
+          <p className="text-xs text-destructive">Suspended</p>
         ) : null}
-        {withdrawal.transferStatus ? (
-          <p className="text-xs text-muted-foreground">
-            Paystack status: {withdrawal.transferStatus}
-            {withdrawal.transferUpdatedAt
-              ? ` · checked ${formatDate(withdrawal.transferUpdatedAt)}`
-              : ""}
-          </p>
-        ) : null}
-        {awaitingDecision ? (
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor={`reason-${withdrawal.id}`}>
-                Decision reason
-              </FieldLabel>
-              <Input
-                id={`reason-${withdrawal.id}`}
-                minLength={3}
-                onChange={(event) => setReason(event.target.value)}
-                placeholder="Reviewed wallet and destination"
-                value={reason}
-              />
-              <FieldDescription>
-                This reason is written to the audit history.
-              </FieldDescription>
-            </Field>
-          </FieldGroup>
-        ) : null}
-        {awaitingOtp ? (
-          <form id={`otp-${withdrawal.id}`} onSubmit={finalize}>
+      </TableCell>
+      <TableCell className="text-xs whitespace-nowrap text-muted-foreground">
+        {formatDateTime(withdrawal.requestedAt)}
+      </TableCell>
+      <TableCell>
+        <p className="text-sm">{withdrawal.destinationMask}</p>
+        <p className="text-xs text-muted-foreground">
+          {networkLabel(withdrawal.network)}
+        </p>
+      </TableCell>
+      <TableCell className="text-right font-mono font-semibold whitespace-nowrap">
+        {formatMoney(withdrawal.netAmountMinor)}
+      </TableCell>
+      <TableCell>
+        <div className="flex flex-col items-start gap-1">
+          <StateBadge state={withdrawal.state} />
+          {withdrawal.transferStatus ? (
+            <p className="text-[11px] text-muted-foreground">
+              {withdrawal.transferStatus}
+            </p>
+          ) : null}
+          {withdrawal.decisionReason ? (
+            <p className="max-w-40 truncate text-[11px] text-muted-foreground">
+              {withdrawal.decisionReason}
+            </p>
+          ) : null}
+        </div>
+      </TableCell>
+      <TableCell className="text-right">
+        <div className="flex flex-col items-end gap-1.5">
+          <div className="flex items-center justify-end gap-2">
+            {awaitingDecision ? (
+              <>
+                <Button
+                  disabled={withdrawal.agent.status !== "ACTIVE"}
+                  onClick={() => setConfirm("approve")}
+                  size="sm"
+                  type="button"
+                >
+                  Approve
+                </Button>
+                <Button
+                  onClick={() => setConfirm("reject")}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  Reject
+                </Button>
+              </>
+            ) : awaitingOtp ? (
+              <Button
+                onClick={() => setConfirm("finalize")}
+                size="sm"
+                type="button"
+              >
+                Submit OTP
+              </Button>
+            ) : canVerify ? (
+              <Button
+                onClick={() => void perform("verify")}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                <HugeiconsIcon data-icon="inline-start" icon={RefreshIcon} />
+                Verify
+              </Button>
+            ) : (
+              <span className="text-xs text-muted-foreground">—</span>
+            )}
+          </div>
+          {pending ? <Spinner className="size-4" /> : null}
+          {message ? (
+            <p
+              className={cn(
+                "max-w-56 text-right text-xs",
+                message.tone === "error"
+                  ? "text-destructive"
+                  : "text-muted-foreground"
+              )}
+              role="status"
+            >
+              {message.text}
+            </p>
+          ) : null}
+        </div>
+      </TableCell>
+      <Dialog
+        onOpenChange={(open) => {
+          if (!open) setConfirm(null)
+        }}
+        open={confirm !== null}
+      >
+        <DialogPopup>
+          <DialogHeader>
+            <DialogTitle>
+              {confirm === "approve"
+                ? "Approve this withdrawal?"
+                : confirm === "reject"
+                  ? "Reject this withdrawal?"
+                  : "Submit Paystack OTP?"}
+            </DialogTitle>
+            <DialogDescription>
+              {confirm === "approve"
+                ? "The request will be queued for transfer to the agent's validated destination."
+                : confirm === "reject"
+                  ? "The request will be rejected and its wallet hold released."
+                  : "The transfer approval code will be submitted to Paystack to complete the payout."}
+            </DialogDescription>
+          </DialogHeader>
+          {confirm === "approve" || confirm === "reject" ? (
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor={`withdrawal-reason-${withdrawal.id}`}>
+                  Decision reason
+                </FieldLabel>
+                <Input
+                  id={`withdrawal-reason-${withdrawal.id}`}
+                  minLength={3}
+                  onChange={(event) => setReason(event.target.value)}
+                  placeholder="Reviewed wallet and destination"
+                  value={reason}
+                />
+                <FieldDescription>
+                  This reason is written to the audit history.
+                </FieldDescription>
+              </Field>
+            </FieldGroup>
+          ) : confirm === "finalize" ? (
             <FieldGroup>
               <Field>
                 <FieldLabel htmlFor={`merchant-otp-${withdrawal.id}`}>
@@ -292,71 +432,30 @@ function WithdrawalCard({ withdrawal }: { withdrawal: AdminWithdrawal }) {
                 </FieldDescription>
               </Field>
             </FieldGroup>
-          </form>
-        ) : null}
-        {message ? (
-          <Alert>
-            <HugeiconsIcon icon={CheckmarkCircle02Icon} />
-            <AlertDescription>{message}</AlertDescription>
-          </Alert>
-        ) : null}
-      </CardContent>
-      <CardFooter className="flex flex-wrap gap-2">
-        {awaitingDecision ? (
-          <>
+          ) : null}
+          <DialogFooter>
             <Button
-              disabled={
-                pending ||
-                reason.trim().length < 3 ||
-                withdrawal.agent.status !== "ACTIVE"
-              }
-              onClick={() => decide("approve")}
-              type="button"
-            >
-              {pending ? <Spinner data-icon="inline-start" /> : null}Approve
-            </Button>
-            <Button
-              disabled={pending || reason.trim().length < 3}
-              onClick={() => decide("reject")}
+              onClick={() => setConfirm(null)}
               type="button"
               variant="outline"
             >
-              Reject
+              Cancel
             </Button>
-          </>
-        ) : null}
-        {awaitingOtp ? (
-          <Button
-            disabled={pending || otp.length !== 6}
-            form={`otp-${withdrawal.id}`}
-            type="submit"
-          >
-            {pending ? <Spinner data-icon="inline-start" /> : null}Submit
-            Paystack OTP
-          </Button>
-        ) : null}
-        {canVerify ? (
-          <Button
-            disabled={pending}
-            onClick={() => perform("verify")}
-            type="button"
-            variant="outline"
-          >
-            <HugeiconsIcon icon={RefreshIcon} data-icon="inline-start" />
-            Verify with Paystack
-          </Button>
-        ) : null}
-      </CardFooter>
-    </Card>
-  )
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 font-medium">{value}</p>
-    </div>
+            <Button
+              disabled={!confirmValid}
+              onClick={confirmDialogAction}
+              type="button"
+            >
+              {confirm === "approve"
+                ? "Approve"
+                : confirm === "reject"
+                  ? "Reject"
+                  : "Submit OTP"}
+            </Button>
+          </DialogFooter>
+        </DialogPopup>
+      </Dialog>
+    </TableRow>
   )
 }
 
@@ -374,6 +473,18 @@ function StateBadge({ state }: { state: WithdrawalState }) {
       {stateLabel(state)}
     </Badge>
   )
+}
+
+function sortWithdrawals(withdrawals: AdminWithdrawal[]) {
+  const active = withdrawals.filter((item) => !isTerminal(item.state))
+  const done = withdrawals.filter((item) => isTerminal(item.state))
+  const activeSorted = [...active].sort(
+    (a, b) => Date.parse(a.requestedAt) - Date.parse(b.requestedAt)
+  )
+  const doneSorted = [...done].sort(
+    (a, b) => Date.parse(b.requestedAt) - Date.parse(a.requestedAt)
+  )
+  return [...activeSorted, ...doneSorted]
 }
 
 function isTerminal(state: WithdrawalState) {
@@ -396,19 +507,6 @@ function stateLabel(state: WithdrawalState) {
     REVERSED: "Reversed",
   }
   return labels[state]
-}
-
-function money(value: string) {
-  const minor = BigInt(value)
-  return `GHS ${minor / 100n}.${(minor % 100n).toString().padStart(2, "0")}`
-}
-
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat("en-GH", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "Africa/Accra",
-  }).format(new Date(value))
 }
 
 function networkLabel(value: string) {

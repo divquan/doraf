@@ -12,6 +12,7 @@ import {
 } from "@workspace/ui/components/card"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
+import { formatMoney } from "@/lib/format"
 
 interface PricingData {
   viewerRole: "ADMINISTRATOR" | "SUPPORT"
@@ -39,7 +40,7 @@ export function PricingControls({ data }: { data: PricingData }) {
               <p className="font-medium">{product.name}</p>
               <p className="mt-2 text-sm text-muted-foreground">
                 {product.policy
-                  ? `${money(product.policy.basePriceMinor)} – ${money(product.policy.maximumRetailPriceMinor)}`
+                  ? `${formatMoney(product.policy.basePriceMinor)} – ${formatMoney(product.policy.maximumRetailPriceMinor)}`
                   : "No active policy"}
               </p>
             </div>
@@ -54,13 +55,6 @@ export function PricingControls({ data }: { data: PricingData }) {
       <OverrideForm data={data} />
     </div>
   )
-}
-
-function money(minor: number) {
-  return new Intl.NumberFormat("en-GH", {
-    style: "currency",
-    currency: "GHS",
-  }).format(minor / 100)
 }
 
 function PricingForm({ data }: { data: PricingData }) {

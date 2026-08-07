@@ -16,7 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@workspace/ui/components/table"
-import { formatDateTime, formatMoney } from "@/components/inventory-overview"
+import { formatDateTime, formatMoney } from "@/lib/format"
 import { ApiError, apiJson, apiRequest } from "@/lib/internal-api"
 
 interface InventoryBatchDetail {

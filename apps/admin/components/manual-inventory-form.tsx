@@ -9,13 +9,13 @@ import {
 } from "@workspace/ui/components/alert"
 import { Button } from "@workspace/ui/components/button"
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@workspace/ui/components/card"
+  Dialog,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogPopup,
+  DialogTitle,
+} from "@workspace/ui/components/dialog"
 import {
   Field,
   FieldDescription,
@@ -32,7 +32,7 @@ import {
 } from "@workspace/ui/components/native-select"
 import { Spinner } from "@workspace/ui/components/spinner"
 
-interface ProductOption {
+export interface ProductOption {
   id: string
   name: string
 }
@@ -57,19 +57,41 @@ interface InventoryPreview {
   errors: InventoryError[]
 }
 
+interface PreviewPayload {
+  action: "preview"
+  productId: string
+  entries: Array<{ serialNumber: string; pin: string }>
+}
+
+interface CommitPayload {
+  action: "commit"
+  productId: string
+  vendorName: string
+  vendorReference: string
+  acquisitionDate: string
+  unitAcquisitionCostMinor: string
+  reason: string
+  entries: Array<{ serialNumber: string; pin: string }>
+}
+
 export function ManualInventoryForm({
   products,
+  onImported,
 }: {
   products: ProductOption[]
+  onImported?: () => void
 }) {
   const router = useRouter()
   const nextEntryId = useRef(2)
+  const formRef = useRef<HTMLFormElement>(null)
   const [entries, setEntries] = useState<VoucherEntry[]>([
     { id: 1, serialNumber: "", pin: "" },
   ])
   const [preview, setPreview] = useState<InventoryPreview | null>(null)
   const [pending, setPending] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [commitPayload, setCommitPayload] = useState<CommitPayload | null>(null)
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   function invalidatePreview() {
     setPreview(null)
@@ -100,10 +122,9 @@ export function ManualInventoryForm({
     setEntries((current) => current.filter((entry) => entry.id !== id))
   }
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const formElement = event.currentTarget
-    const form = new FormData(formElement)
+    const form = new FormData(event.currentTarget)
     const unitCost = Number(form.get("unitAcquisitionCost"))
     const unitAcquisitionCostMinor = Math.round(unitCost * 100)
     if (!Number.isSafeInteger(unitAcquisitionCostMinor) || unitCost < 0) {
@@ -111,14 +132,12 @@ export function ManualInventoryForm({
       return
     }
 
-    setPending(true)
-    setMessage(null)
     const action = preview?.valid ? "commit" : "preview"
     const voucherEntries = entries.map(({ serialNumber, pin }) => ({
       serialNumber: serialNumber.trim(),
       pin: pin.trim(),
     }))
-    const payload =
+    const payload: CommitPayload | PreviewPayload =
       action === "preview"
         ? {
             action,
@@ -135,6 +154,21 @@ export function ManualInventoryForm({
             reason: String(form.get("reason")),
             entries: voucherEntries,
           }
+
+    if (action === "commit") {
+      setCommitPayload(payload as CommitPayload)
+      setConfirmOpen(true)
+      return
+    }
+    void run("preview", payload)
+  }
+
+  async function run(
+    action: "preview" | "commit",
+    payload: PreviewPayload | CommitPayload
+  ) {
+    setPending(true)
+    setMessage(null)
 
     try {
       const response = await fetch("/api/inventory", {
@@ -179,10 +213,11 @@ export function ManualInventoryForm({
         const importedCount = Number(result.importedVoucherCount ?? 0)
         setPreview(null)
         setEntries([{ id: nextEntryId.current++, serialNumber: "", pin: "" }])
-        formElement.reset()
+        formRef.current?.reset()
         setMessage(
           `${importedCount} voucher ${importedCount === 1 ? "was" : "were"} encrypted and added to available inventory.`
         )
+        onImported?.()
         router.refresh()
       }
     } catch (error) {
@@ -195,204 +230,196 @@ export function ManualInventoryForm({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Add voucher inventory</CardTitle>
-        <CardDescription className="leading-6">
-          Enter serial-number and PIN pairs directly. Doraf validates every
-          entry before encrypting and committing the complete batch.
-        </CardDescription>
-      </CardHeader>
-      <form onChange={invalidatePreview} onSubmit={submit}>
-        <CardContent>
-          <FieldGroup>
-            <FieldSet>
-              <FieldLegend>Source details</FieldLegend>
-              <FieldDescription>
-                These details identify the vendor batch in the audit history.
-              </FieldDescription>
-              <FieldGroup className="grid gap-4 md:grid-cols-2">
-                <Field>
-                  <FieldLabel htmlFor="inventory-product">Product</FieldLabel>
-                  <NativeSelect
-                    className="w-full"
-                    id="inventory-product"
-                    name="productId"
-                    required
-                  >
-                    {products.map((product) => (
-                      <NativeSelectOption key={product.id} value={product.id}>
-                        {product.name}
-                      </NativeSelectOption>
-                    ))}
-                  </NativeSelect>
-                </Field>
-                <InventoryField
-                  id="inventory-vendor"
-                  label="Vendor"
-                  name="vendorName"
-                  placeholder="Authorized supplier"
-                />
-                <InventoryField
-                  id="inventory-reference"
-                  label="Invoice or reference"
-                  name="vendorReference"
-                  placeholder="INV-2026-001"
-                />
-                <InventoryField
-                  id="inventory-date"
-                  label="Acquisition date"
-                  name="acquisitionDate"
-                  type="date"
-                />
-                <InventoryField
-                  id="inventory-cost"
-                  label="Unit acquisition cost (GHS)"
-                  min="0"
-                  name="unitAcquisitionCost"
-                  placeholder="10.00"
-                  step="0.01"
-                  type="number"
-                />
-                <InventoryField
-                  id="inventory-reason"
-                  label="Import reason"
-                  minLength={5}
-                  name="reason"
-                  placeholder="Initial authorized stock load"
-                />
-              </FieldGroup>
-            </FieldSet>
+    <>
+      <form
+        className="flex flex-col gap-6"
+        onChange={invalidatePreview}
+        onSubmit={submit}
+        ref={formRef}
+      >
+        <FieldGroup className="flex flex-col gap-6">
+          <FieldSet>
+            <FieldLegend>Source details</FieldLegend>
+            <FieldDescription>
+              These details identify the vendor batch in the audit history.
+            </FieldDescription>
+            <FieldGroup className="grid gap-4 md:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor="inventory-product">Product</FieldLabel>
+                <NativeSelect
+                  className="w-full"
+                  id="inventory-product"
+                  name="productId"
+                  required
+                >
+                  {products.map((product) => (
+                    <NativeSelectOption key={product.id} value={product.id}>
+                      {product.name}
+                    </NativeSelectOption>
+                  ))}
+                </NativeSelect>
+              </Field>
+              <InventoryField
+                id="inventory-vendor"
+                label="Vendor"
+                name="vendorName"
+                placeholder="Authorized supplier"
+              />
+              <InventoryField
+                id="inventory-reference"
+                label="Invoice or reference"
+                name="vendorReference"
+                placeholder="INV-2026-001"
+              />
+              <InventoryField
+                id="inventory-date"
+                label="Acquisition date"
+                name="acquisitionDate"
+                type="date"
+              />
+              <InventoryField
+                id="inventory-cost"
+                label="Unit acquisition cost (GHS)"
+                min="0"
+                name="unitAcquisitionCost"
+                placeholder="10.00"
+                step="0.01"
+                type="number"
+              />
+              <InventoryField
+                id="inventory-reason"
+                label="Import reason"
+                minLength={5}
+                name="reason"
+                placeholder="Initial authorized stock load"
+              />
+            </FieldGroup>
+          </FieldSet>
 
-            <FieldSet>
-              <FieldLegend>Voucher credentials</FieldLegend>
-              <FieldDescription>
-                PINs must contain exactly 12 digits. Values are encrypted and
-                will not be shown again after import.
-              </FieldDescription>
-              <FieldGroup>
-                {entries.map((entry, index) => {
-                  const entryErrors = preview?.errors.filter(
-                    (error) => error.rowNumber === index + 2
-                  )
-                  return (
-                    <div
-                      className="flex flex-col gap-3 rounded-lg border p-4"
-                      key={entry.id}
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm font-medium">
-                          Voucher {index + 1}
-                        </p>
-                        {entries.length > 1 ? (
-                          <Button
-                            onClick={() => removeEntry(entry.id)}
-                            size="sm"
-                            type="button"
-                            variant="ghost"
-                          >
-                            Remove
-                          </Button>
-                        ) : null}
-                      </div>
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <Field
-                          data-invalid={Boolean(
+          <FieldSet>
+            <FieldLegend>Voucher credentials</FieldLegend>
+            <FieldDescription>
+              PINs must contain exactly 12 digits. Values are encrypted and will
+              not be shown again after import.
+            </FieldDescription>
+            <FieldGroup>
+              {entries.map((entry, index) => {
+                const entryErrors = preview?.errors.filter(
+                  (error) => error.rowNumber === index + 2
+                )
+                return (
+                  <div
+                    className="flex flex-col gap-3 rounded-lg border p-4"
+                    key={entry.id}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-medium">Voucher {index + 1}</p>
+                      {entries.length > 1 ? (
+                        <Button
+                          onClick={() => removeEntry(entry.id)}
+                          size="sm"
+                          type="button"
+                          variant="ghost"
+                        >
+                          Remove
+                        </Button>
+                      ) : null}
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <Field
+                        data-invalid={Boolean(
+                          entryErrors?.some(
+                            (error) => error.field === "serial_number"
+                          )
+                        )}
+                      >
+                        <FieldLabel htmlFor={`serial-${entry.id}`}>
+                          Serial number
+                        </FieldLabel>
+                        <Input
+                          aria-invalid={Boolean(
                             entryErrors?.some(
                               (error) => error.field === "serial_number"
                             )
                           )}
-                        >
-                          <FieldLabel htmlFor={`serial-${entry.id}`}>
-                            Serial number
-                          </FieldLabel>
-                          <Input
-                            aria-invalid={Boolean(
-                              entryErrors?.some(
-                                (error) => error.field === "serial_number"
-                              )
-                            )}
-                            autoComplete="off"
-                            id={`serial-${entry.id}`}
-                            maxLength={64}
-                            onChange={(event) =>
-                              updateEntry(
-                                entry.id,
-                                "serialNumber",
-                                event.target.value
-                              )
-                            }
-                            required
-                            value={entry.serialNumber}
-                          />
-                          {entryErrors
-                            ?.filter((error) => error.field === "serial_number")
-                            .map((error) => (
-                              <FieldError key={error.code}>
-                                {error.message}
-                              </FieldError>
-                            ))}
-                        </Field>
-                        <Field
-                          data-invalid={Boolean(
+                          autoComplete="off"
+                          id={`serial-${entry.id}`}
+                          maxLength={64}
+                          onChange={(event) =>
+                            updateEntry(
+                              entry.id,
+                              "serialNumber",
+                              event.target.value
+                            )
+                          }
+                          required
+                          value={entry.serialNumber}
+                        />
+                        {entryErrors
+                          ?.filter((error) => error.field === "serial_number")
+                          .map((error) => (
+                            <FieldError key={error.code}>
+                              {error.message}
+                            </FieldError>
+                          ))}
+                      </Field>
+                      <Field
+                        data-invalid={Boolean(
+                          entryErrors?.some((error) => error.field === "pin")
+                        )}
+                      >
+                        <FieldLabel htmlFor={`pin-${entry.id}`}>
+                          12-digit PIN
+                        </FieldLabel>
+                        <Input
+                          aria-invalid={Boolean(
                             entryErrors?.some((error) => error.field === "pin")
                           )}
-                        >
-                          <FieldLabel htmlFor={`pin-${entry.id}`}>
-                            12-digit PIN
-                          </FieldLabel>
-                          <Input
-                            aria-invalid={Boolean(
-                              entryErrors?.some(
-                                (error) => error.field === "pin"
-                              )
-                            )}
-                            autoComplete="off"
-                            id={`pin-${entry.id}`}
-                            inputMode="numeric"
-                            maxLength={12}
-                            onChange={(event) =>
-                              updateEntry(entry.id, "pin", event.target.value)
-                            }
-                            pattern="[0-9]{12}"
-                            required
-                            value={entry.pin}
-                          />
-                          {entryErrors
-                            ?.filter((error) => error.field === "pin")
-                            .map((error) => (
-                              <FieldError key={error.code}>
-                                {error.message}
-                              </FieldError>
-                            ))}
-                        </Field>
-                      </div>
+                          autoComplete="off"
+                          id={`pin-${entry.id}`}
+                          inputMode="numeric"
+                          maxLength={12}
+                          onChange={(event) =>
+                            updateEntry(entry.id, "pin", event.target.value)
+                          }
+                          pattern="[0-9]{12}"
+                          required
+                          value={entry.pin}
+                        />
+                        {entryErrors
+                          ?.filter((error) => error.field === "pin")
+                          .map((error) => (
+                            <FieldError key={error.code}>
+                              {error.message}
+                            </FieldError>
+                          ))}
+                      </Field>
                     </div>
-                  )
-                })}
-              </FieldGroup>
-              <Button onClick={addEntry} type="button" variant="outline">
-                Add another voucher
-              </Button>
-            </FieldSet>
+                  </div>
+                )
+              })}
+            </FieldGroup>
+            <Button onClick={addEntry} type="button" variant="outline">
+              Add another voucher
+            </Button>
+          </FieldSet>
 
-            {message ? (
-              <Alert
-                variant={preview && !preview.valid ? "destructive" : "default"}
-              >
-                <AlertTitle>
-                  {preview?.valid
-                    ? "Ready to import"
-                    : preview
-                      ? "Validation needs attention"
-                      : "Inventory update"}
-                </AlertTitle>
-                <AlertDescription>{message}</AlertDescription>
-              </Alert>
-            ) : null}
-          </FieldGroup>
-        </CardContent>
-        <CardFooter className="border-t pt-4">
+          {message ? (
+            <Alert
+              variant={preview && !preview.valid ? "destructive" : "default"}
+            >
+              <AlertTitle>
+                {preview?.valid
+                  ? "Ready to import"
+                  : preview
+                    ? "Validation needs attention"
+                    : "Inventory update"}
+              </AlertTitle>
+              <AlertDescription>{message}</AlertDescription>
+            </Alert>
+          ) : null}
+        </FieldGroup>
+        <div className="flex items-center justify-end gap-3 border-t pt-4">
           <Button disabled={pending || products.length === 0} type="submit">
             {pending ? <Spinner data-icon="inline-start" /> : null}
             {pending
@@ -403,9 +430,39 @@ export function ManualInventoryForm({
                 ? `Confirm import of ${preview.acceptedRowCount}`
                 : "Validate entries"}
           </Button>
-        </CardFooter>
+        </div>
       </form>
-    </Card>
+      <Dialog onOpenChange={setConfirmOpen} open={confirmOpen}>
+        <DialogPopup>
+          <DialogHeader>
+            <DialogTitle>Confirm inventory import?</DialogTitle>
+            <DialogDescription>
+              {commitPayload
+                ? `${commitPayload.entries.length} voucher ${commitPayload.entries.length === 1 ? "will be" : "vouchers will be"} encrypted and added to available inventory. This cannot be undone.`
+                : "The validated entries will be encrypted and committed to available inventory."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              onClick={() => setConfirmOpen(false)}
+              type="button"
+              variant="outline"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                setConfirmOpen(false)
+                if (commitPayload) void run("commit", commitPayload)
+              }}
+              type="button"
+            >
+              Confirm import
+            </Button>
+          </DialogFooter>
+        </DialogPopup>
+      </Dialog>
+    </>
   )
 }
 

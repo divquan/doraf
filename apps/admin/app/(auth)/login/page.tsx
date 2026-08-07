@@ -17,7 +17,7 @@ async function LoginContent({
 }) {
   const { enrolled } = await searchParams
   return (
-    <main className="mx-auto flex min-h-svh max-w-md flex-col justify-center gap-8 p-6">
+    <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-2">
         <p className="text-sm font-medium text-muted-foreground">
           Doraf Administration
@@ -39,6 +39,6 @@ async function LoginContent({
           Create your passkey
         </Link>
       </p>
-    </main>
+    </div>
   )
 }

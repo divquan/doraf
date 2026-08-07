@@ -78,4 +78,4 @@ function applyTheme(theme: "light" | "dark") {
   document.documentElement.style.colorScheme = theme
 }
 
-export { ThemeProvider }
+export { ThemeProvider, applyTheme }

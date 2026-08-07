@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { FormEvent, useState } from "react"
 
 import { Button } from "@workspace/ui/components/button"
+import { readJson } from "@/lib/client-api"
 
 type RegistrationOptions = {
   ceremonyId: string
@@ -115,16 +116,4 @@ export function PasskeyEnrollmentForm() {
       </p>
     </form>
   )
-}
-
-async function readJson(response: Response): Promise<unknown> {
-  const body: unknown = await response.json().catch(() => ({}))
-  if (!response.ok) {
-    const message =
-      typeof body === "object" && body !== null && "message" in body
-        ? String(body.message)
-        : "The request could not be completed"
-    throw new Error(message)
-  }
-  return body
 }

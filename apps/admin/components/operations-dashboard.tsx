@@ -20,6 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@workspace/ui/components/table"
+import { formatDateTime, formatMoney } from "@/lib/format"
 
 export interface StuckOutboxDetailData {
   id: string
@@ -136,7 +137,8 @@ export function OperationsDashboard({
                 Continuous System Invariant & Data Health
               </CardTitle>
               <CardDescription>
-                Automated database checks across ledger, inventory stock, order items, and outbox queues
+                Automated database checks across ledger, inventory stock, order
+                items, and outbox queues
               </CardDescription>
             </div>
             <Badge
@@ -170,7 +172,9 @@ export function OperationsDashboard({
                         {check.status}
                       </Badge>
                     </div>
-                    <p className="mt-2 text-muted-foreground">{check.details}</p>
+                    <p className="mt-2 text-muted-foreground">
+                      {check.details}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -178,14 +182,15 @@ export function OperationsDashboard({
 
             {/* Stuck Outbox Work Inspector */}
             {stuckEvents.length > 0 ? (
-              <div className="mt-2 rounded-lg border bg-background p-4 flex flex-col gap-3">
+              <div className="mt-2 flex flex-col gap-3 rounded-lg border bg-background p-4">
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <h4 className="text-sm font-semibold text-destructive">
                       Stuck Outbox Work Inspector ({stuckEvents.length} queued)
                     </h4>
                     <p className="text-xs text-muted-foreground">
-                      Tasks pending &gt; 10 minutes without completion. Re-queue to trigger background workers.
+                      Tasks pending &gt; 10 minutes without completion. Re-queue
+                      to trigger background workers.
                     </p>
                   </div>
                   <Button
@@ -212,7 +217,9 @@ export function OperationsDashboard({
                       <TableHead className="text-xs">Aggregate ID</TableHead>
                       <TableHead className="text-xs">State</TableHead>
                       <TableHead className="text-xs">Created</TableHead>
-                      <TableHead className="text-xs">Last Error / Note</TableHead>
+                      <TableHead className="text-xs">
+                        Last Error / Note
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -229,7 +236,7 @@ export function OperationsDashboard({
                             {evt.state}
                           </Badge>
                         </TableCell>
-                        <TableCell>{formatDate(evt.createdAt)}</TableCell>
+                        <TableCell>{formatDateTime(evt.createdAt)}</TableCell>
                         <TableCell className="max-w-xs truncate text-muted-foreground">
                           {evt.lastError ?? "Awaiting worker dispatch"}
                         </TableCell>
@@ -247,23 +254,23 @@ export function OperationsDashboard({
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard
           label="Gross Revenue"
-          value={formatGhs(data.financial.totalGrossSalesMinor)}
+          value={formatMoney(data.financial.totalGrossSalesMinor)}
           description="Total value of fulfilled paid sales"
         />
         <MetricCard
           label="Agent Commissions"
-          value={formatGhs(data.financial.totalAgentCommissionsMinor)}
+          value={formatMoney(data.financial.totalAgentCommissionsMinor)}
           description="Credited to agent wallets"
         />
         <MetricCard
           label="Net Revenue"
-          value={formatGhs(data.financial.totalPlatformNetMinor)}
+          value={formatMoney(data.financial.totalPlatformNetMinor)}
           description="Platform earnings after commissions"
         />
         <MetricCard
           label="Active Wallet Ledger"
-          value={formatGhs(data.financial.totalActiveWalletBalancesMinor)}
-          subText={`${formatGhs(data.financial.totalActiveHoldsMinor)} on hold`}
+          value={formatMoney(data.financial.totalActiveWalletBalancesMinor)}
+          subText={`${formatMoney(data.financial.totalActiveHoldsMinor)} on hold`}
           description="Total funds in agent wallets"
         />
       </div>
@@ -344,7 +351,7 @@ export function OperationsDashboard({
             />
             <StatRow
               label="Pending Withdrawals"
-              value={`${data.financial.pendingWithdrawalCount} (${formatGhs(data.financial.pendingWithdrawalAmountMinor)})`}
+              value={`${data.financial.pendingWithdrawalCount} (${formatMoney(data.financial.pendingWithdrawalAmountMinor)})`}
             />
           </CardContent>
         </Card>
@@ -437,18 +444,4 @@ function StatRow({
       </span>
     </div>
   )
-}
-
-function formatGhs(minorStr: string) {
-  const minor = BigInt(minorStr)
-  return `GHS ${(minor / 100n).toLocaleString("en-GH")}.${(minor % 100n)
-    .toString()
-    .padStart(2, "0")}`
-}
-
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat("en-GH", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(new Date(value))
 }

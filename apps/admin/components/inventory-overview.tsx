@@ -22,6 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@workspace/ui/components/table"
+import { formatDateTime, formatMoney } from "@/lib/format"
 
 export interface InventoryOverviewData {
   products: Array<{
@@ -60,7 +61,7 @@ export function InventoryOverview({ data }: { data: InventoryOverviewData }) {
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2">
         {data.products.map((product) => (
-          <Card key={product.id}>
+          <Card key={product.id} size="sm">
             <CardHeader>
               <CardTitle>{product.name}</CardTitle>
               <CardDescription>{product.code}</CardDescription>
@@ -74,24 +75,22 @@ export function InventoryOverview({ data }: { data: InventoryOverviewData }) {
                 </Badge>
               </CardAction>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <p className="text-3xl font-semibold tabular-nums">
+            <CardContent className="space-y-3">
+              <div className="flex items-baseline gap-2">
+                <p className="text-2xl font-semibold tabular-nums">
                   {formatCount(product.counts.available)}
                 </p>
-                <p className="text-sm text-muted-foreground">Available now</p>
+                <p className="text-sm text-muted-foreground">available now</p>
               </div>
-              <dl className="grid grid-cols-2 gap-x-6 gap-y-3 border-t pt-4 text-sm sm:grid-cols-4">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t pt-3 text-sm">
                 <Count label="Reserved" value={product.counts.reserved} />
                 <Count label="Sold" value={product.counts.sold} />
                 <Count label="Quarantined" value={product.counts.quarantined} />
                 <Count label="Void" value={product.counts.void} />
-              </dl>
-              <p className="text-xs text-muted-foreground">
-                {formatCount(product.counts.total)} total ·{" "}
-                {formatCount(product.counts.replaced)} replaced ·{" "}
-                {formatCount(product.counts.refunded)} refunded
-              </p>
+                <Count label="Replaced" value={product.counts.replaced} />
+                <Count label="Refunded" value={product.counts.refunded} />
+                <Count label="Total" value={product.counts.total} />
+              </div>
             </CardContent>
           </Card>
         ))}
@@ -173,25 +172,11 @@ export function InventoryOverview({ data }: { data: InventoryOverviewData }) {
 
 function Count({ label, value }: { label: string; value: number }) {
   return (
-    <div>
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="mt-0.5 font-medium tabular-nums">{formatCount(value)}</dd>
-    </div>
+    <span className="flex items-baseline gap-1.5 whitespace-nowrap">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-medium tabular-nums">{formatCount(value)}</span>
+    </span>
   )
-}
-
-export function formatMoney(value: number, currency: string) {
-  return new Intl.NumberFormat("en-GH", {
-    style: "currency",
-    currency,
-  }).format(value / 100)
-}
-
-export function formatDateTime(value: string) {
-  return new Intl.DateTimeFormat("en-GH", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value))
 }
 
 function formatCount(value: number) {
