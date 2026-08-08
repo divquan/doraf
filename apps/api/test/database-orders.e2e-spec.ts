@@ -8,6 +8,7 @@ import { DevelopmentDeliveryGateway } from '../src/delivery/delivery-gateway.ser
 import { DeliveryOutboxHandler } from '../src/delivery/delivery-outbox.handler';
 import { IdempotencyService } from '../src/operations/idempotency.service';
 import { OutboxService } from '../src/operations/outbox.service';
+import { CheckoutAccessTokenService } from '../src/orders/checkout-access-token.service';
 import { OrderContactProtectionService } from '../src/orders/order-contact-protection.service';
 import { OrdersService } from '../src/orders/orders.service';
 import {
@@ -52,6 +53,7 @@ describe('order creation and inventory reservation', () => {
       PAYSTACK_SECRET_KEY: 'sk_test_database-payment-secret',
       NODE_ENV: 'test',
       OTP_FINGERPRINT_KEY_BASE64: Buffer.alloc(32, 33).toString('base64'),
+      SESSION_FINGERPRINT_KEY_BASE64: Buffer.alloc(32, 34).toString('base64'),
       AGENT_AUTH_OTP_TTL_SECONDS: 300,
       AGENT_AUTH_OTP_MAX_ATTEMPTS: 5,
     };
@@ -126,6 +128,7 @@ describe('order creation and inventory reservation', () => {
         { provide: ConfigService, useValue: config },
         IdempotencyService,
         OutboxService,
+        CheckoutAccessTokenService,
         OrderContactProtectionService,
         { provide: DevelopmentDeliveryGateway, useValue: deliveryGateway },
         DeliveryOutboxHandler,
@@ -326,6 +329,32 @@ describe('order creation and inventory reservation', () => {
       }),
     ).resolves.toBe(3);
 
+    const publicStatus = await payments.getPublicOrderStatus(
+      fixture.webSalesId,
+      created.orderReference,
+    );
+    expect(publicStatus.delivery.channels).toEqual(['SMS', 'EMAIL']);
+    expect(JSON.stringify(publicStatus)).not.toContain('RECOVERY-SERIAL');
+    await expect(
+      payments.revealPublicOrder(
+        fixture.webSalesId,
+        created.orderReference,
+        created.checkoutAccessToken,
+      ),
+    ).resolves.toMatchObject({
+      vouchers: [
+        { position: 1, serialNumber: 'RECOVERY-SERIAL', pin: '012345678912' },
+        { position: 2, serialNumber: 'RECOVERY-SERIAL', pin: '012345678912' },
+      ],
+    });
+    await expect(
+      payments.revealPublicOrder(
+        fixture.webSalesId,
+        created.orderReference,
+        'not-a-checkout-token',
+      ),
+    ).rejects.toThrow('checkout session has expired');
+
     const claimToken = randomUUID();
     await prisma.outboxEvent.updateMany({
       where: {
@@ -473,6 +502,49 @@ describe('order creation and inventory reservation', () => {
     await expect(
       prisma.voucher.count({
         where: { id: fixture.voucherIds[0], availability: 'SOLD' },
+      }),
+    ).resolves.toBe(1);
+  });
+
+  it('retries a failed payment with a new attempt and reservation', async () => {
+    const fixture = await createCheckoutFixture(prisma, 2);
+    const created = await orders.createWebOrder(
+      checkoutCommand(fixture, randomUUID(), 1),
+    );
+    paymentGateway.initialize.mockImplementationOnce(() => {
+      throw new PaymentProviderRequestException(
+        'definitive',
+        400,
+        'Invalid Mobile Money number',
+      );
+    });
+    await expect(
+      payments.initializePayment(created.payment.reference),
+    ).rejects.toThrow('Paystack rejected payment setup');
+
+    const retried = await orders.retryWebOrder({
+      webSalesId: fixture.webSalesId,
+      orderReference: created.orderReference,
+      checkoutAccessToken: created.checkoutAccessToken,
+      idempotencyKey: randomUUID(),
+    });
+    expect(retried.payment.reference).not.toBe(created.payment.reference);
+    await payments.initializePayment(retried.payment.reference);
+
+    const attempts = await prisma.paymentAttempt.findMany({
+      where: { order: { publicReference: created.orderReference } },
+      orderBy: { attemptNumber: 'asc' },
+    });
+    expect(attempts.map((attempt) => attempt.state)).toEqual([
+      'FAILED',
+      'PENDING_AUTHORIZATION',
+    ]);
+    await expect(
+      prisma.inventoryReservation.count({
+        where: {
+          order: { publicReference: created.orderReference },
+          state: 'ACTIVE',
+        },
       }),
     ).resolves.toBe(1);
   });

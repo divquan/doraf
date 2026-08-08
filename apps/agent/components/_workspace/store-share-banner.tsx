@@ -39,7 +39,7 @@ export function StoreShareBanner({
 
   return (
     <>
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card px-4 py-2.5 shadow-xs">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card px-4 py-2.5">
         <div className="flex items-center gap-3 min-w-0">
           <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
             <HugeiconsIcon icon={Store01Icon} className="size-3.5" />

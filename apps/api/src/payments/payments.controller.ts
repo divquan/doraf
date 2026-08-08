@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Headers,
   Param,
   Post,
   UseGuards,
@@ -21,8 +22,13 @@ export class PaymentsController {
   status(
     @Param('webSalesId') webSalesId: string,
     @Param('orderReference') orderReference: string,
+    @Headers('x-checkout-token') checkoutAccessToken?: string,
   ) {
-    return this.payments.getPublicOrderStatus(webSalesId, orderReference);
+    return this.payments.getPublicOrderStatus(
+      webSalesId,
+      orderReference,
+      checkoutAccessToken,
+    );
   }
 
   @Post('sales-channels/web/:webSalesId/orders/:orderReference/verify')
@@ -31,7 +37,29 @@ export class PaymentsController {
   verify(
     @Param('webSalesId') webSalesId: string,
     @Param('orderReference') orderReference: string,
+    @Headers('x-checkout-token') checkoutAccessToken?: string,
+    @Headers('x-payment-reference') paymentReference?: string,
   ) {
-    return this.payments.verifyPublicPayment(webSalesId, orderReference);
+    return this.payments.verifyPublicPayment(
+      webSalesId,
+      orderReference,
+      paymentReference,
+      checkoutAccessToken,
+    );
+  }
+
+  @Post('sales-channels/web/:webSalesId/orders/:orderReference/reveal')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ checkout: { limit: 10, ttl: 60_000 } })
+  reveal(
+    @Param('webSalesId') webSalesId: string,
+    @Param('orderReference') orderReference: string,
+    @Headers('x-checkout-token') checkoutAccessToken?: string,
+  ) {
+    return this.payments.revealPublicOrder(
+      webSalesId,
+      orderReference,
+      checkoutAccessToken,
+    );
   }
 }

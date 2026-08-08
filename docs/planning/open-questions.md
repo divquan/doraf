@@ -1,7 +1,7 @@
 # Open questions
 
 Status: Active  
-Last updated: 2026-07-30
+Last updated: 2026-08-08
 
 This is the discovery backlog. Answers should be moved into the appropriate
 product or domain document. Material decisions should also receive a decision
@@ -26,7 +26,8 @@ details can be addressed alongside security and operational flows.
 - Agent identity verification is not included in the MVP.
 - Each agent tenant contains one user.
 - Buyers can purchase as guests.
-- The PIN delivery number may differ from the Mobile Money payer number.
+- The delivery phone is a Doraf delivery destination; Paystack intentionally
+  owns payment-method and payer-detail collection.
 - Agents authenticate with a phone number and SMS OTP.
 - One phone number can have only one agent account.
 - An Administrator handles account recovery manually in the MVP.
@@ -90,8 +91,8 @@ design.
 ## Resolved payment integration details
 
 - Guest buyers are not required to provide email addresses.
-- Doraf generates a synthetic email from the normalized Mobile Money payer
-  number for Paystack.
+- Doraf generates a synthetic email from the normalized delivery phone for
+  Paystack.
 - The synthetic email uses a merchant-controlled guest subdomain.
 - Doraf stores it with the payment attempt and passes it to Paystack.
 - The synthetic email is not buyer-provided contact information.
@@ -122,11 +123,12 @@ design.
 
 ## Resolved in Topic 4 — Online purchase
 
-- Checkout validates an active agent and gathers product, quantity, delivery,
-  payer, and network details.
+- Checkout validates an active agent and gathers product, quantity, and
+  delivery details. Paystack intentionally hosts payment-method and payer
+  detail collection.
 - Delivery phone and optional delivery email are each entered twice.
-- The buyer reviews product scope, usage restrictions, final price, and
-  destinations before confirming.
+- The buyer reviews product scope, usage restrictions, final price, delivery
+  destinations, and the Paystack-hosted payment handoff before confirming.
 - Confirmation creates the immutable order and price snapshot.
 - Inventory is reserved before Paystack initiation.
 - A verified success marks payment and order paid, sells inventory, appends one
@@ -136,6 +138,8 @@ design.
 - A terminally failed attempt releases inventory.
 - A retry uses the same order but a new attempt, provider reference, and
   reservation.
+- The public status response contains delivery progress only. A short-lived,
+  order-scoped checkout token is required for browser voucher reveal and retry.
 - Paid-order pricing and delivery details cannot be changed.
 
 ## Open after Topic 4

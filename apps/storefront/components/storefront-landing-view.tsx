@@ -23,7 +23,7 @@ import { money } from "@workspace/ui/lib/format"
 import { DorafMark } from "@/components/doraf-mark"
 import { StorefrontFooter } from "./storefront-footer"
 import { CheckoutModal } from "./checkout-modal"
-import { type StorefrontProduct } from "./storefront-checkout"
+import { type StorefrontProduct } from "./_storefront/types"
 
 export interface StorefrontAgent {
   displayName: string

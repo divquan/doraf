@@ -34,7 +34,7 @@ export class CreateWebOrderRequest {
   deliveryEmail?: string;
 
   @ValidateIf((request: CreateWebOrderRequest) =>
-    Boolean(request.deliveryEmail),
+    Boolean(request.deliveryEmail || request.deliveryEmailConfirmation),
   )
   @IsEmail()
   @MaxLength(254)

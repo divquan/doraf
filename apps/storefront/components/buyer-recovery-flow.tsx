@@ -6,9 +6,9 @@ import {
   ArrowLeft01Icon,
   ArrowRight01Icon,
   CheckmarkCircle02Icon,
-  Copy01Icon,
   SecurityCheckIcon,
 } from "@hugeicons/core-free-icons"
+import { Secret } from "./_storefront/secret"
 import {
   Alert,
   AlertDescription,
@@ -382,44 +382,6 @@ export function BuyerRecoveryFlow() {
         </CardFooter>
       ) : null}
     </Card>
-  )
-}
-
-function Secret({
-  copied,
-  label,
-  onCopy,
-  value,
-}: {
-  copied: boolean
-  label: string
-  onCopy: () => void
-  value: string
-}) {
-  return (
-    <div>
-      <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-        {label}
-      </dt>
-      <dd className="mt-1 flex items-center justify-between gap-2">
-        <span className="min-w-0 font-mono text-base font-semibold break-all">
-          {value}
-        </span>
-        <Button
-          aria-label={`Copy ${label.toLowerCase()}`}
-          onClick={onCopy}
-          size="icon-sm"
-          type="button"
-          variant="ghost"
-        >
-          {copied ? (
-            <HugeiconsIcon icon={CheckmarkCircle02Icon} />
-          ) : (
-            <HugeiconsIcon icon={Copy01Icon} />
-          )}
-        </Button>
-      </dd>
-    </div>
   )
 }
 

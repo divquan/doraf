@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import Script from "next/script"
 import { StorefrontLandingView } from "@/components/storefront-landing-view"
-import { type StorefrontProduct } from "@/components/storefront-checkout"
+import { type StorefrontProduct } from "@/components/_storefront/types"
 import { ApiError, apiJson, apiRequest } from "@/lib/agent-api"
 
 interface Storefront {

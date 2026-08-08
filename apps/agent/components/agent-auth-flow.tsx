@@ -348,7 +348,7 @@ function authCopy(mode: Mode, step: Step) {
   }
   if (step === "profile") {
     return {
-      title: "What&apos;s your name?",
+      title: "What's your name?",
       description:
         "This is shown to your buyers and on your sales channels.",
     }

@@ -10,7 +10,9 @@ import { createHash } from 'node:crypto';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { OutboxService } from '../operations/outbox.service';
+import { CheckoutAccessTokenService } from '../orders/checkout-access-token.service';
 import { OrderContactProtectionService } from '../orders/order-contact-protection.service';
+import { VoucherRevealService } from '../recovery/voucher-reveal.service';
 import {
   PaymentGatewayService,
   PaymentProviderRequestException,
@@ -21,6 +23,8 @@ const TERMINAL_FAILURES = new Set(['failed', 'abandoned']);
 const RECONCILIATION_GRACE_MS = 5 * 60 * 1_000;
 const AMBIGUOUS_VERIFICATION_RETRY_MS = 60_000;
 const POST_RELEASE_RECONCILIATION_MS = 15 * 60 * 1_000;
+const INITIALIZATION_LEASE_MS = 30_000;
+const INITIALIZATION_RECOVERY_DELAY_MS = 15_000;
 
 export interface SerializedPaymentAttempt {
   reference: string;
@@ -41,20 +45,72 @@ export class PaymentProcessingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly contacts: OrderContactProtectionService,
+    private readonly checkoutAccess: CheckoutAccessTokenService,
+    private readonly vouchers: VoucherRevealService,
     private readonly gateway: PaymentGatewayService,
     private readonly outbox: OutboxService,
   ) {}
 
   async initializePayment(
     providerReference: string,
+    allowLeaseRecovery = false,
   ): Promise<InitializedPaymentAttempt> {
     const attempt = await this.prisma.paymentAttempt.findUnique({
       where: { providerReference },
       include: { order: true },
     });
     if (!attempt) throw new NotFoundException('Payment attempt not found');
-    if (attempt.state !== 'CREATED') {
+    const recoveringUnconfirmedInitialization =
+      allowLeaseRecovery &&
+      attempt.state === 'RECONCILING' &&
+      attempt.providerStatus === 'INITIATION_UNCONFIRMED';
+    if (attempt.state !== 'CREATED' && !recoveringUnconfirmedInitialization) {
       return this.serializeInitializedAttempt(attempt);
+    }
+
+    const now = new Date();
+    const claimWhere: Prisma.PaymentAttemptWhereInput = allowLeaseRecovery
+      ? {
+          id: attempt.id,
+          state: 'CREATED' as const,
+          OR: [
+            {
+              state: 'CREATED',
+              providerStatus: null,
+              createdAt: { lte: now },
+            },
+            {
+              state: 'CREATED',
+              providerStatus: 'INITIALIZING',
+              nextReconciliationAt: { lte: now },
+            },
+            {
+              state: 'RECONCILING',
+              providerStatus: 'INITIATION_UNCONFIRMED',
+              nextReconciliationAt: { lte: now },
+            },
+          ],
+        }
+      : { id: attempt.id, state: 'CREATED' as const, providerStatus: null };
+    const claimed = await this.prisma.paymentAttempt.updateMany({
+      where: claimWhere,
+      data: {
+        state: 'CREATED',
+        providerStatus: 'INITIALIZING',
+        nextReconciliationAt: new Date(now.getTime() + INITIALIZATION_LEASE_MS),
+        version: { increment: 1 },
+      },
+    });
+    if (claimed.count !== 1) {
+      const current = await this.prisma.paymentAttempt.findUniqueOrThrow({
+        where: { providerReference },
+      });
+      if (current.state !== 'CREATED') {
+        return this.serializeInitializedAttempt(current);
+      }
+      throw new ConflictException(
+        'Payment setup is already in progress. Please wait a moment and refresh.',
+      );
     }
 
     let result: ProviderPaymentResult;
@@ -78,7 +134,11 @@ export class PaymentProcessingService {
         );
       }
       const reconciling = await this.prisma.paymentAttempt.updateMany({
-        where: { id: attempt.id, state: 'CREATED' },
+        where: {
+          id: attempt.id,
+          state: 'CREATED',
+          providerStatus: 'INITIALIZING',
+        },
         data: {
           state: 'RECONCILING',
           providerStatus: 'INITIATION_UNCONFIRMED',
@@ -89,7 +149,7 @@ export class PaymentProcessingService {
         },
       });
       if (reconciling.count !== 1) {
-        return this.initializePayment(providerReference);
+        return this.initializePayment(providerReference, allowLeaseRecovery);
       }
       throw new ConflictException(
         'Paystack checkout could not be confirmed. Please refresh the page before trying again.',
@@ -100,7 +160,11 @@ export class PaymentProcessingService {
     }
     const initializedAt = new Date();
     await this.prisma.paymentAttempt.updateMany({
-      where: { id: attempt.id, state: 'CREATED' },
+      where: {
+        id: attempt.id,
+        state: 'CREATED',
+        providerStatus: 'INITIALIZING',
+      },
       data: {
         state: 'PENDING_AUTHORIZATION',
         providerStatus: result.status,
@@ -124,7 +188,16 @@ export class PaymentProcessingService {
     });
   }
 
-  async getPublicOrderStatus(webSalesId: string, orderReference: string) {
+  async getPublicOrderStatus(
+    webSalesId: string,
+    orderReference: string,
+    checkoutAccessToken?: string,
+  ) {
+    const normalizedReference = orderReference.trim();
+    const hasCheckoutAccess = this.checkoutAccess.matches(
+      normalizedReference,
+      checkoutAccessToken,
+    );
     const isHex = /^[a-f0-9]{24}$/i.test(webSalesId);
     const agent = await this.prisma.agent.findFirst({
       where: isHex
@@ -134,12 +207,14 @@ export class PaymentProcessingService {
     });
     const channelSnapshots = [
       webSalesId,
-      ...(agent ? [agent.webSalesId, agent.slug].filter((s): s is string => Boolean(s)) : []),
+      ...(agent
+        ? [agent.webSalesId, agent.slug].filter((s): s is string => Boolean(s))
+        : []),
     ];
 
     const order = await this.prisma.order.findFirst({
       where: {
-        publicReference: orderReference,
+        publicReference: normalizedReference,
         channelIdSnapshot: { in: channelSnapshots },
       },
       include: {
@@ -153,8 +228,82 @@ export class PaymentProcessingService {
       orderReference: order.publicReference,
       paymentState: order.paymentState,
       fulfillmentState: order.fulfillmentState,
-      payment: attempt ? this.serializeAttempt(attempt) : null,
+      payment: attempt
+        ? hasCheckoutAccess && attempt.providerAccessCode
+          ? {
+              ...this.serializeAttempt(attempt),
+              accessCode: attempt.providerAccessCode,
+            }
+          : this.serializeAttempt(attempt)
+        : null,
       delivery: summarizeDelivery(order.deliveryMessages),
+    };
+  }
+
+  async revealPublicOrder(
+    webSalesId: string,
+    orderReference: string,
+    checkoutAccessToken?: string,
+  ) {
+    const normalizedReference = orderReference.trim();
+    if (
+      !this.checkoutAccess.matches(normalizedReference, checkoutAccessToken)
+    ) {
+      throw new ConflictException('This checkout session has expired');
+    }
+    const isHex = /^[a-f0-9]{24}$/i.test(webSalesId);
+    const agent = await this.prisma.agent.findFirst({
+      where: isHex
+        ? { OR: [{ webSalesId }, { slug: webSalesId }] }
+        : { slug: webSalesId },
+      select: { webSalesId: true, slug: true },
+    });
+    const channelSnapshots = [
+      webSalesId,
+      ...(agent
+        ? [agent.webSalesId, agent.slug].filter((s): s is string => Boolean(s))
+        : []),
+    ];
+    const order = await this.prisma.order.findFirst({
+      where: {
+        publicReference: normalizedReference,
+        channelIdSnapshot: { in: channelSnapshots },
+        paymentState: 'PAID',
+        fulfillmentState: { in: ['COMPLETE', 'PARTIALLY_REPLACED'] },
+      },
+      include: {
+        product: { select: { code: true, name: true } },
+        items: {
+          orderBy: { position: 'asc' },
+          include: {
+            allocation: {
+              include: {
+                voucher: { include: { batch: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!order) throw new NotFoundException('Paid order is not ready yet');
+
+    const vouchers = order.items.map((item) => {
+      if (!item.allocation) {
+        throw new ConflictException('Voucher allocation is still processing');
+      }
+      const revealed = this.vouchers.reveal(item.allocation.voucher);
+      return {
+        position: item.position,
+        serialNumber: revealed.serialNumber,
+        pin: revealed.pin,
+      };
+    });
+    return {
+      orderReference: order.publicReference,
+      product: order.product,
+      vouchers,
+      usageReminder:
+        'Each checker supports three checks for one candidate and examination year.',
     };
   }
 
@@ -233,6 +382,10 @@ export class PaymentProcessingService {
     const candidates = await this.prisma.paymentAttempt.findMany({
       where: {
         state: { in: ['PENDING_AUTHORIZATION', 'RECONCILING', 'VERIFYING'] },
+        OR: [
+          { providerStatus: null },
+          { providerStatus: { not: 'INITIATION_UNCONFIRMED' } },
+        ],
         nextReconciliationAt: { lte: now },
       },
       orderBy: { nextReconciliationAt: 'asc' },
@@ -261,6 +414,39 @@ export class PaymentProcessingService {
     return claimed;
   }
 
+  async claimDueInitializationAttempts(limit = 20): Promise<string[]> {
+    const now = new Date();
+    const recoveryCutoff = new Date(
+      now.getTime() - INITIALIZATION_RECOVERY_DELAY_MS,
+    );
+    const candidates = await this.prisma.paymentAttempt.findMany({
+      where: {
+        state: { in: ['CREATED', 'RECONCILING'] },
+        OR: [
+          {
+            state: 'CREATED',
+            providerStatus: null,
+            createdAt: { lte: recoveryCutoff },
+          },
+          {
+            state: 'CREATED',
+            providerStatus: 'INITIALIZING',
+            nextReconciliationAt: { lte: now },
+          },
+          {
+            state: 'RECONCILING',
+            providerStatus: 'INITIATION_UNCONFIRMED',
+            nextReconciliationAt: { lte: now },
+          },
+        ],
+      },
+      orderBy: { createdAt: 'asc' },
+      take: Math.max(1, Math.min(limit, 100)),
+      select: { providerReference: true },
+    });
+    return candidates.map((candidate) => candidate.providerReference);
+  }
+
   async reconcileDuePayment(providerReference: string) {
     try {
       const result = await this.gateway.verify(providerReference);
@@ -273,7 +459,18 @@ export class PaymentProcessingService {
     }
   }
 
-  async verifyPublicPayment(webSalesId: string, orderReference: string) {
+  async verifyPublicPayment(
+    webSalesId: string,
+    orderReference: string,
+    paymentReference?: string,
+    checkoutAccessToken?: string,
+  ) {
+    const normalizedReference = orderReference.trim();
+    if (
+      !this.checkoutAccess.matches(normalizedReference, checkoutAccessToken)
+    ) {
+      throw new ConflictException('This checkout session has expired');
+    }
     const isHex = /^[a-f0-9]{24}$/i.test(webSalesId);
     const agent = await this.prisma.agent.findFirst({
       where: isHex
@@ -283,13 +480,16 @@ export class PaymentProcessingService {
     });
     const channelSnapshots = [
       webSalesId,
-      ...(agent ? [agent.webSalesId, agent.slug].filter((s): s is string => Boolean(s)) : []),
+      ...(agent
+        ? [agent.webSalesId, agent.slug].filter((s): s is string => Boolean(s))
+        : []),
     ];
 
     const attempt = await this.prisma.paymentAttempt.findFirst({
       where: {
+        providerReference: paymentReference?.trim() || undefined,
         order: {
-          publicReference: orderReference,
+          publicReference: normalizedReference,
           channelIdSnapshot: { in: channelSnapshots },
         },
       },
@@ -298,7 +498,11 @@ export class PaymentProcessingService {
     });
     if (!attempt) throw new NotFoundException('Order not found');
     await this.verifyPayment(attempt.providerReference);
-    return this.getPublicOrderStatus(webSalesId, orderReference);
+    return this.getPublicOrderStatus(
+      webSalesId,
+      orderReference,
+      checkoutAccessToken,
+    );
   }
 
   private async releaseRejectedInitialization(paymentAttemptId: string) {
@@ -307,7 +511,11 @@ export class PaymentProcessingService {
         where: { id: paymentAttemptId },
         include: { reservation: { include: { items: true } } },
       });
-      if (attempt.state !== 'CREATED') return;
+      if (
+        attempt.state !== 'CREATED' ||
+        attempt.providerStatus !== 'INITIALIZING'
+      )
+        return;
       await transaction.paymentAttempt.update({
         where: { id: attempt.id },
         data: {
@@ -467,7 +675,7 @@ export class PaymentProcessingService {
       const nextReconciliationAt =
         now < attempt.authorizationExpiresAt
           ? attempt.authorizationExpiresAt
-          : releaseReservation
+          : releaseReservation || reservation?.state !== 'ACTIVE'
             ? new Date(now.getTime() + POST_RELEASE_RECONCILIATION_MS)
             : graceEndsAt;
 

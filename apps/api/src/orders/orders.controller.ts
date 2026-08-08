@@ -1,10 +1,12 @@
 import {
   BadRequestException,
   Body,
+  ConflictException,
   Controller,
   Headers,
   Param,
   Post,
+  UnprocessableEntityException,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -35,11 +37,66 @@ export class OrdersController {
       ...request,
       idempotencyKey: requiredIdempotencyKey(idempotencyKey),
     });
-    const payment = await this.payments.initializePayment(
-      order.payment.reference,
-    );
-    return { ...order, payment };
+    try {
+      const payment = await this.payments.initializePayment(
+        order.payment.reference,
+      );
+      return { ...order, payment };
+    } catch (error) {
+      return initializationFailureResponse(order, error);
+    }
   }
+
+  @Post(':orderReference/retry')
+  @Throttle({ checkout: { limit: 10, ttl: 60_000 } })
+  async retry(
+    @Param('webSalesId') webSalesId: string,
+    @Param('orderReference') orderReference: string,
+    @Headers('idempotency-key') idempotencyKey?: string,
+    @Headers('x-checkout-token') checkoutAccessToken?: string,
+  ) {
+    const order = await this.orders.retryWebOrder({
+      webSalesId,
+      orderReference,
+      checkoutAccessToken,
+      idempotencyKey: requiredIdempotencyKey(idempotencyKey),
+    });
+    try {
+      const payment = await this.payments.initializePayment(
+        order.payment.reference,
+      );
+      return { ...order, payment };
+    } catch (error) {
+      return initializationFailureResponse(order, error);
+    }
+  }
+}
+
+function initializationFailureResponse(
+  order: {
+    payment: {
+      reference: string;
+      state: string;
+      authorizationExpiresAt: string;
+    };
+  },
+  error: unknown,
+) {
+  if (
+    !(error instanceof ConflictException) &&
+    !(error instanceof UnprocessableEntityException)
+  ) {
+    throw error;
+  }
+  return {
+    ...order,
+    payment: {
+      ...order.payment,
+      state: error instanceof ConflictException ? 'RECONCILING' : 'FAILED',
+      providerStatus: null,
+      displayText: error.message,
+    },
+  };
 }
 
 function requiredIdempotencyKey(value?: string): string {

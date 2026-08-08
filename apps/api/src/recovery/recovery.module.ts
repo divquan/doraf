@@ -6,20 +6,18 @@ import { OrderProtectionModule } from '../orders/order-protection.module';
 import { BuyerRecoveryController } from './buyer-recovery.controller';
 import { BuyerRecoveryService } from './buyer-recovery.service';
 import { BuyerRecoveryTokenService } from './buyer-recovery-token.service';
-import { VoucherRevealService } from './voucher-reveal.service';
+import { VoucherProtectionModule } from './voucher-protection.module';
 
 @Module({
   imports: [
     AgentAccessModule,
     InternalAccessModule,
     OrderProtectionModule,
+    VoucherProtectionModule,
     ThrottlerModule.forRoot([{ name: 'recovery', ttl: 60_000, limit: 10 }]),
   ],
   controllers: [BuyerRecoveryController],
-  providers: [
-    BuyerRecoveryService,
-    BuyerRecoveryTokenService,
-    VoucherRevealService,
-  ],
+  providers: [BuyerRecoveryService, BuyerRecoveryTokenService],
+  exports: [VoucherProtectionModule],
 })
 export class RecoveryModule {}

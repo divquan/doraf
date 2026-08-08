@@ -7,13 +7,21 @@ import {
 } from "@/lib/agent-api"
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   context: RouteContext<"/api/checkout/[webSalesId]/[orderReference]">
 ) {
   try {
+    requireSameOrigin(request)
     const { webSalesId, orderReference } = await context.params
+    const checkoutToken = request.headers.get("x-checkout-token")
     const response = await apiRequest(
-      `/sales-channels/web/${encodeURIComponent(webSalesId)}/orders/${encodeURIComponent(orderReference)}`
+      `/sales-channels/web/${encodeURIComponent(webSalesId)}/orders/${encodeURIComponent(orderReference)}`,
+      {
+        method: "GET",
+        headers: checkoutToken
+          ? { "x-checkout-token": checkoutToken }
+          : undefined,
+      }
     )
     const result: unknown = await response.json().catch(() => ({}))
     return noStoreJson(result, { status: response.status })
@@ -29,9 +37,19 @@ export async function POST(
   try {
     requireSameOrigin(request)
     const { webSalesId, orderReference } = await context.params
+    const checkoutToken = request.headers.get("x-checkout-token")
+    const paymentReference = request.headers.get("x-payment-reference")
     const response = await apiRequest(
       `/sales-channels/web/${encodeURIComponent(webSalesId)}/orders/${encodeURIComponent(orderReference)}/verify`,
-      { method: "POST" }
+      {
+        method: "POST",
+        headers: {
+          ...(checkoutToken ? { "x-checkout-token": checkoutToken } : {}),
+          ...(paymentReference
+            ? { "x-payment-reference": paymentReference }
+            : {}),
+        },
+      }
     )
     const result: unknown = await response.json().catch(() => ({}))
     return noStoreJson(result, { status: response.status })

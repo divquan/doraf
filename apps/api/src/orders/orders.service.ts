@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -9,6 +10,7 @@ import { AgentStatus, Prisma, ProductStatus } from '../generated/prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { IdempotencyService } from '../operations/idempotency.service';
 import { OutboxService } from '../operations/outbox.service';
+import { CheckoutAccessTokenService } from './checkout-access-token.service';
 import { OrderContactProtectionService } from './order-contact-protection.service';
 
 const PRICE_VALIDITY_MS = 15 * 60 * 1_000;
@@ -24,6 +26,13 @@ interface CreateWebOrderInput {
   idempotencyKey: string;
 }
 
+interface RetryWebOrderInput {
+  webSalesId: string;
+  orderReference: string;
+  checkoutAccessToken?: string;
+  idempotencyKey: string;
+}
+
 interface LockedVoucher {
   id: string;
 }
@@ -33,6 +42,7 @@ export class OrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly contacts: OrderContactProtectionService,
+    private readonly checkoutAccess: CheckoutAccessTokenService,
     private readonly idempotency: IdempotencyService,
     private readonly outbox: OutboxService,
   ) {}
@@ -52,6 +62,11 @@ export class OrdersService {
       this.contacts.normalizePhone(input.deliveryPhoneConfirmation)
     ) {
       throw new BadRequestException('Delivery phone numbers must match');
+    }
+    if (!input.deliveryEmail && input.deliveryEmailConfirmation) {
+      throw new BadRequestException(
+        'Delivery email is required when confirming an email address',
+      );
     }
     const deliveryEmail = input.deliveryEmail
       ? this.contacts.protectEmail(input.deliveryEmail, 'delivery')
@@ -316,6 +331,216 @@ export class OrdersService {
     );
   }
 
+  async retryWebOrder(input: RetryWebOrderInput) {
+    const orderReference = input.orderReference.trim();
+    if (
+      !this.checkoutAccess.matches(orderReference, input.checkoutAccessToken)
+    ) {
+      throw new ForbiddenException('This checkout session has expired');
+    }
+
+    const isHex = /^[a-f0-9]{24}$/i.test(input.webSalesId);
+    const isSlug = /^[a-z0-9]+(?:-[a-z0-9]+)*$/i.test(input.webSalesId);
+    if (!isHex && !isSlug) {
+      throw new NotFoundException('Sales channel not found');
+    }
+
+    const providerReference = randomReference('DORAF', 18);
+    const now = new Date();
+    const authorizationExpiresAt = new Date(
+      now.getTime() + AUTHORIZATION_WINDOW_MS,
+    );
+
+    return this.withSerializableRetry(() =>
+      this.prisma.$transaction(
+        async (transaction) => {
+          const idempotency = await this.idempotency.acquireInTransaction(
+            transaction,
+            {
+              scope: `checkout:web:${input.webSalesId}:retry:${orderReference}`,
+              key: input.idempotencyKey,
+              operation: 'RETRY_WEB_ORDER',
+              requestFingerprint: requestFingerprint({ orderReference }),
+              expiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1_000),
+            },
+          );
+          if (!idempotency.acquired) {
+            return this.getCreatedOrder(
+              transaction,
+              idempotency.record.outcomeReference!,
+              true,
+            );
+          }
+
+          const channelAgent = await transaction.agent.findFirst({
+            where: {
+              OR: [
+                { webSalesId: input.webSalesId },
+                { slug: input.webSalesId },
+              ],
+              status: AgentStatus.ACTIVE,
+            },
+            select: { id: true, webSalesId: true, slug: true },
+          });
+          if (!channelAgent) {
+            throw new NotFoundException('Sales channel not found');
+          }
+          const channelSnapshots = [
+            input.webSalesId,
+            channelAgent.webSalesId,
+            channelAgent.slug,
+          ].filter((value): value is string => Boolean(value));
+          const order = await transaction.order.findFirst({
+            where: {
+              publicReference: orderReference,
+              agentId: channelAgent.id,
+              channelIdSnapshot: { in: channelSnapshots },
+            },
+            include: {
+              product: { select: { name: true } },
+              paymentAttempts: {
+                orderBy: { attemptNumber: 'desc' },
+                take: 1,
+              },
+            },
+          });
+          if (!order) throw new NotFoundException('Order not found');
+          if (order.paymentState !== 'UNPAID') {
+            throw new ConflictException('This order has already been paid');
+          }
+          if (now >= order.priceExpiresAt) {
+            throw new ConflictException(
+              'This order price has expired. Please start a new checkout.',
+            );
+          }
+
+          const previousAttempt = order.paymentAttempts[0];
+          if (
+            !previousAttempt ||
+            !['FAILED', 'ABANDONED'].includes(previousAttempt.state)
+          ) {
+            throw new ConflictException(
+              'Finish or wait for the current payment attempt before retrying',
+            );
+          }
+          if (previousAttempt.attemptNumber >= 3) {
+            throw new ConflictException(
+              'The maximum number of payment attempts has been reached',
+            );
+          }
+
+          await this.releaseExpiredUninitializedReservations(
+            transaction,
+            order.productId,
+            now,
+          );
+          const vouchers = await transaction.$queryRaw<LockedVoucher[]>`
+            SELECT voucher.id
+            FROM voucher
+            JOIN inventory_batch
+              ON inventory_batch.id = voucher.batch_id
+            WHERE voucher.product_id = ${order.productId}::uuid
+              AND voucher.availability = 'AVAILABLE'
+            ORDER BY inventory_batch.acquisition_date ASC,
+                     inventory_batch.imported_at ASC,
+                     voucher.created_at ASC,
+                     voucher.id ASC
+            FOR UPDATE OF voucher SKIP LOCKED
+            LIMIT ${order.quantity}
+          `;
+          if (vouchers.length !== order.quantity) {
+            throw new ConflictException(
+              'The requested quantity is not available right now',
+            );
+          }
+
+          const attempt = await transaction.paymentAttempt.create({
+            data: {
+              orderId: order.id,
+              attemptNumber: previousAttempt.attemptNumber + 1,
+              providerReference,
+              syntheticEmailCiphertext: prismaBytes(
+                previousAttempt.syntheticEmailCiphertext,
+              ),
+              syntheticEmailMask: previousAttempt.syntheticEmailMask,
+              expectedAmountMinor: order.retailTotalMinor,
+              currency: order.currency,
+              authorizationExpiresAt,
+            },
+          });
+          const reservation = await transaction.inventoryReservation.create({
+            data: {
+              orderId: order.id,
+              paymentAttemptId: attempt.id,
+              productId: order.productId,
+              expiresAt: authorizationExpiresAt,
+            },
+          });
+          await transaction.inventoryReservationItem.createMany({
+            data: vouchers.map((voucher) => ({
+              reservationId: reservation.id,
+              voucherId: voucher.id,
+            })),
+          });
+          const reserved = await transaction.voucher.updateMany({
+            where: {
+              id: { in: vouchers.map((voucher) => voucher.id) },
+              productId: order.productId,
+              availability: 'AVAILABLE',
+            },
+            data: { availability: 'RESERVED', version: { increment: 1 } },
+          });
+          if (reserved.count !== order.quantity) {
+            throw new ConflictException(
+              'The requested quantity is not available right now',
+            );
+          }
+          await transaction.inventoryEvent.createMany({
+            data: vouchers.map((voucher) => ({
+              voucherId: voucher.id,
+              eventType: 'VOUCHER_RESERVED',
+              previousAvailability: 'AVAILABLE' as const,
+              resultingAvailability: 'RESERVED' as const,
+              sourceType: 'PAYMENT_ATTEMPT',
+              sourceId: attempt.id,
+              safeMetadata: {
+                orderId: order.id,
+                reservationId: reservation.id,
+              },
+            })),
+          });
+          await this.outbox.enqueue(transaction, {
+            eventType: 'PAYMENT_INITIALIZATION_REQUESTED',
+            aggregateType: 'PAYMENT_ATTEMPT',
+            aggregateId: attempt.id,
+            aggregateVersion: 1,
+            payload: { paymentAttemptId: attempt.id },
+          });
+          await this.outbox.enqueue(transaction, {
+            eventType: 'RESERVATION_EXPIRY_DUE',
+            aggregateType: 'INVENTORY_RESERVATION',
+            aggregateId: reservation.id,
+            aggregateVersion: 1,
+            availableAt: authorizationExpiresAt,
+            payload: { reservationId: reservation.id },
+          });
+          await this.idempotency.completeInTransaction(
+            transaction,
+            idempotency.record.id,
+            order.id,
+          );
+          return this.serializeCreatedOrder(
+            order,
+            order.product.name,
+            attempt,
+            false,
+          );
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      ),
+    );
+  }
+
   private async getCreatedOrder(
     transaction: Prisma.TransactionClient,
     orderId: string,
@@ -326,7 +551,7 @@ export class OrdersService {
       include: {
         product: { select: { name: true } },
         paymentAttempts: {
-          where: { attemptNumber: 1 },
+          orderBy: { attemptNumber: 'desc' },
           take: 1,
         },
       },
@@ -419,8 +644,17 @@ export class OrdersService {
       payment: {
         reference: attempt.providerReference,
         state: attempt.state,
+        providerStatus: null,
+        displayText: null,
         authorizationExpiresAt: attempt.authorizationExpiresAt.toISOString(),
       },
+      checkoutAccessToken: this.checkoutAccess.create(
+        order.publicReference,
+        this.checkoutAccess.expiresAtFor(attempt.authorizationExpiresAt),
+      ),
+      checkoutAccessExpiresAt: this.checkoutAccess
+        .expiresAtFor(attempt.authorizationExpiresAt)
+        .toISOString(),
       replayed,
     };
   }
