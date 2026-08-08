@@ -8,6 +8,7 @@ import {
 import {
   Prisma,
   WalletHoldState,
+  WithdrawalPayoutMethod,
   WithdrawalState,
 } from '../generated/prisma/client';
 import { PrismaService } from '../database/prisma.service';
@@ -186,6 +187,8 @@ export class WithdrawalsService {
       select: {
         id: true,
         state: true,
+        payoutMethod: true,
+        manualReference: true,
         netAmountMinor: true,
         feeAmountMinor: true,
         holdAmountMinor: true,
@@ -206,6 +209,7 @@ export class WithdrawalsService {
       select: {
         id: true,
         state: true,
+        payoutMethod: true,
         netAmountMinor: true,
         feeAmountMinor: true,
         holdAmountMinor: true,
@@ -213,8 +217,13 @@ export class WithdrawalsService {
         network: true,
         requestedAt: true,
         decisionReason: true,
+        manualPaidAt: true,
+        manualReference: true,
         agent: {
           select: { id: true, name: true, phoneMask: true, status: true },
+        },
+        manualPaidBy: {
+          select: { displayName: true },
         },
         transferAttempts: {
           take: 1,
@@ -224,9 +233,10 @@ export class WithdrawalsService {
       },
     });
     return withdrawals.map((withdrawal) => {
-      const { transferAttempts, ...record } = withdrawal;
+      const { transferAttempts, manualPaidBy, ...record } = withdrawal;
       return {
         ...serializeWithdrawal(record),
+        manualPaidByName: manualPaidBy?.displayName ?? null,
         transferStatus: transferAttempts[0]?.providerStatus ?? null,
         transferUpdatedAt: transferAttempts[0]?.updatedAt.toISOString() ?? null,
       };
@@ -237,6 +247,7 @@ export class WithdrawalsService {
     withdrawalId: string;
     approve: boolean;
     reason: string;
+    payoutMethod: WithdrawalPayoutMethod;
     actor: InternalPrincipal;
     requestId: string;
   }) {
@@ -258,18 +269,22 @@ export class WithdrawalsService {
         ) {
           throw new ConflictException('Withdrawal hold is no longer active');
         }
+        const manual = input.approve && input.payoutMethod === 'MANUAL';
         const canSubmit = input.approve
           ? await this.isStillEligible(tx, withdrawal)
           : false;
         const state = input.approve
           ? canSubmit
-            ? WithdrawalState.APPROVED
+            ? manual
+              ? WithdrawalState.AWAITING_MANUAL_PAYMENT
+              : WithdrawalState.APPROVED
             : WithdrawalState.CANCELLED
           : WithdrawalState.REJECTED;
         const decided = await tx.withdrawal.update({
           where: { id: withdrawal.id },
           data: {
             state,
+            payoutMethod: input.payoutMethod,
             approvedById: input.actor.userId,
             decisionReason: input.reason,
             decidedAt: now,
@@ -288,9 +303,11 @@ export class WithdrawalsService {
             action:
               state === WithdrawalState.APPROVED
                 ? 'WITHDRAWAL_APPROVED'
-                : state === WithdrawalState.REJECTED
-                  ? 'WITHDRAWAL_REJECTED'
-                  : 'WITHDRAWAL_CANCELLED',
+                : state === WithdrawalState.AWAITING_MANUAL_PAYMENT
+                  ? 'WITHDRAWAL_APPROVED'
+                  : state === WithdrawalState.REJECTED
+                    ? 'WITHDRAWAL_REJECTED'
+                    : 'WITHDRAWAL_CANCELLED',
             entityType: 'WITHDRAWAL',
             entityId: withdrawal.id,
             reason: input.reason,
@@ -298,6 +315,7 @@ export class WithdrawalsService {
             requestId: input.requestId,
             safeMetadata: {
               agentId: withdrawal.agentId,
+              payoutMethod: input.payoutMethod,
               netAmountMinor: withdrawal.netAmountMinor.toString(),
               feeAmountMinor: withdrawal.feeAmountMinor.toString(),
             },
@@ -315,6 +333,201 @@ export class WithdrawalsService {
         return serializeWithdrawal(decided);
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  }
+
+  async markManualPaid(input: {
+    withdrawalId: string;
+    confirmedNetAmountMinor: string;
+    reference: string;
+    reason?: string;
+    actor: InternalPrincipal;
+    requestId: string;
+  }) {
+    const reference = input.reference.trim();
+    if (reference.length < 3) {
+      throw new BadRequestException(
+        'Manual payout reference must contain at least 3 non-whitespace characters',
+      );
+    }
+    let confirmedNetAmountMinor: bigint;
+    try {
+      confirmedNetAmountMinor = BigInt(input.confirmedNetAmountMinor);
+    } catch {
+      throw new BadRequestException('Confirmed payout amount is invalid');
+    }
+    const now = new Date();
+    try {
+      return await this.withSerializableRetry(() =>
+        this.prisma.$transaction(
+          async (tx) => {
+            const withdrawal = await tx.withdrawal.findUnique({
+              where: { id: input.withdrawalId },
+              include: { hold: { select: { id: true, state: true } } },
+            });
+            if (!withdrawal) {
+              throw new ConflictException('Withdrawal was not found');
+            }
+            if (
+              withdrawal.state === WithdrawalState.SUCCESS &&
+              withdrawal.manualPaidAt
+            ) {
+              return serializeWithdrawal(withdrawal);
+            }
+            if (withdrawal.state !== WithdrawalState.AWAITING_MANUAL_PAYMENT) {
+              throw new ConflictException(
+                'Withdrawal is not awaiting a manual payout',
+              );
+            }
+            if (
+              !withdrawal.hold ||
+              withdrawal.hold.state !== WalletHoldState.ACTIVE
+            ) {
+              throw new ConflictException(
+                'Withdrawal hold is no longer active',
+              );
+            }
+            if (confirmedNetAmountMinor !== withdrawal.netAmountMinor) {
+              throw new BadRequestException(
+                'Confirmed amount does not match the approved payout',
+              );
+            }
+            await tx.ledgerEntry.createMany({
+              skipDuplicates: true,
+              data: [
+                {
+                  walletAccountId: withdrawal.walletAccountId,
+                  type: 'PAYOUT_DEBIT',
+                  amountMinor: -withdrawal.netAmountMinor,
+                  currency: withdrawal.currency,
+                  sourceType: 'WITHDRAWAL_PAYOUT',
+                  sourceId: withdrawal.id,
+                },
+                {
+                  walletAccountId: withdrawal.walletAccountId,
+                  type: 'PAYOUT_FEE_DEBIT',
+                  amountMinor: -withdrawal.feeAmountMinor,
+                  currency: withdrawal.currency,
+                  sourceType: 'WITHDRAWAL_FEE',
+                  sourceId: withdrawal.id,
+                },
+              ],
+            });
+            await tx.walletHold.update({
+              where: { id: withdrawal.hold.id },
+              data: { state: WalletHoldState.CONSUMED, consumedAt: now },
+            });
+            const paid = await tx.withdrawal.update({
+              where: { id: withdrawal.id },
+              data: {
+                state: WithdrawalState.SUCCESS,
+                manualPaidById: input.actor.userId,
+                manualPaidAt: now,
+                manualReference: reference,
+                decisionReason:
+                  input.reason?.trim() || withdrawal.decisionReason,
+              },
+            });
+            await tx.auditEvent.create({
+              data: {
+                actorInternalUserId: input.actor.userId,
+                actorRole: input.actor.role,
+                action: 'WITHDRAWAL_MANUAL_PAID',
+                entityType: 'WITHDRAWAL',
+                entityId: withdrawal.id,
+                reason: input.reason?.trim() || 'Manual payout confirmed',
+                authenticationStrength: input.actor.authenticationStrength,
+                requestId: input.requestId,
+                safeMetadata: {
+                  agentId: withdrawal.agentId,
+                  payoutMethod: WithdrawalPayoutMethod.MANUAL,
+                  reference,
+                  netAmountMinor: withdrawal.netAmountMinor.toString(),
+                  feeAmountMinor: withdrawal.feeAmountMinor.toString(),
+                },
+              },
+            });
+            return serializeWithdrawal(paid);
+          },
+          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        ),
+      );
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException(
+          'This manual payout reference has already been recorded',
+        );
+      }
+      throw error;
+    }
+  }
+
+  async cancelManualPending(input: {
+    withdrawalId: string;
+    reason?: string;
+    actor: InternalPrincipal;
+    requestId: string;
+  }) {
+    const now = new Date();
+    return this.withSerializableRetry(() =>
+      this.prisma.$transaction(
+        async (tx) => {
+          const withdrawal = await tx.withdrawal.findUnique({
+            where: { id: input.withdrawalId },
+            include: { hold: { select: { id: true, state: true } } },
+          });
+          if (!withdrawal) {
+            throw new ConflictException('Withdrawal was not found');
+          }
+          if (withdrawal.state === WithdrawalState.CANCELLED) {
+            return serializeWithdrawal(withdrawal);
+          }
+          if (withdrawal.state !== WithdrawalState.AWAITING_MANUAL_PAYMENT) {
+            throw new ConflictException(
+              'Withdrawal is not awaiting a manual payout',
+            );
+          }
+          if (
+            !withdrawal.hold ||
+            withdrawal.hold.state !== WalletHoldState.ACTIVE
+          ) {
+            throw new ConflictException('Withdrawal hold is no longer active');
+          }
+          const reason =
+            input.reason?.trim() || 'Cancelled before manual payout';
+          const cancelled = await tx.withdrawal.update({
+            where: { id: withdrawal.id },
+            data: { state: WithdrawalState.CANCELLED, decisionReason: reason },
+          });
+          await tx.walletHold.update({
+            where: { id: withdrawal.hold.id },
+            data: { state: WalletHoldState.RELEASED, releasedAt: now },
+          });
+          await tx.auditEvent.create({
+            data: {
+              actorInternalUserId: input.actor.userId,
+              actorRole: input.actor.role,
+              action: 'WITHDRAWAL_CANCELLED',
+              entityType: 'WITHDRAWAL',
+              entityId: withdrawal.id,
+              reason,
+              authenticationStrength: input.actor.authenticationStrength,
+              requestId: input.requestId,
+              safeMetadata: {
+                agentId: withdrawal.agentId,
+                payoutMethod: WithdrawalPayoutMethod.MANUAL,
+                netAmountMinor: withdrawal.netAmountMinor.toString(),
+                feeAmountMinor: withdrawal.feeAmountMinor.toString(),
+              },
+            },
+          });
+          return serializeWithdrawal(cancelled);
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      ),
     );
   }
 
@@ -875,6 +1088,7 @@ function serializeWithdrawal<
     holdAmountMinor: bigint;
     requestedAt: Date;
     decidedAt?: Date | null;
+    manualPaidAt?: Date | null;
   },
 >(withdrawal: T) {
   return {
@@ -885,6 +1099,9 @@ function serializeWithdrawal<
     requestedAt: withdrawal.requestedAt.toISOString(),
     ...(Object.hasOwn(withdrawal, 'decidedAt')
       ? { decidedAt: withdrawal.decidedAt?.toISOString() ?? null }
+      : {}),
+    ...(Object.hasOwn(withdrawal, 'manualPaidAt')
+      ? { manualPaidAt: withdrawal.manualPaidAt?.toISOString() ?? null }
       : {}),
   };
 }

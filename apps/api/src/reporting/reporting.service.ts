@@ -83,6 +83,7 @@ export class ReportingService {
           state: {
             in: [
               WithdrawalState.REQUESTED,
+              WithdrawalState.AWAITING_MANUAL_PAYMENT,
               WithdrawalState.APPROVED,
               WithdrawalState.AWAITING_MERCHANT_OTP,
               WithdrawalState.SUBMITTED,

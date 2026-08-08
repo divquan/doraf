@@ -54,12 +54,17 @@ import {
   TableHeader,
   TableRow,
 } from "@workspace/ui/components/table"
+import {
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@workspace/ui/components/toggle-group"
 import { cn } from "@workspace/ui/lib/utils"
-import { formatDateTime, formatMoney } from "@/lib/format"
+import { formatDateTime, formatMoney, ghsToPesewas } from "@/lib/format"
 
 export interface AdminWithdrawal {
   id: string
   state: WithdrawalState
+  payoutMethod: "PAYSTACK" | "MANUAL"
   netAmountMinor: string
   feeAmountMinor: string
   holdAmountMinor: string
@@ -69,6 +74,9 @@ export interface AdminWithdrawal {
   decisionReason?: string | null
   transferStatus: string | null
   transferUpdatedAt: string | null
+  manualPaidAt: string | null
+  manualReference: string | null
+  manualPaidByName: string | null
   agent: {
     id: string
     name: string
@@ -83,11 +91,22 @@ type WithdrawalState =
   | "REJECTED"
   | "CANCELLED"
   | "AWAITING_MERCHANT_OTP"
+  | "AWAITING_MANUAL_PAYMENT"
   | "SUBMITTED"
   | "PENDING"
   | "SUCCESS"
   | "FAILED"
   | "REVERSED"
+
+type WithdrawalAction =
+  | "approve"
+  | "reject"
+  | "verify"
+  | "finalize"
+  | "mark-paid"
+  | "cancel"
+
+type ConfirmAction = WithdrawalAction | null
 
 interface RowMessage {
   text: string
@@ -115,8 +134,8 @@ export function WithdrawalOperations({
           <div>
             <CardTitle>Withdrawal requests</CardTitle>
             <CardDescription>
-              Review held wallet funds, approve Mobile Money transfers, and
-              reconcile Paystack outcomes.
+              Review held wallet funds, approve Paystack or manual payouts, and
+              reconcile outcomes.
             </CardDescription>
           </div>
           <Badge variant="outline">
@@ -210,13 +229,23 @@ function WithdrawalRow({ withdrawal }: { withdrawal: AdminWithdrawal }) {
   const [message, setMessage] = useState<RowMessage | null>(null)
   const [reason, setReason] = useState("")
   const [otp, setOtp] = useState("")
-  const [confirm, setConfirm] = useState<
-    "approve" | "reject" | "finalize" | null
-  >(null)
+  const [payoutMethod, setPayoutMethod] = useState<"PAYSTACK" | "MANUAL">(
+    "PAYSTACK"
+  )
+  const [reference, setReference] = useState("")
+  const [confirmedAmount, setConfirmedAmount] = useState("")
+  const [note, setNote] = useState("")
+  const [confirm, setConfirm] = useState<ConfirmAction>(null)
 
   async function perform(
-    action: "approve" | "reject" | "verify" | "finalize",
-    values: { reason?: string; otp?: string } = {}
+    action: WithdrawalAction,
+    values: {
+      reason?: string
+      otp?: string
+      payoutMethod?: "PAYSTACK" | "MANUAL"
+      reference?: string
+      confirmedNetAmountMinor?: string
+    } = {}
   ) {
     setPending(true)
     setMessage(null)
@@ -231,7 +260,10 @@ function WithdrawalRow({ withdrawal }: { withdrawal: AdminWithdrawal }) {
       }
       if (!response.ok)
         throw new Error(body.message ?? "The action could not be completed")
-      setMessage({ text: actionMessage(action), tone: "success" })
+      setMessage({
+        text: actionMessage(action, values.payoutMethod),
+        tone: "success",
+      })
       router.refresh()
     } catch (cause) {
       setMessage({
@@ -250,15 +282,30 @@ function WithdrawalRow({ withdrawal }: { withdrawal: AdminWithdrawal }) {
     const action = confirm
     setConfirm(null)
     if (action === "approve") {
-      void perform("approve", { reason: reason.trim() })
+      void perform("approve", { reason: reason.trim(), payoutMethod })
     } else if (action === "reject") {
       void perform("reject", { reason: reason.trim() })
-    } else {
+    } else if (action === "mark-paid") {
+      void perform("mark-paid", {
+        reference: reference.trim(),
+        confirmedNetAmountMinor: confirmedPesewas?.toString() ?? "",
+        reason: note.trim() || undefined,
+      })
+    } else if (action === "cancel") {
+      void perform("cancel", { reason: reason.trim() })
+    } else if (action === "finalize") {
       void perform("finalize", { otp })
     }
   }
 
+  const confirmedPesewas =
+    confirmedAmount.trim() === "" ? null : ghsToPesewas(confirmedAmount)
+  const amountMatches =
+    confirmedPesewas !== null &&
+    confirmedPesewas === BigInt(withdrawal.netAmountMinor)
+
   const awaitingDecision = withdrawal.state === "REQUESTED"
+  const awaitingManualPaid = withdrawal.state === "AWAITING_MANUAL_PAYMENT"
   const awaitingOtp = withdrawal.state === "AWAITING_MERCHANT_OTP"
   const canVerify =
     Boolean(withdrawal.transferStatus) &&
@@ -266,7 +313,11 @@ function WithdrawalRow({ withdrawal }: { withdrawal: AdminWithdrawal }) {
   const confirmValid =
     confirm === "approve" || confirm === "reject"
       ? reason.trim().length >= 3
-      : otp.length === 6
+      : confirm === "mark-paid"
+        ? reference.trim().length >= 3 && amountMatches
+        : confirm === "cancel"
+          ? reason.trim().length >= 3
+          : otp.length === 6
 
   return (
     <TableRow>
@@ -294,9 +345,22 @@ function WithdrawalRow({ withdrawal }: { withdrawal: AdminWithdrawal }) {
       <TableCell>
         <div className="flex flex-col items-start gap-1">
           <StateBadge state={withdrawal.state} />
+          {withdrawal.payoutMethod === "MANUAL" ? (
+            <p className="text-[11px] text-muted-foreground">Manual payout</p>
+          ) : null}
           {withdrawal.transferStatus ? (
             <p className="text-[11px] text-muted-foreground">
               {withdrawal.transferStatus}
+            </p>
+          ) : null}
+          {withdrawal.manualReference ? (
+            <p className="max-w-40 truncate text-[11px] text-muted-foreground">
+              Ref: {withdrawal.manualReference}
+            </p>
+          ) : null}
+          {withdrawal.manualPaidByName ? (
+            <p className="max-w-40 truncate text-[11px] text-muted-foreground">
+              Paid by {withdrawal.manualPaidByName}
             </p>
           ) : null}
           {withdrawal.decisionReason ? (
@@ -326,6 +390,24 @@ function WithdrawalRow({ withdrawal }: { withdrawal: AdminWithdrawal }) {
                   variant="outline"
                 >
                   Reject
+                </Button>
+              </>
+            ) : awaitingManualPaid ? (
+              <>
+                <Button
+                  onClick={() => setConfirm("mark-paid")}
+                  size="sm"
+                  type="button"
+                >
+                  Mark paid
+                </Button>
+                <Button
+                  onClick={() => setConfirm("cancel")}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  Cancel
                 </Button>
               </>
             ) : awaitingOtp ? (
@@ -379,17 +461,27 @@ function WithdrawalRow({ withdrawal }: { withdrawal: AdminWithdrawal }) {
                 ? "Approve this withdrawal?"
                 : confirm === "reject"
                   ? "Reject this withdrawal?"
-                  : "Submit Paystack OTP?"}
+                  : confirm === "mark-paid"
+                    ? "Confirm manual payout?"
+                    : confirm === "cancel"
+                      ? "Cancel manual payout?"
+                      : "Submit Paystack OTP?"}
             </DialogTitle>
             <DialogDescription>
               {confirm === "approve"
-                ? "The request will be queued for transfer to the agent's validated destination."
+                ? payoutMethod === "MANUAL"
+                  ? "You will pay the agent manually (for example Mobile Money) and confirm payment here. The wallet hold stays active until you confirm."
+                  : "The request will be queued for transfer to the agent's validated destination via Paystack."
                 : confirm === "reject"
                   ? "The request will be rejected and its wallet hold released."
-                  : "The transfer approval code will be submitted to Paystack to complete the payout."}
+                  : confirm === "mark-paid"
+                    ? "The wallet hold will be consumed and the payout debited from the agent's wallet. This cannot be undone."
+                    : confirm === "cancel"
+                      ? "The request will be cancelled and its wallet hold released."
+                      : "The transfer approval code will be submitted to Paystack to complete the payout."}
             </DialogDescription>
           </DialogHeader>
-          {confirm === "approve" || confirm === "reject" ? (
+          {confirm === "approve" ? (
             <FieldGroup>
               <Field>
                 <FieldLabel htmlFor={`withdrawal-reason-${withdrawal.id}`}>
@@ -405,6 +497,95 @@ function WithdrawalRow({ withdrawal }: { withdrawal: AdminWithdrawal }) {
                 <FieldDescription>
                   This reason is written to the audit history.
                 </FieldDescription>
+              </Field>
+              <Field>
+                <FieldLabel>Payout method</FieldLabel>
+                <ToggleGroup
+                  className="w-full justify-start gap-2"
+                  onValueChange={(values) => {
+                    const next = values[0]
+                    if (next === "PAYSTACK" || next === "MANUAL")
+                      setPayoutMethod(next)
+                  }}
+                  value={[payoutMethod]}
+                  variant="outline"
+                >
+                  <ToggleGroupItem value="PAYSTACK" className="flex-1">
+                    Paystack transfer
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="MANUAL" className="flex-1">
+                    Manual payout
+                  </ToggleGroupItem>
+                </ToggleGroup>
+                <FieldDescription>
+                  {payoutMethod === "MANUAL"
+                    ? "You pay the agent yourself and confirm the payment here."
+                    : "Paystack initiates the transfer to the agent's validated destination."}
+                </FieldDescription>
+              </Field>
+            </FieldGroup>
+          ) : confirm === "reject" || confirm === "cancel" ? (
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor={`withdrawal-reason-${withdrawal.id}`}>
+                  Decision reason
+                </FieldLabel>
+                <Input
+                  id={`withdrawal-reason-${withdrawal.id}`}
+                  minLength={3}
+                  onChange={(event) => setReason(event.target.value)}
+                  placeholder="Reviewed wallet and destination"
+                  value={reason}
+                />
+                <FieldDescription>
+                  This reason is written to the audit history.
+                </FieldDescription>
+              </Field>
+            </FieldGroup>
+          ) : confirm === "mark-paid" ? (
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor={`manual-ref-${withdrawal.id}`}>
+                  Transaction reference
+                </FieldLabel>
+                <Input
+                  id={`manual-ref-${withdrawal.id}`}
+                  minLength={3}
+                  onChange={(event) => setReference(event.target.value)}
+                  placeholder="MoMo transaction reference"
+                  value={reference}
+                />
+                <FieldDescription>
+                  Recorded in the audit history and shown to the agent after
+                  payment is confirmed.
+                </FieldDescription>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor={`manual-amount-${withdrawal.id}`}>
+                  Confirm net payout amount
+                </FieldLabel>
+                <Input
+                  id={`manual-amount-${withdrawal.id}`}
+                  inputMode="decimal"
+                  onChange={(event) => setConfirmedAmount(event.target.value)}
+                  placeholder={`e.g. ${(Number(withdrawal.netAmountMinor) / 100).toFixed(2)}`}
+                  value={confirmedAmount}
+                />
+                <FieldDescription>
+                  Type the exact payout amount shown (
+                  {formatMoney(withdrawal.netAmountMinor)}) to release the hold.
+                </FieldDescription>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor={`manual-note-${withdrawal.id}`}>
+                  Note (optional)
+                </FieldLabel>
+                <Input
+                  id={`manual-note-${withdrawal.id}`}
+                  onChange={(event) => setNote(event.target.value)}
+                  placeholder="e.g. Paid via MTN MoMo to the registered number"
+                  value={note}
+                />
               </Field>
             </FieldGroup>
           ) : confirm === "finalize" ? (
@@ -450,7 +631,11 @@ function WithdrawalRow({ withdrawal }: { withdrawal: AdminWithdrawal }) {
                 ? "Approve"
                 : confirm === "reject"
                   ? "Reject"
-                  : "Submit OTP"}
+                  : confirm === "mark-paid"
+                    ? "Confirm paid"
+                    : confirm === "cancel"
+                      ? "Cancel request"
+                      : "Submit OTP"}
             </Button>
           </DialogFooter>
         </DialogPopup>
@@ -500,6 +685,7 @@ function stateLabel(state: WithdrawalState) {
     REJECTED: "Rejected",
     CANCELLED: "Cancelled",
     AWAITING_MERCHANT_OTP: "Paystack OTP required",
+    AWAITING_MANUAL_PAYMENT: "Manual payout pending",
     SUBMITTED: "Submitted",
     PENDING: "Processing",
     SUCCESS: "Paid",
@@ -517,12 +703,21 @@ function networkLabel(value: string) {
       : "AT Money"
 }
 
-function actionMessage(action: "approve" | "reject" | "verify" | "finalize") {
+function actionMessage(
+  action: WithdrawalAction,
+  payoutMethod?: "PAYSTACK" | "MANUAL"
+) {
   return action === "approve"
-    ? "Withdrawal approved and queued for Paystack."
+    ? payoutMethod === "MANUAL"
+      ? "Manual payout approved. Confirm payment to release the hold."
+      : "Withdrawal approved and queued for Paystack."
     : action === "reject"
       ? "Withdrawal rejected and its hold released."
-      : action === "finalize"
-        ? "Paystack OTP submitted."
-        : "Transfer status refreshed from Paystack."
+      : action === "mark-paid"
+        ? "Manual payout recorded and the wallet updated."
+        : action === "cancel"
+          ? "Withdrawal cancelled and its hold released."
+          : action === "finalize"
+            ? "Paystack OTP submitted."
+            : "Transfer status refreshed from Paystack."
 }

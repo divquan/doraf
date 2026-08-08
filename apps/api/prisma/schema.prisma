@@ -192,6 +192,7 @@ enum WithdrawalState {
   REJECTED
   CANCELLED
   AWAITING_MERCHANT_OTP
+  AWAITING_MANUAL_PAYMENT
   SUBMITTED
   PENDING
   SUCCESS
@@ -199,6 +200,13 @@ enum WithdrawalState {
   REVERSED
 
   @@map("withdrawal_state")
+}
+
+enum WithdrawalPayoutMethod {
+  PAYSTACK
+  MANUAL
+
+  @@map("withdrawal_payout_method")
 }
 
 enum DeliveryChannel {
@@ -322,6 +330,7 @@ model InternalUser {
   authCeremonies          InternalAuthCeremony[]
   refunds                 Refund[]
   approvedWithdrawals     Withdrawal[]              @relation("WithdrawalApprover")
+  manualPaidWithdrawals   Withdrawal[]              @relation("WithdrawalManualPayer")
 
   @@index([status, role])
   @@map("internal_user")
@@ -889,7 +898,11 @@ model Withdrawal {
   holdAmountMinor  BigInt            @map("hold_amount_minor")
   currency         String            @default("GHS") @db.Char(3)
   state            WithdrawalState   @default(REQUESTED)
+  payoutMethod     WithdrawalPayoutMethod @default(PAYSTACK) @map("payout_method")
   approvedById     String?           @map("approved_by_id") @db.Uuid
+  manualPaidById   String?           @map("manual_paid_by_id") @db.Uuid
+  manualPaidAt     DateTime?         @map("manual_paid_at") @db.Timestamptz(6)
+  manualReference  String?           @unique @map("manual_reference") @db.VarChar(200)
   decisionReason   String?           @map("decision_reason") @db.VarChar(500)
   requestedAt      DateTime          @default(now()) @map("requested_at") @db.Timestamptz(6)
   decidedAt        DateTime?         @map("decided_at") @db.Timestamptz(6)
@@ -899,6 +912,7 @@ model Withdrawal {
   walletAccount    WalletAccount     @relation(fields: [walletAccountId], references: [id], onDelete: Restrict)
   hold             WalletHold?
   approvedBy       InternalUser?     @relation("WithdrawalApprover", fields: [approvedById], references: [id], onDelete: Restrict)
+  manualPaidBy     InternalUser?     @relation("WithdrawalManualPayer", fields: [manualPaidById], references: [id], onDelete: Restrict)
   transferAttempts TransferAttempt[]
 
   @@index([state, requestedAt])

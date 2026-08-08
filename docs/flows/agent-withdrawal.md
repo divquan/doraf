@@ -29,11 +29,39 @@ Last updated: 2026-07-30
    exposure, and relevant history.
 2. Administrator approves or rejects with a reason.
 3. Rejection releases the hold and notifies the agent.
-4. Approval revalidates the request immediately before provider initiation.
-5. If a new reversal makes funds insufficient, cancel and release the hold.
-6. Otherwise, create or reuse the Paystack Mobile Money recipient.
-7. Initiate the transfer using a unique reference.
-8. Complete Paystack's merchant transfer OTP.
+4. On approval the Administrator chooses the payout method per withdrawal:
+   - **Paystack transfer** queues the request for provider initiation below.
+   - **Manual payout** moves the withdrawal to
+     `AWAITING_MANUAL_PAYMENT`, keeps the hold active, and waits for the
+     Administrator to pay out of band and confirm payment here.
+5. Approval revalidates the request immediately before provider initiation.
+6. If a new reversal makes funds insufficient, cancel and release the hold.
+7. Otherwise, create or reuse the Paystack Mobile Money recipient.
+8. Initiate the transfer using a unique reference.
+9. Complete Paystack's merchant transfer OTP.
+
+## Manual payout confirmation
+
+A manually approved payout keeps its wallet hold until the Administrator records
+the payment:
+
+1. The Administrator pays the agent out of band (for example Mobile Money to the
+   registered destination, or cash).
+2. In the administration UI the Administrator opens the manual payout and:
+   - enters a transaction reference,
+   - types the exact net payout amount shown on the request, and
+   - optionally adds a note.
+3. Doraf atomically appends the `PAYOUT_DEBIT` and `PAYOUT_FEE_DEBIT` ledger
+   entries, consumes the hold, marks the withdrawal `SUCCESS`, and records a
+   `WITHDRAWAL_MANUAL_PAID` audit event with the reference, note, and actor.
+4. Confirmation is idempotent: retries and double clicks cannot post debits
+   twice.
+
+An Administrator may instead cancel an `AWAITING_MANUAL_PAYMENT` withdrawal with
+a recorded reason, which releases the hold and marks the withdrawal `CANCELLED`.
+
+Manual payout reversals are not yet supported; a confirmed manual payout is
+terminal. See ADR-0014.
 
 ## Provider processing
 

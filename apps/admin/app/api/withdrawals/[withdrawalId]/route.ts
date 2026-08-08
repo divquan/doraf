@@ -16,9 +16,18 @@ export async function POST(
     requireSameOrigin(request)
     const { withdrawalId } = await params
     const body = (await request.json()) as {
-      action?: "approve" | "reject" | "verify" | "finalize"
+      action?:
+        | "approve"
+        | "reject"
+        | "verify"
+        | "finalize"
+        | "mark-paid"
+        | "cancel"
       reason?: string
       otp?: string
+      payoutMethod?: "PAYSTACK" | "MANUAL"
+      reference?: string
+      confirmedNetAmountMinor?: string
     }
     const action = body.action
     if (!action) throw new Error("Withdrawal action is required")
@@ -30,10 +39,21 @@ export async function POST(
           : action
     const payload =
       action === "approve" || action === "reject"
-        ? { reason: body.reason }
+        ? {
+            reason: body.reason,
+            ...(body.payoutMethod ? { payoutMethod: body.payoutMethod } : {}),
+          }
         : action === "finalize"
           ? { otp: body.otp }
-          : undefined
+          : action === "mark-paid"
+            ? {
+                reference: body.reference,
+                confirmedNetAmountMinor: body.confirmedNetAmountMinor,
+                ...(body.reason ? { reason: body.reason } : {}),
+              }
+            : action === "cancel"
+              ? { reason: body.reason }
+              : undefined
     const response = await apiRequest(
       `/admin/withdrawals/${encodeURIComponent(withdrawalId)}/${suffix}`,
       {

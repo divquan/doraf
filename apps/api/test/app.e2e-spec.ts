@@ -147,4 +147,23 @@ describe('AppController (e2e)', () => {
       .get('/v1/admin/withdrawals')
       .expect(401);
   });
+
+  it('denies anonymous manual payout confirmation', () => {
+    return request(app.getHttpServer())
+      .post(
+        '/v1/admin/withdrawals/00000000-0000-4000-8000-000000000000/mark-paid',
+      )
+      .send({
+        reference: 'MTN-123456',
+        confirmedNetAmountMinor: '2000',
+      })
+      .expect(401);
+  });
+
+  it('denies anonymous manual payout cancellation', () => {
+    return request(app.getHttpServer())
+      .post('/v1/admin/withdrawals/00000000-0000-4000-8000-000000000000/cancel')
+      .send({ reason: 'No longer required' })
+      .expect(401);
+  });
 });

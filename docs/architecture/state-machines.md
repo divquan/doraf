@@ -166,10 +166,13 @@ are no longer encumbered.
 
 ```text
 REQUESTED -> APPROVED
+REQUESTED -> AWAITING_MANUAL_PAYMENT
 REQUESTED -> REJECTED
 REQUESTED -> CANCELLED
 APPROVED -> AWAITING_MERCHANT_OTP
 APPROVED -> CANCELLED
+AWAITING_MANUAL_PAYMENT -> SUCCESS
+AWAITING_MANUAL_PAYMENT -> CANCELLED
 AWAITING_MERCHANT_OTP -> SUBMITTED
 AWAITING_MERCHANT_OTP -> CANCELLED
 SUBMITTED -> PENDING
@@ -181,6 +184,12 @@ PENDING -> FAILED
 PENDING -> REVERSED
 SUCCESS -> REVERSED
 ```
+
+`REQUESTED -> APPROVED` records a Paystack payout; `REQUESTED ->
+AWAITING_MANUAL_PAYMENT` records a manual payout whose payment an Administrator
+confirms later. A manual confirmation (`AWAITING_MANUAL_PAYMENT -> SUCCESS`)
+posts the same ledger debits and consumes the hold as a Paystack success, but it
+is terminal: manual reversals are not yet supported.
 
 A reversal after success appends compensating ledger entries; it never deletes
 payout and fee debits.

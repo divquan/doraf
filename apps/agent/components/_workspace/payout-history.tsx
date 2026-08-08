@@ -28,11 +28,7 @@ import {
 import { pesewasToGhs, formatDate } from "@workspace/ui/lib/format"
 import { type AgentPayout, type PayoutState } from "../payout-panel"
 
-export function PayoutHistory({
-  payouts,
-}: {
-  payouts: AgentPayout[]
-}) {
+export function PayoutHistory({ payouts }: { payouts: AgentPayout[] }) {
   return (
     <Card className="overflow-hidden border-border/75 shadow-sm">
       <CardHeader className="flex-row items-center justify-between gap-4 border-b bg-muted/20">
@@ -44,8 +40,7 @@ export function PayoutHistory({
         </div>
         {payouts.length > 0 ? (
           <Badge variant="outline">
-            {payouts.length}{" "}
-            {payouts.length === 1 ? "request" : "requests"}
+            {payouts.length} {payouts.length === 1 ? "request" : "requests"}
           </Badge>
         ) : null}
       </CardHeader>
@@ -87,6 +82,11 @@ export function PayoutHistory({
                     {payout.decisionReason ? (
                       <span className="mt-1 block max-w-48 text-xs whitespace-normal text-muted-foreground">
                         {payout.decisionReason}
+                      </span>
+                    ) : null}
+                    {payout.manualReference ? (
+                      <span className="mt-1 block max-w-48 text-xs whitespace-normal text-muted-foreground">
+                        Payment reference: {payout.manualReference}
                       </span>
                     ) : null}
                   </TableCell>
@@ -139,6 +139,7 @@ function statusLabel(state: PayoutState) {
     REJECTED: "Rejected",
     CANCELLED: "Cancelled",
     AWAITING_MERCHANT_OTP: "Awaiting transfer approval",
+    AWAITING_MANUAL_PAYMENT: "Manual payout pending",
     SUBMITTED: "Submitted",
     PENDING: "Processing",
     SUCCESS: "Paid",
@@ -149,7 +150,9 @@ function statusLabel(state: PayoutState) {
 }
 
 function statusBadgeVariant(state: PayoutState): string | undefined {
-  if (state === "SUCCESS") return "bg-emerald-500/10 text-emerald-700 border-emerald-500/20 hover:bg-emerald-500/10"
-  if (state === "REQUESTED") return "bg-amber-500/10 text-amber-700 border-amber-500/20 hover:bg-amber-500/10"
+  if (state === "SUCCESS")
+    return "bg-emerald-500/10 text-emerald-700 border-emerald-500/20 hover:bg-emerald-500/10"
+  if (state === "REQUESTED")
+    return "bg-amber-500/10 text-amber-700 border-amber-500/20 hover:bg-amber-500/10"
   return undefined
 }

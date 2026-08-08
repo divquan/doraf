@@ -102,7 +102,12 @@ the request.
 ## Administrator approval
 
 Every MVP request requires Administrator approval. The Administrator can
-approve or reject it with a recorded reason.
+approve or reject it with a recorded reason, and chooses the payout method per
+withdrawal at approval time:
+
+- **Paystack transfer** queues the request for provider initiation.
+- **Manual payout** moves the request to `AWAITING_MANUAL_PAYMENT` and keeps the
+  hold active until the Administrator records the out-of-band payment.
 
 Immediately before Paystack initiation, Doraf rechecks:
 
@@ -116,9 +121,29 @@ Immediately before Paystack initiation, Doraf rechecks:
 An insufficient wallet cancels the uninitiated withdrawal and releases its
 hold.
 
-Approved withdrawals use a unique Paystack reference. Paystack's merchant
-transfer OTP remains enabled as a second operational approval control during
-the MVP.
+Approved Paystack withdrawals use a unique Paystack reference. Paystack's
+merchant transfer OTP remains enabled as a second operational approval control
+during the MVP.
+
+## Manual payout
+
+A manually approved withdrawal (`AWAITING_MANUAL_PAYMENT`) is paid out of band
+by an Administrator. To record the payment, the Administrator confirms the exact
+net amount and enters a transaction reference; the action is serializable and
+idempotent, so a retry cannot double-pay. Confirmation:
+
+- appends the `PAYOUT_DEBIT` and `PAYOUT_FEE_DEBIT` ledger entries (unique on
+  wallet, source type, and source id),
+- consumes the hold,
+- marks the withdrawal `SUCCESS`, and
+- records a `WITHDRAWAL_MANUAL_PAID` audit event with the reference and actor.
+
+The GHS 1 fee applies to manual payouts exactly as to Paystack payouts. The
+agent sees the same `SUCCESS` outcome and ledger debits regardless of method.
+
+An Administrator can cancel an `AWAITING_MANUAL_PAYMENT` withdrawal, which
+releases the hold and marks it `CANCELLED`. Manual payout reversals are deferred;
+a confirmed manual payout is terminal (see ADR-0014).
 
 ## Provider processing
 

@@ -113,7 +113,7 @@ describe('Withdrawal settlement and database invariants (e2e)', () => {
         accountName: 'Test Agent',
         phoneMask: agent.phoneMask,
         phoneFingerprint: randomBytes(32),
-        recipientCode: 'RCP_test_req',
+        recipientCode: `RCP_test_req_${randomUUID()}`,
         active: true,
       },
     });
@@ -198,6 +198,7 @@ describe('Withdrawal settlement and database invariants (e2e)', () => {
       withdrawalId: fixture.withdrawalId,
       approve: true,
       reason: 'Wallet and destination reviewed',
+      payoutMethod: 'PAYSTACK',
       requestId: randomUUID(),
       actor: {
         userId: administrator.id,
@@ -232,6 +233,255 @@ describe('Withdrawal settlement and database invariants (e2e)', () => {
         select: { actorInternalUserId: true },
       }),
     ).toEqual({ actorInternalUserId: administrator.id });
+  });
+
+  it('holds the wallet for a manual approval without queueing Paystack', async () => {
+    const fixture = await createWithdrawalFixture(prisma, 'REQUESTED');
+    const administrator = await prisma.internalUser.create({
+      data: {
+        displayName: `Manual Withdrawal Administrator ${randomUUID()}`,
+        role: 'ADMINISTRATOR',
+        status: 'ACTIVE',
+      },
+    });
+    const actor = {
+      userId: administrator.id,
+      sessionId: randomUUID(),
+      displayName: administrator.displayName,
+      role: 'ADMINISTRATOR' as const,
+      authenticationStrength: 'PHISHING_RESISTANT' as const,
+      authenticatedAt: new Date(),
+      stepUpAt: null,
+    };
+
+    const decided = await withdrawals.decide({
+      withdrawalId: fixture.withdrawalId,
+      approve: true,
+      reason: 'Approved for manual payout',
+      payoutMethod: 'MANUAL',
+      requestId: randomUUID(),
+      actor,
+    });
+
+    expect(decided.state).toBe('AWAITING_MANUAL_PAYMENT');
+    expect(decided.payoutMethod).toBe('MANUAL');
+    expect(
+      await prisma.outboxEvent.count({
+        where: {
+          eventType: 'WITHDRAWAL_SUBMISSION_REQUIRED',
+          aggregateId: fixture.withdrawalId,
+        },
+      }),
+    ).toBe(0);
+    expect(await withdrawalState(prisma, fixture.withdrawalId)).toEqual({
+      state: 'AWAITING_MANUAL_PAYMENT',
+      holdState: 'ACTIVE',
+    });
+  });
+
+  it('records a manual payout, debits the wallet, and consumes the hold exactly once', async () => {
+    const fixture = await createWithdrawalFixture(
+      prisma,
+      'AWAITING_MANUAL_PAYMENT',
+    );
+    const administrator = await prisma.internalUser.create({
+      data: {
+        displayName: `Manual Payer ${randomUUID()}`,
+        role: 'ADMINISTRATOR',
+        status: 'ACTIVE',
+      },
+    });
+    const actor = {
+      userId: administrator.id,
+      sessionId: randomUUID(),
+      displayName: administrator.displayName,
+      role: 'ADMINISTRATOR' as const,
+      authenticationStrength: 'PHISHING_RESISTANT' as const,
+      authenticatedAt: new Date(),
+      stepUpAt: null,
+    };
+
+    await Promise.all([
+      withdrawals.markManualPaid({
+        withdrawalId: fixture.withdrawalId,
+        confirmedNetAmountMinor: '2000',
+        reference: 'MTN-MOMO-123456',
+        reason: 'Paid via MTN MoMo',
+        requestId: randomUUID(),
+        actor,
+      }),
+      withdrawals.markManualPaid({
+        withdrawalId: fixture.withdrawalId,
+        confirmedNetAmountMinor: '2000',
+        reference: 'MTN-MOMO-123456',
+        reason: 'Paid via MTN MoMo',
+        requestId: randomUUID(),
+        actor,
+      }),
+    ]);
+
+    const entries = await prisma.ledgerEntry.findMany({
+      where: { walletAccountId: fixture.walletId },
+      orderBy: { createdAt: 'asc' },
+    });
+    expect(entries.map((entry) => [entry.type, entry.amountMinor])).toEqual([
+      ['SALE_CREDIT', 5_000n],
+      ['PAYOUT_DEBIT', -2_000n],
+      ['PAYOUT_FEE_DEBIT', -100n],
+    ]);
+    const paid = await prisma.withdrawal.findUniqueOrThrow({
+      where: { id: fixture.withdrawalId },
+    });
+    expect(paid).toMatchObject({
+      state: 'SUCCESS',
+      payoutMethod: 'MANUAL',
+      manualPaidById: administrator.id,
+      manualReference: 'MTN-MOMO-123456',
+    });
+    expect(paid.manualPaidAt).toBeInstanceOf(Date);
+    expect(await withdrawalState(prisma, fixture.withdrawalId)).toEqual({
+      state: 'SUCCESS',
+      holdState: 'CONSUMED',
+    });
+    expect(
+      await prisma.auditEvent.count({
+        where: {
+          action: 'WITHDRAWAL_MANUAL_PAID',
+          entityId: fixture.withdrawalId,
+        },
+      }),
+    ).toBe(1);
+  });
+
+  it('rejects a manual payout confirmation with a mismatched amount', async () => {
+    const fixture = await createWithdrawalFixture(
+      prisma,
+      'AWAITING_MANUAL_PAYMENT',
+    );
+    const administrator = await prisma.internalUser.create({
+      data: {
+        displayName: `Manual Mismatch ${randomUUID()}`,
+        role: 'ADMINISTRATOR',
+        status: 'ACTIVE',
+      },
+    });
+    await expect(
+      withdrawals.markManualPaid({
+        withdrawalId: fixture.withdrawalId,
+        confirmedNetAmountMinor: '1999',
+        reference: 'MTN-MOMO-654321',
+        requestId: randomUUID(),
+        actor: {
+          userId: administrator.id,
+          sessionId: randomUUID(),
+          displayName: administrator.displayName,
+          role: 'ADMINISTRATOR',
+          authenticationStrength: 'PHISHING_RESISTANT',
+          authenticatedAt: new Date(),
+          stepUpAt: null,
+        },
+      }),
+    ).rejects.toThrow('Confirmed amount does not match the approved payout');
+    expect(await withdrawalState(prisma, fixture.withdrawalId)).toEqual({
+      state: 'AWAITING_MANUAL_PAYMENT',
+      holdState: 'ACTIVE',
+    });
+  });
+
+  it('rejects a blank manual payout reference before changing the wallet', async () => {
+    const fixture = await createWithdrawalFixture(
+      prisma,
+      'AWAITING_MANUAL_PAYMENT',
+    );
+    const administrator = await prisma.internalUser.create({
+      data: {
+        displayName: `Blank Reference Administrator ${randomUUID()}`,
+        role: 'ADMINISTRATOR',
+        status: 'ACTIVE',
+      },
+    });
+
+    await expect(
+      withdrawals.markManualPaid({
+        withdrawalId: fixture.withdrawalId,
+        confirmedNetAmountMinor: '2000',
+        reference: '   ',
+        requestId: randomUUID(),
+        actor: {
+          userId: administrator.id,
+          sessionId: randomUUID(),
+          displayName: administrator.displayName,
+          role: 'ADMINISTRATOR',
+          authenticationStrength: 'PHISHING_RESISTANT',
+          authenticatedAt: new Date(),
+          stepUpAt: null,
+        },
+      }),
+    ).rejects.toThrow('Manual payout reference must contain');
+
+    expect(await withdrawalState(prisma, fixture.withdrawalId)).toEqual({
+      state: 'AWAITING_MANUAL_PAYMENT',
+      holdState: 'ACTIVE',
+    });
+  });
+
+  it('cancels a manual payout and releases its hold exactly once', async () => {
+    const fixture = await createWithdrawalFixture(
+      prisma,
+      'AWAITING_MANUAL_PAYMENT',
+    );
+    const administrator = await prisma.internalUser.create({
+      data: {
+        displayName: `Manual Canceller ${randomUUID()}`,
+        role: 'ADMINISTRATOR',
+        status: 'ACTIVE',
+      },
+    });
+    const actor = {
+      userId: administrator.id,
+      sessionId: randomUUID(),
+      displayName: administrator.displayName,
+      role: 'ADMINISTRATOR' as const,
+      authenticationStrength: 'PHISHING_RESISTANT' as const,
+      authenticatedAt: new Date(),
+      stepUpAt: null,
+    };
+
+    await Promise.all([
+      withdrawals.cancelManualPending({
+        withdrawalId: fixture.withdrawalId,
+        reason: 'Duplicate request',
+        requestId: randomUUID(),
+        actor,
+      }),
+      withdrawals.cancelManualPending({
+        withdrawalId: fixture.withdrawalId,
+        reason: 'Duplicate request',
+        requestId: randomUUID(),
+        actor,
+      }),
+    ]);
+
+    expect(await withdrawalState(prisma, fixture.withdrawalId)).toEqual({
+      state: 'CANCELLED',
+      holdState: 'RELEASED',
+    });
+    expect(
+      await prisma.ledgerEntry.count({
+        where: {
+          walletAccountId: fixture.walletId,
+          type: { in: ['PAYOUT_DEBIT', 'PAYOUT_FEE_DEBIT'] },
+        },
+      }),
+    ).toBe(0);
+    expect(
+      await prisma.auditEvent.count({
+        where: {
+          action: 'WITHDRAWAL_CANCELLED',
+          entityId: fixture.withdrawalId,
+        },
+      }),
+    ).toBe(1);
   });
 
   it('releases a failed transfer without writing payout ledger entries', async () => {
@@ -330,7 +580,7 @@ describe('Withdrawal settlement and database invariants (e2e)', () => {
 
 async function createWithdrawalFixture(
   prisma: PrismaService,
-  state: 'REQUESTED' | 'APPROVED' | 'PENDING',
+  state: 'REQUESTED' | 'APPROVED' | 'PENDING' | 'AWAITING_MANUAL_PAYMENT',
 ) {
   const tenant = await prisma.agentTenant.create({ data: {} });
   const agent = await prisma.agent.create({
@@ -366,13 +616,14 @@ async function createWithdrawalFixture(
       feeAmountMinor: 100n,
       holdAmountMinor: 2_100n,
       state,
+      payoutMethod: state === 'AWAITING_MANUAL_PAYMENT' ? 'MANUAL' : 'PAYSTACK',
       hold: {
         create: { walletAccountId: wallet.id, amountMinor: 2_100n },
       },
     },
   });
   const reference = `doraf_wd_${withdrawal.id.replaceAll('-', '')}`;
-  if (state !== 'REQUESTED') {
+  if (state === 'APPROVED' || state === 'PENDING') {
     await prisma.transferAttempt.create({
       data: {
         withdrawalId: withdrawal.id,

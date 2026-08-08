@@ -1,12 +1,21 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { cn } from "@workspace/ui/lib/utils"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { MoneySend01Icon, SmartPhone01Icon, Settings02Icon, CheckmarkCircle02Icon } from "@hugeicons/core-free-icons"
+import {
+  MoneySend01Icon,
+  SmartPhone01Icon,
+  Settings02Icon,
+  CheckmarkCircle02Icon,
+} from "@hugeicons/core-free-icons"
 import { Button } from "@workspace/ui/components/button"
-import { Alert, AlertDescription, AlertTitle } from "@workspace/ui/components/alert"
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@workspace/ui/components/alert"
 import { EarningsBalanceCard, EarningsSummary } from "./earnings-balance-card"
 import { PayoutHistory } from "./_workspace/payout-history"
 import { PayoutRequestForm } from "./_workspace/payout-request-form"
@@ -36,6 +45,7 @@ export type PayoutState =
   | "REJECTED"
   | "CANCELLED"
   | "AWAITING_MERCHANT_OTP"
+  | "AWAITING_MANUAL_PAYMENT"
   | "SUBMITTED"
   | "PENDING"
   | "SUCCESS"
@@ -53,6 +63,7 @@ export interface AgentPayout {
   requestedAt: string
   decidedAt: string | null
   decisionReason: string | null
+  manualReference: string | null
 }
 
 export function PayoutPanel({
@@ -78,11 +89,13 @@ export function PayoutPanel({
   const [activeTab, setActiveTab] = useState<"ledger" | "payouts">("ledger")
   const [modalOpen, setModalOpen] = useState(false)
   const [destModalOpen, setDestModalOpen] = useState(false)
-  const [currentDestination, setCurrentDestination] = useState<PayoutDestinationData | null>(
-    isPayoutDestination(destination) ? destination : null
-  )
+  const [currentDestination, setCurrentDestination] =
+    useState<PayoutDestinationData | null>(
+      isPayoutDestination(destination) ? destination : null
+    )
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
-  const [destSetupReturnsToRequest, setDestSetupReturnsToRequest] = useState(false)
+  const [destSetupReturnsToRequest, setDestSetupReturnsToRequest] =
+    useState(false)
 
   function handleOpenRequestModal() {
     setModalOpen(true)
@@ -110,12 +123,14 @@ export function PayoutPanel({
 
   function handleRequestCreated() {
     setActiveTab("payouts")
-    setSuccessMessage("Your payout request has been submitted successfully and is awaiting review.")
+    setSuccessMessage(
+      "Your payout request has been submitted successfully and is awaiting review."
+    )
     router.refresh()
   }
 
   return (
-    <div className="flex flex-col gap-6 w-full">
+    <div className="flex w-full flex-col gap-6">
       {/* 1. Top Earnings Balance Summary Card with Primary Request Payout Action */}
       {earningsSummary ? (
         <EarningsBalanceCard
@@ -137,12 +152,14 @@ export function PayoutPanel({
                 Mobile Money Payout Destination
               </div>
               {currentDestination ? (
-                <div className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                   <span>{currentDestination.network}</span>
                   <span className="text-muted-foreground">•</span>
                   <span>{currentDestination.accountName}</span>
                   <span className="text-muted-foreground">•</span>
-                  <span className="font-mono">{currentDestination.phoneMask}</span>
+                  <span className="font-mono">
+                    {currentDestination.phoneMask}
+                  </span>
                 </div>
               ) : (
                 <div className="text-sm font-medium text-amber-600 dark:text-amber-400">
@@ -157,7 +174,7 @@ export function PayoutPanel({
               size="sm"
               variant="outline"
               disabled={readOnly}
-              className="font-medium gap-1.5 text-xs"
+              className="gap-1.5 text-xs font-medium"
             >
               <HugeiconsIcon icon={Settings02Icon} className="size-3.5" />
               {currentDestination ? "Change Destination" : "Set Up Destination"}
@@ -167,7 +184,7 @@ export function PayoutPanel({
                 onClick={handleOpenRequestModal}
                 disabled={readOnly}
                 size="sm"
-                className="font-semibold gap-1.5 text-xs"
+                className="gap-1.5 text-xs font-semibold"
               >
                 <HugeiconsIcon icon={MoneySend01Icon} className="size-3.5" />
                 Request Payout
@@ -178,7 +195,7 @@ export function PayoutPanel({
       </div>
 
       {successMessage ? (
-        <Alert className="border-emerald-500/30 bg-emerald-500/10 text-emerald-900 dark:text-emerald-200 flex items-center justify-between">
+        <Alert className="flex items-center justify-between border-emerald-500/30 bg-emerald-500/10 text-emerald-900 dark:text-emerald-200">
           <div className="flex items-center gap-3">
             <HugeiconsIcon
               icon={CheckmarkCircle02Icon}
@@ -195,7 +212,7 @@ export function PayoutPanel({
           </div>
           <button
             onClick={() => setSuccessMessage(null)}
-            className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:underline cursor-pointer"
+            className="cursor-pointer text-xs font-semibold text-emerald-700 hover:underline dark:text-emerald-300"
           >
             Dismiss
           </button>
@@ -208,9 +225,9 @@ export function PayoutPanel({
           <button
             onClick={() => setActiveTab("ledger")}
             className={cn(
-              "px-4 py-2 text-sm font-semibold border-b-2 transition-all cursor-pointer outline-none -mb-[10px]",
+              "-mb-[10px] cursor-pointer border-b-2 px-4 py-2 text-sm font-semibold transition-all outline-none",
               activeTab === "ledger"
-                ? "border-primary text-foreground font-semibold"
+                ? "border-primary font-semibold text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
@@ -219,9 +236,9 @@ export function PayoutPanel({
           <button
             onClick={() => setActiveTab("payouts")}
             className={cn(
-              "px-4 py-2 text-sm font-semibold border-b-2 transition-all cursor-pointer outline-none -mb-[10px]",
+              "-mb-[10px] cursor-pointer border-b-2 px-4 py-2 text-sm font-semibold transition-all outline-none",
               activeTab === "payouts"
-                ? "border-primary text-foreground font-semibold"
+                ? "border-primary font-semibold text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
@@ -231,7 +248,7 @@ export function PayoutPanel({
       </div>
 
       {/* History table log */}
-      <div className="transition-all duration-200 w-full">
+      <div className="w-full transition-all duration-200">
         {activeTab === "ledger" ? (
           <TransactionHistoryTable
             items={transactions}
@@ -256,7 +273,8 @@ export function PayoutPanel({
               Payout destination setup
             </DialogTitle>
             <DialogDescription>
-              Validate your Mobile Money account name with Paystack to receive commission payouts.
+              Validate your Mobile Money account name with Paystack to receive
+              commission payouts.
             </DialogDescription>
           </DialogHeader>
           <PayoutDestinationForm
@@ -271,9 +289,12 @@ export function PayoutPanel({
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogPopup className="max-w-md p-6">
           <DialogHeader className="mb-4">
-            <DialogTitle className="text-xl font-bold">Request payout</DialogTitle>
+            <DialogTitle className="text-xl font-bold">
+              Request payout
+            </DialogTitle>
             <DialogDescription>
-              Transfer available commissions to your validated Mobile Money account.
+              Transfer available commissions to your validated Mobile Money
+              account.
             </DialogDescription>
           </DialogHeader>
           {modalOpen && (

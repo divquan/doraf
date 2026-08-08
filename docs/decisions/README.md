@@ -18,6 +18,7 @@ architecture, security, money movement, or operations.
 - [ADR-0011: Use passkeys for internal authentication](ADR-0011-use-passkeys-for-internal-authentication.md)
 - [ADR-0012: Use an application-held voucher master key](ADR-0012-use-an-application-held-voucher-master-key.md)
 - [ADR-0013: Use Paystack hosted multi-channel checkout](ADR-0013-use-paystack-hosted-multi-channel-checkout.md)
+- [ADR-0014: Administrator-confirmed manual payouts](ADR-0014-manual-payouts.md)
 
 ## Status values
 

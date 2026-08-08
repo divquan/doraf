@@ -105,6 +105,14 @@ describe('ReportingService', () => {
     expect(result.financial.totalActiveWalletBalancesMinor).toBe('12000');
     expect(result.financial.totalActiveHoldsMinor).toBe('2000');
     expect(result.financial.pendingWithdrawalCount).toBe(1);
+    const withdrawalAggregate = prisma.withdrawal
+      .aggregate as unknown as jest.MockedFunction<
+      (args: { where: { state: { in: string[] } } }) => Promise<unknown>
+    >;
+    const withdrawalAggregateCall = withdrawalAggregate.mock.calls[0]?.[0];
+    expect(withdrawalAggregateCall?.where.state.in).toContain(
+      'AWAITING_MANUAL_PAYMENT',
+    );
 
     expect(result.fulfillment.totalOrders).toBe(10);
     expect(result.fulfillment.paidOrders).toBe(8);
