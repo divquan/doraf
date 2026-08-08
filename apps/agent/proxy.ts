@@ -31,14 +31,9 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url))
   }
 
-  if (
-    hasSession &&
-    (request.nextUrl.pathname === "/login" ||
-      request.nextUrl.pathname === "/register")
-  ) {
-    return NextResponse.redirect(new URL("/dashboard", request.url))
-  }
-
+  // Cookie presence is only a fast path for protected pages. The API validates
+  // whether the opaque session is still active; do not redirect auth pages
+  // based on a stale cookie or /dashboard -> /login can loop forever.
   return NextResponse.next()
 }
 

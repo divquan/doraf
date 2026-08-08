@@ -1,7 +1,14 @@
-import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
-import { agentSessionCookie } from "@/lib/agent-session"
+import { apiRequest } from "@/lib/agent-api"
 
 export default async function Page() {
-  redirect((await cookies()).has(agentSessionCookie) ? "/dashboard" : "/login")
+  let destination = "/login"
+  try {
+    destination = (await apiRequest("/agent-auth/session", {}, true)).ok
+      ? "/dashboard"
+      : "/login"
+  } catch {
+    // Keep the login page usable if the API is temporarily unavailable.
+  }
+  redirect(destination)
 }
