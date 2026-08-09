@@ -22,7 +22,7 @@ describe('PasskeyAuthService', () => {
 
   beforeEach(() => {
     const values: Record<string, unknown> = {
-      INTERNAL_AUTH_RP_NAME: 'Doraf Administration',
+      INTERNAL_AUTH_RP_NAME: 'Dashchecker Administration',
       INTERNAL_AUTH_RP_ID: 'localhost',
       INTERNAL_AUTH_ORIGIN: 'http://localhost:3001',
       INTERNAL_AUTH_CHALLENGE_TTL_SECONDS: 300,
@@ -169,7 +169,7 @@ describe('PasskeyAuthService', () => {
 function registrationOptions(challenge: string) {
   return {
     challenge,
-    rp: { name: 'Doraf Administration', id: 'localhost' },
+    rp: { name: 'Dashchecker Administration', id: 'localhost' },
     user: { id: 'user-id', name: 'user', displayName: 'User' },
     pubKeyCredParams: [],
     timeout: 300_000,

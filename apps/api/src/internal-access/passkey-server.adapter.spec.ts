@@ -4,7 +4,7 @@ describe('SimpleWebAuthnPasskeyServer', () => {
   it('requires a discoverable credential and user verification', async () => {
     const adapter = new SimpleWebAuthnPasskeyServer();
     const options = await adapter.registrationOptions({
-      relyingPartyName: 'Doraf Administration',
+      relyingPartyName: 'Dashchecker Administration',
       relyingPartyId: 'localhost',
       userId: Uint8Array.from(Buffer.alloc(16, 1)),
       userName: 'internal-user',

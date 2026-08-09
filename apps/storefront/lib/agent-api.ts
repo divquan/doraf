@@ -7,7 +7,7 @@ import { agentSessionCookie, registrationCookie } from "@/lib/agent-session"
 export { agentSessionCookie, registrationCookie } from "@/lib/agent-session"
 
 function apiBaseUrl() {
-  return (process.env.DORAF_API_URL ?? "http://localhost:3000/v1").replace(
+  return (process.env.DASHCHECKER_API_URL ?? "http://localhost:3000/v1").replace(
     /\/$/,
     ""
   )
@@ -147,8 +147,8 @@ export function requireSameOrigin(request: NextRequest) {
 
     if (isLocalOrigin && isLocalHost) return
 
-    // 5. Same root domain match (e.g. *.doraf.app)
-    const storefrontUrl = process.env.DORAF_STOREFRONT_URL
+    // 5. Same root domain match (e.g. *.dashchecker.app)
+    const storefrontUrl = process.env.DASHCHECKER_STOREFRONT_URL
     if (storefrontUrl) {
       const parsedStorefront = new URL(
         storefrontUrl.startsWith("http") ? storefrontUrl : `https://${storefrontUrl}`

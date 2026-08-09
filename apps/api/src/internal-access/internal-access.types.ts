@@ -3,7 +3,7 @@ import type { InternalRole } from '../generated/prisma/client';
 export const INTERNAL_SESSION_REPOSITORY = Symbol(
   'INTERNAL_SESSION_REPOSITORY',
 );
-export const INTERNAL_ROLES_KEY = 'doraf:internal-roles';
+export const INTERNAL_ROLES_KEY = 'dashchecker:internal-roles';
 
 export type AuthenticationStrength = 'PRIMARY' | 'MFA' | 'PHISHING_RESISTANT';
 

@@ -57,7 +57,7 @@ export function SalesLinkCard({
     if (!qrDataUrl) return
     const link = document.createElement("a")
     link.href = qrDataUrl
-    link.download = "doraf-store-qr.png"
+    link.download = "dashchecker-store-qr.png"
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)

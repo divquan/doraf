@@ -1,2 +1,2 @@
-export const agentSessionCookie = "doraf_agent_session"
-export const registrationCookie = "doraf_agent_registration"
+export const agentSessionCookie = "dashchecker_agent_session"
+export const registrationCookie = "dashchecker_agent_registration"

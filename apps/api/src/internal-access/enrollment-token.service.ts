@@ -27,7 +27,7 @@ export class EnrollmentTokenService {
 
   fingerprint(token: string): Buffer {
     return createHmac('sha256', this.fingerprintKey)
-      .update('doraf:internal-enrollment:v1\0', 'utf8')
+      .update('dashchecker:internal-enrollment:v1\0', 'utf8')
       .update(token, 'utf8')
       .digest();
   }

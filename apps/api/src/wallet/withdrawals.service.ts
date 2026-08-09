@@ -543,7 +543,7 @@ export class WithdrawalsService {
       await this.releaseBeforeSubmission(withdrawal.id, withdrawal.hold.id);
       return;
     }
-    const reference = `doraf_wd_${withdrawal.id.replaceAll('-', '')}`;
+    const reference = `dashchecker_wd_${withdrawal.id.replaceAll('-', '')}`;
     let recipient: string;
     try {
       recipient = await this.findOrCreateRecipient(withdrawal);
@@ -576,7 +576,7 @@ export class WithdrawalsService {
         reference,
         recipientCode: recipient,
         amountMinor: withdrawal.netAmountMinor,
-        reason: `Doraf withdrawal ${withdrawal.id}`,
+        reason: `Dashchecker withdrawal ${withdrawal.id}`,
       });
       await this.recordProviderResult(withdrawalId, reference, result);
     } catch (error) {

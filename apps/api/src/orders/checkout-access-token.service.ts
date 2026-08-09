@@ -4,7 +4,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { AppEnvironment } from '../config/environment';
 
 const TOKEN_VERSION = 1;
-const TOKEN_DOMAIN = 'doraf:checkout-access:v1';
+const TOKEN_DOMAIN = 'dashchecker:checkout-access:v1';
 export const CHECKOUT_ACCESS_AFTER_AUTH_MS = 15 * 60_000;
 
 interface CheckoutTokenPayload {

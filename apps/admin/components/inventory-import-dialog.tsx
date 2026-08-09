@@ -30,7 +30,7 @@ export function InventoryImportDialog({
         <DialogHeader className="mb-4">
           <DialogTitle>Add voucher inventory</DialogTitle>
           <DialogDescription className="leading-6">
-            Enter serial-number and PIN pairs directly. Doraf validates every
+            Enter serial-number and PIN pairs directly. Dashchecker validates every
             entry before encrypting and committing the complete batch.
           </DialogDescription>
         </DialogHeader>

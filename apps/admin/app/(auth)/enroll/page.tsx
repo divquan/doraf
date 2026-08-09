@@ -5,7 +5,7 @@ export default function EnrollPage() {
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-2">
         <p className="text-sm font-medium text-muted-foreground">
-          Doraf Administration
+          Dashchecker Administration
         </p>
         <h1 className="font-heading text-4xl">Set up your passkey</h1>
         <p className="text-muted-foreground">

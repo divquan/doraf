@@ -325,7 +325,7 @@ export function AgentAuthFlow({ mode }: { mode: Mode }) {
           </p>
         ) : (
           <p className="text-center text-pretty">
-            New to Doraf?{" "}
+            New to Dashchecker?{" "}
             <Link
               className="font-medium text-foreground hover:underline"
               href="/register"

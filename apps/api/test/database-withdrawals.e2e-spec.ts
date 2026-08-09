@@ -534,7 +534,7 @@ describe('Withdrawal settlement and database invariants (e2e)', () => {
       prisma.transferAttempt.create({
         data: {
           withdrawalId: fixture.withdrawalId,
-          providerReference: `doraf_wd_${randomUUID().replaceAll('-', '')}`,
+          providerReference: `dashchecker_wd_${randomUUID().replaceAll('-', '')}`,
           recipientCode: 'RCP_duplicate',
           providerStatus: 'creating',
         },
@@ -622,7 +622,7 @@ async function createWithdrawalFixture(
       },
     },
   });
-  const reference = `doraf_wd_${withdrawal.id.replaceAll('-', '')}`;
+  const reference = `dashchecker_wd_${withdrawal.id.replaceAll('-', '')}`;
   if (state === 'APPROVED' || state === 'PENDING') {
     await prisma.transferAttempt.create({
       data: {

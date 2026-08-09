@@ -28,7 +28,7 @@ async function main(): Promise<void> {
   });
   const token = randomBytes(32).toString('base64url');
   const fingerprint = createHmac('sha256', fingerprintKey)
-    .update('doraf:internal-enrollment:v1\0', 'utf8')
+    .update('dashchecker:internal-enrollment:v1\0', 'utf8')
     .update(token, 'utf8')
     .digest();
   const expiresAt = new Date(Date.now() + ttlSeconds * 1_000);

@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og"
 import { ApiError, apiJson, apiRequest } from "@/lib/agent-api"
 
-export const alt = "Doraf agent store — buy WAEC result checkers"
+export const alt = "Dashchecker agent store — buy WAEC result checkers"
 export const size = { width: 1200, height: 630 }
 export const contentType = "image/png"
 
@@ -18,7 +18,7 @@ export default async function OpengraphImage(
   props: PageProps<"/buy/[webSalesId]">
 ) {
   const { webSalesId } = await props.params
-  let name = "a Doraf agent"
+  let name = "a Dashchecker agent"
   try {
     const response = await apiRequest(
       `/sales-channels/web/${encodeURIComponent(webSalesId)}`

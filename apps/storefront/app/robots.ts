@@ -5,7 +5,7 @@ import type { MetadataRoute } from "next"
 // public recovery page (/recover) may be indexed so buyers can find it. The API
 // routes under /api are disallowed as they are not crawlable documents.
 export default function robots(): MetadataRoute.Robots {
-  const baseUrl = process.env.DORAF_STOREFRONT_URL
+  const baseUrl = process.env.DASHCHECKER_STOREFRONT_URL
   return {
     rules: [
       {

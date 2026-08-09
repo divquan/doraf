@@ -10,11 +10,11 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@workspace/ui/components/empty"
-import { DorafMark } from "@/components/doraf-mark"
+import { DashcheckerMark } from "@/components/dashchecker-mark"
 
 export const metadata: Metadata = {
   title: "Store not found",
-  description: "This Doraf store link is not valid.",
+  description: "This Dashchecker store link is not valid.",
   robots: { index: false, follow: false },
 }
 
@@ -27,7 +27,7 @@ export default function NotFound() {
     <main className="min-h-svh bg-muted/35">
       <header className="border-b bg-background/90">
         <div className="mx-auto flex max-w-5xl items-center px-5 py-4 sm:px-8">
-          <DorafMark variant="buyer" />
+          <DashcheckerMark variant="buyer" />
         </div>
       </header>
       <div className="mx-auto flex max-w-5xl items-center px-5 py-16 sm:px-8">

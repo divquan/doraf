@@ -7,7 +7,7 @@ import { agentSessionCookie, registrationCookie } from "@/lib/agent-session"
 export { agentSessionCookie, registrationCookie } from "@/lib/agent-session"
 
 function apiBaseUrl() {
-  return (process.env.DORAF_API_URL ?? "http://localhost:3000/v1").replace(
+  return (process.env.DASHCHECKER_API_URL ?? "http://localhost:3000/v1").replace(
     /\/$/,
     ""
   )

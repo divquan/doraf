@@ -38,4 +38,3 @@ export class SalesChannelController {
     return this.salesChannels.updateStorefront(agentId, body);
   }
 }
-

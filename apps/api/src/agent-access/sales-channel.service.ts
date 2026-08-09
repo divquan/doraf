@@ -21,7 +21,7 @@ const RESERVED_SLUGS = new Set([
   'waec',
   'bece',
   'wassce',
-  'doraf',
+  'dashchecker',
   'paystack',
   'support',
   'official',
@@ -67,9 +67,12 @@ export class SalesChannelService {
   }
 
   private getSubdomainUrl(publicId: string): string {
-    const rawUrl = process.env.DORAF_STOREFRONT_URL || 'http://localhost:3003';
+    const rawUrl =
+      process.env.DASHCHECKER_STOREFRONT_URL || 'http://localhost:3003';
     try {
-      const url = new URL(rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`);
+      const url = new URL(
+        rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`,
+      );
       const protocol = url.protocol || 'https:';
       const hostname = url.hostname;
       const port = url.port ? `:${url.port}` : '';
@@ -83,7 +86,7 @@ export class SalesChannelService {
       const rootDomain = hostname.split('.').slice(-2).join('.');
       return `${protocol}//${publicId}.${rootDomain}`;
     } catch {
-      return `https://${publicId}.doraf.app`;
+      return `https://${publicId}.dashchecker.app`;
     }
   }
 
@@ -181,14 +184,24 @@ export class SalesChannelService {
       where: { id: agentId },
       data: {
         ...(input.slug !== undefined ? { slug: input.slug || null } : {}),
-        ...(input.storeName !== undefined ? { storeName: input.storeName || null } : {}),
-        ...(input.tagline !== undefined ? { tagline: input.tagline || null } : {}),
-        ...(input.logoUrl !== undefined ? { logoUrl: input.logoUrl || null } : {}),
-        ...(input.bannerUrl !== undefined ? { bannerUrl: input.bannerUrl || null } : {}),
+        ...(input.storeName !== undefined
+          ? { storeName: input.storeName || null }
+          : {}),
+        ...(input.tagline !== undefined
+          ? { tagline: input.tagline || null }
+          : {}),
+        ...(input.logoUrl !== undefined
+          ? { logoUrl: input.logoUrl || null }
+          : {}),
+        ...(input.bannerUrl !== undefined
+          ? { bannerUrl: input.bannerUrl || null }
+          : {}),
         ...(input.whatsappNumber !== undefined
           ? { whatsappNumber: input.whatsappNumber || null }
           : {}),
-        ...(input.themePreset !== undefined ? { themePreset: input.themePreset } : {}),
+        ...(input.themePreset !== undefined
+          ? { themePreset: input.themePreset }
+          : {}),
         ...(input.announcement !== undefined
           ? { announcement: input.announcement || null }
           : {}),
@@ -198,4 +211,3 @@ export class SalesChannelService {
     return this.getForAgent(agentId);
   }
 }
-

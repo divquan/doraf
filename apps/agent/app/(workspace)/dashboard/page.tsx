@@ -164,7 +164,7 @@ export default async function DashboardPage() {
             </p>
             <div className="flex gap-4 text-xs font-semibold underline underline-offset-2">
               <a
-                href="mailto:support@doraf.com?subject=Agent%20Account%20Suspension"
+                href="mailto:support@dashchecker.com?subject=Agent%20Account%20Suspension"
                 className="hover:text-red-400"
               >
                 Contact Support

@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import { Geist_Mono, DM_Sans, Noto_Serif } from "next/font/google"
 import Script from "next/script"
 
@@ -16,6 +17,21 @@ const fontMono = Geist_Mono({
   subsets: ["latin"],
   variable: "--font-mono",
 })
+
+export const metadata: Metadata = {
+  title: {
+    default: "Dashchecker Administration",
+    template: "%s · Dashchecker Administration",
+  },
+  description: "Dashchecker Administration Portal",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
+}
 
 export default function RootLayout({
   children,
@@ -36,7 +52,7 @@ export default function RootLayout({
     >
       <body>
         <ThemeProvider>{children}</ThemeProvider>
-        <Script id="doraf-theme" strategy="beforeInteractive">
+        <Script id="dashchecker-theme" strategy="beforeInteractive">
           {themeInitializer}
         </Script>
       </body>

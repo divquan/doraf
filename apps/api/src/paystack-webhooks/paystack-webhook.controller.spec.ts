@@ -27,7 +27,7 @@ describe('PaystackWebhookController', () => {
     const rawBody = Buffer.from(
       JSON.stringify({
         event: 'transfer.success',
-        data: { reference: 'doraf_wd_1234567890123456' },
+        data: { reference: 'dashchecker_wd_1234567890123456' },
       }),
     );
 
@@ -40,7 +40,7 @@ describe('PaystackWebhookController', () => {
       'signature',
     );
     expect(withdrawals.reconcileReference).toHaveBeenCalledWith(
-      'doraf_wd_1234567890123456',
+      'dashchecker_wd_1234567890123456',
     );
     expect(payments.processPaystackWebhook).not.toHaveBeenCalled();
   });

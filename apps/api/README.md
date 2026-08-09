@@ -1,6 +1,6 @@
-# Doraf API
+# Dashchecker API
 
-NestJS API for Doraf's agent marketplace. Product and architecture requirements
+NestJS API for Dashchecker's agent marketplace. Product and architecture requirements
 live in [`../../docs/README.md`](../../docs/README.md).
 
 ## Local setup
@@ -16,10 +16,10 @@ Then run:
 
 ```bash
 pnpm install
-pnpm --filter @doraf/api db:generate
-pnpm --filter @doraf/api db:migrate:deploy
-pnpm --filter @doraf/api db:seed
-pnpm --filter @doraf/api start:dev
+pnpm --filter @dashchecker/api db:generate
+pnpm --filter @dashchecker/api db:migrate:deploy
+pnpm --filter @dashchecker/api db:seed
+pnpm --filter @dashchecker/api start:dev
 ```
 
 The current HTTP surface is:
@@ -93,7 +93,7 @@ Bootstrap the first Administrator only after applying migrations. The command
 loads `apps/api/.env` automatically:
 
 ```bash
-pnpm --filter @doraf/api internal:bootstrap-admin -- "Administrator Name"
+pnpm --filter @dashchecker/api internal:bootstrap-admin -- "Administrator Name"
 ```
 
 The command refuses to run once any internal user exists and prints one
@@ -175,7 +175,7 @@ one wallet sale credit, and creates durable SMS and optional email work.
 Duplicate processing returns the existing effects. Terminal failure releases
 the reservation. A definitive Paystack initialization rejection releases the
 reservation immediately. Network timeouts
-and provider 5xx responses remain in reconciliation because Doraf cannot safely
+and provider 5xx responses remain in reconciliation because Dashchecker cannot safely
 assume that no payment prompt was sent. The API logs the Paystack HTTP status
 and a redacted provider reason alongside the payment reference.
 
@@ -225,7 +225,7 @@ The agent-wallet endpoints provide authenticated agents with their balance,
 paginated transaction history, withdrawal request form, and withdrawal history.
 
 - **Signed Decimal String Contract:** All monetary fields (`ledgerBalanceMinor`, `activeHoldsMinor`, `withdrawableMinor`, `negativeBalanceMinor`, `amountMinor`) are returned as signed integer pesewa strings (e.g. `"2500"`, `"-500"`). Currency presentation formatting (`GHS 25.00`) is handled in the frontend.
-- **Atomic holds:** A fresh Doraf OTP authorizes one request. A serializable transaction rechecks funds and places the net payout plus GHS 1 fee on hold, preventing concurrent overspend.
+- **Atomic holds:** A fresh Dashchecker OTP authorizes one request. A serializable transaction rechecks funds and places the net payout plus GHS 1 fee on hold, preventing concurrent overspend.
 - **Approval and transfer:** Administrator approval revalidates the agent and wallet, then durable outbox work creates or reuses the current-phone Paystack recipient and initiates a uniquely referenced GHS transfer. Merchant transfer OTP can be completed from the administration queue.
 - **Settlement:** Verified success appends payout and fee debits and consumes the hold. Failure releases it. A later verified reversal appends an idempotent compensation credit without changing prior ledger rows.
 - **No GET Initialization:** Querying balance or transactions for an agent without wallet entries returns a zero summary and empty history without creating database records.
@@ -234,23 +234,23 @@ paginated transaction history, withdrawal request form, and withdrawal history.
 ## Verification
 
 ```bash
-pnpm --filter @doraf/api lint
-pnpm --filter @doraf/api typecheck
-pnpm --filter @doraf/api test --runInBand
-pnpm --filter @doraf/api test:e2e --runInBand
-pnpm --filter @doraf/api build
+pnpm --filter @dashchecker/api lint
+pnpm --filter @dashchecker/api typecheck
+pnpm --filter @dashchecker/api test --runInBand
+pnpm --filter @dashchecker/api test:e2e --runInBand
+pnpm --filter @dashchecker/api build
 ```
 
 Database constraints run against an isolated local PostgreSQL container:
 
 ```bash
-docker compose -f apps/api/compose.test.yml -p doraf-api-test up -d --wait
+docker compose -f apps/api/compose.test.yml -p dashchecker-api-test up -d --wait
 
-DIRECT_URL=postgresql://doraf_test:doraf_test@127.0.0.1:55434/doraf_test \
-  pnpm --filter @doraf/api db:migrate:deploy
+DIRECT_URL=postgresql://dashchecker_test:dashchecker_test@127.0.0.1:55434/dashchecker_test \
+  pnpm --filter @dashchecker/api db:migrate:deploy
 
-TEST_DATABASE_URL=postgresql://doraf_test:doraf_test@127.0.0.1:55434/doraf_test \
-  pnpm --filter @doraf/api test:database
+TEST_DATABASE_URL=postgresql://dashchecker_test:dashchecker_test@127.0.0.1:55434/dashchecker_test \
+  pnpm --filter @dashchecker/api test:database
 
-docker compose -f apps/api/compose.test.yml -p doraf-api-test down
+docker compose -f apps/api/compose.test.yml -p dashchecker-api-test down
 ```

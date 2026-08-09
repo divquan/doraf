@@ -20,7 +20,7 @@ import { Button } from "@workspace/ui/components/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@workspace/ui/components/card"
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@workspace/ui/components/empty"
 import { money } from "@workspace/ui/lib/format"
-import { DorafMark } from "@/components/doraf-mark"
+import { DashcheckerMark } from "@/components/dashchecker-mark"
 import { StorefrontFooter } from "./storefront-footer"
 import { CheckoutModal } from "./checkout-modal"
 import { type StorefrontProduct } from "./_storefront/types"
@@ -71,7 +71,7 @@ export function StorefrontLandingView({
       {/* 2. CLEAN NAVBAR HEADER */}
       <header className="sticky top-0 z-40 border-b bg-background/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-3.5 sm:px-8">
-          <DorafMark variant="buyer" />
+          <DashcheckerMark variant="buyer" />
           <div className="flex items-center gap-3">
             <Button
               render={<Link href="/recover" />}

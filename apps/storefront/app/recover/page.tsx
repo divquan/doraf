@@ -1,11 +1,11 @@
 import type { Metadata } from "next"
 import { BuyerRecoveryFlow } from "@/components/buyer-recovery-flow"
-import { DorafMark } from "@/components/doraf-mark"
+import { DashcheckerMark } from "@/components/dashchecker-mark"
 import { StorefrontFooter } from "@/components/storefront-footer"
 
 export const metadata: Metadata = {
   title: "Recover a purchase",
-  description: "Securely recover checkers from a completed Doraf purchase.",
+  description: "Securely recover checkers from a completed Dashchecker purchase.",
 }
 
 export default function RecoverPage() {
@@ -13,7 +13,7 @@ export default function RecoverPage() {
     <div className="flex flex-col min-h-svh bg-muted/35">
       <header className="border-b bg-background/90">
         <div className="mx-auto flex max-w-5xl items-center px-5 py-4 sm:px-8">
-          <DorafMark variant="buyer" />
+          <DashcheckerMark variant="buyer" />
         </div>
       </header>
       <main className="mx-auto grid max-w-5xl gap-10 px-5 py-10 sm:px-8 sm:py-14 lg:grid-cols-[0.8fr_1.2fr] lg:items-start flex-grow w-full">
@@ -29,7 +29,7 @@ export default function RecoverPage() {
             using the phone number chosen when the order was placed.
           </p>
           <div className="rounded-xl border bg-background/60 p-4 text-sm leading-6 text-muted-foreground">
-            Doraf will never ask you to change the delivery number or disclose a
+            Dashchecker will never ask you to change the delivery number or disclose a
             payment account during recovery.
           </div>
         </section>

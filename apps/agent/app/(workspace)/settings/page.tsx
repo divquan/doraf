@@ -96,7 +96,7 @@ export default async function SettingsPage() {
             </CardHeader>
             <CardContent className="flex flex-col gap-3 text-sm text-muted-foreground">
               <p>
-                By using the Doraf Agent Workspace, you agree to our terms of service and compliance guidelines.
+                By using the Dashchecker Agent Workspace, you agree to our terms of service and compliance guidelines.
               </p>
               <div className="flex gap-4 font-medium text-primary">
                 <a href="#terms" className="hover:underline">Terms of Service</a>

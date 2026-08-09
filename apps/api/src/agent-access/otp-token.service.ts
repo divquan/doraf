@@ -24,7 +24,10 @@ export class OtpTokenService {
   }
 
   codeFingerprint(challengeId: string, code: string): Buffer {
-    return this.fingerprint('doraf:agent-otp:v1', `${challengeId}\0${code}`);
+    return this.fingerprint(
+      'dashchecker:agent-otp:v1',
+      `${challengeId}\0${code}`,
+    );
   }
 
   codeMatches(
@@ -49,7 +52,7 @@ export class OtpTokenService {
   }
 
   completionFingerprint(token: string): Buffer {
-    return this.fingerprint('doraf:agent-registration:v1', token);
+    return this.fingerprint('dashchecker:agent-registration:v1', token);
   }
 
   private fingerprint(domain: string, value: string): Buffer {

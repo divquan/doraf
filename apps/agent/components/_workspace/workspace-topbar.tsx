@@ -1,6 +1,8 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import Image from "next/image"
+import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useTheme } from "next-themes"
 import { Menu01Icon, User02Icon } from "@hugeicons/core-free-icons"
@@ -97,6 +99,28 @@ export function WorkspaceTopbar({
         >
           <HugeiconsIcon data-icon="inline-start" icon={Menu01Icon} />
         </Button>
+        <Link
+          aria-label="Open Dashchecker dashboard"
+          className="group flex size-10 items-center justify-center rounded-lg transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none lg:hidden"
+          href="/dashboard"
+        >
+          <span className="relative size-7">
+            <Image
+              alt=""
+              className="absolute inset-0 size-7 object-contain opacity-100 drop-shadow-sm transition-opacity duration-200 dark:opacity-0"
+              height={368}
+              src="/logo-mark.svg"
+              width={368}
+            />
+            <Image
+              alt=""
+              className="absolute inset-0 size-7 object-contain opacity-0 drop-shadow-sm transition-opacity duration-200 dark:opacity-100"
+              height={368}
+              src="/logo-mark-dark.svg"
+              width={368}
+            />
+          </span>
+        </Link>
 
         {/* Desktop Breadcrumbs */}
         <div className="hidden lg:flex items-center gap-2 text-sm font-medium">
@@ -111,7 +135,7 @@ export function WorkspaceTopbar({
         {/* Trigger Button */}
         <button
           onClick={() => setMenuOpen(!menuOpen)}
-          className="flex items-center gap-2.5 rounded-full border border-border bg-muted/30 hover:bg-muted/60 pl-2 pr-3 py-1.5 text-sm transition-all duration-200 cursor-pointer select-none outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="flex size-10 items-center justify-center rounded-full border border-border bg-muted/30 p-0 text-sm transition-colors duration-200 outline-none select-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:h-auto sm:w-auto sm:justify-start sm:gap-2.5 sm:py-1.5 sm:pr-3 sm:pl-2"
           aria-haspopup="true"
           aria-expanded={menuOpen}
         >

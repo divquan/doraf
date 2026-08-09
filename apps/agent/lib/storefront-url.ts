@@ -1,8 +1,8 @@
 export function getStorefrontConfig(storefrontUrl?: string) {
   const rawUrl =
     storefrontUrl ||
-    process.env.DORAF_STOREFRONT_URL ||
-    process.env.NEXT_PUBLIC_DORAF_STOREFRONT_URL ||
+    process.env.DASHCHECKER_STOREFRONT_URL ||
+    process.env.NEXT_PUBLIC_DASHCHECKER_STOREFRONT_URL ||
     "http://localhost:3003"
 
   try {
@@ -39,10 +39,10 @@ export function getStorefrontConfig(storefrontUrl?: string) {
   } catch {
     return {
       protocol: "https:",
-      rootDomain: "doraf.app",
+      rootDomain: "dashchecker.app",
       port: "",
-      suffix: ".doraf.app",
-      formatSubdomainUrl: (slug: string) => `https://${slug.trim()}.doraf.app`,
+      suffix: ".dashchecker.app",
+      formatSubdomainUrl: (slug: string) => `https://${slug.trim()}.dashchecker.app`,
     }
   }
 }

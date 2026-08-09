@@ -88,7 +88,17 @@ export function WorkspaceSidebar({
     <div className="flex h-full flex-col justify-between bg-card text-card-foreground">
       <div className="flex h-16 items-center justify-between border-b border-border px-5">
         <div className="flex items-center gap-2 select-none">
-          <span className="font-heading text-lg font-semibold">Doraf</span>
+          <img
+            src="/logo-mark.svg"
+            alt="Dashchecker Logo"
+            className="block h-7 w-auto object-contain dark:hidden"
+          />
+          <img
+            src="/logo-mark-dark.svg"
+            alt="Dashchecker Logo"
+            className="hidden h-7 w-auto object-contain dark:block"
+          />
+          <span className="font-heading text-lg font-semibold">Dashchecker</span>
           <span className="rounded border border-border/50 bg-muted/60 px-1.5 py-0.5 text-[0.65rem] font-bold tracking-[0.18em] text-muted-foreground uppercase">
             Administration
           </span>

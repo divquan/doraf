@@ -1,6 +1,6 @@
 export function StorefrontFooter({ storeDisplayName }: { storeDisplayName?: string }) {
   const displayTitle = storeDisplayName || "Dashchecker"
-  const agentWebUrl = process.env.NEXT_PUBLIC_DORAF_AGENT_WEB_URL || "http://localhost:3002"
+  const agentWebUrl = process.env.NEXT_PUBLIC_DASHCHECKER_AGENT_WEB_URL || "http://localhost:3002"
 
   return (
     <footer className="mt-auto border-t bg-card/30 py-6 px-5 sm:px-8 text-xs text-muted-foreground">
@@ -18,7 +18,7 @@ export function StorefrontFooter({ storeDisplayName }: { storeDisplayName?: stri
           </a>
         </div>
         <p className="flex items-center gap-1">
-          Powered by <span className="font-semibold text-foreground/75">Doraf</span>
+          Powered by <span className="font-semibold text-foreground/75">Dashchecker</span>
         </p>
       </div>
     </footer>

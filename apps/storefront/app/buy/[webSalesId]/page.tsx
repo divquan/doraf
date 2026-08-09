@@ -42,8 +42,8 @@ export async function generateMetadata(
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) {
       return {
-        title: "Doraf store",
-        description: "Buy WAEC and BECE result checkers securely on Doraf.",
+        title: "Dashchecker store",
+        description: "Buy WAEC and BECE result checkers securely on Dashchecker.",
         robots: { index: false, follow: true },
       }
     }
@@ -53,16 +53,16 @@ export async function generateMetadata(
   const name = storefront.agent.storeName || storefront.agent.displayName
   return {
     title: `Buy WAEC checkers from ${name}`,
-    description: `Buy WAEC and BECE result checkers securely from ${name} on Doraf. Pay with Mobile Money and receive your serial and PIN by SMS.`,
+    description: `Buy WAEC and BECE result checkers securely from ${name} on Dashchecker. Pay with Mobile Money and receive your serial and PIN by SMS.`,
     openGraph: {
       title: `Buy WAEC checkers from ${name}`,
-      description: `Buy WAEC and BECE result checkers securely from ${name} on Doraf. Pay with Mobile Money and receive your serial and PIN by SMS.`,
+      description: `Buy WAEC and BECE result checkers securely from ${name} on Dashchecker. Pay with Mobile Money and receive your serial and PIN by SMS.`,
       type: "website",
     },
     twitter: {
       card: "summary_large_image",
       title: `Buy WAEC checkers from ${name}`,
-      description: `Buy WAEC and BECE result checkers securely from ${name} on Doraf. Pay with Mobile Money and receive your serial and PIN by SMS.`,
+      description: `Buy WAEC and BECE result checkers securely from ${name} on Dashchecker. Pay with Mobile Money and receive your serial and PIN by SMS.`,
     },
     alternates: {
       canonical: `/buy/${webSalesId}`,

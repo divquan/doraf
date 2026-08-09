@@ -2,10 +2,14 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
 function getRootDomain(hostHeader: string): string {
-  const storefrontUrl = process.env.DORAF_STOREFRONT_URL
+  const storefrontUrl = process.env.DASHCHECKER_STOREFRONT_URL
   if (storefrontUrl) {
     try {
-      const parsed = new URL(storefrontUrl.startsWith("http") ? storefrontUrl : `https://${storefrontUrl}`)
+      const parsed = new URL(
+        storefrontUrl.startsWith("http")
+          ? storefrontUrl
+          : `https://${storefrontUrl}`
+      )
       return parsed.hostname
     } catch {
       // Ignore parse error
@@ -31,7 +35,9 @@ export function proxy(request: NextRequest) {
       const portMatch = host.match(/:\d+$/)
       const port = portMatch ? portMatch[0] : ""
       const isLocal = rootDomain === "localhost" || rootDomain === "127.0.0.1"
-      const targetHost = isLocal ? `${identifier}.localhost${port}` : `${identifier}.${rootDomain}`
+      const targetHost = isLocal
+        ? `${identifier}.localhost${port}`
+        : `${identifier}.${rootDomain}`
       const redirectUrl = new URL(
         `http${request.nextUrl.protocol === "https:" ? "s" : ""}://${targetHost}/`
       )
@@ -58,7 +64,14 @@ export function proxy(request: NextRequest) {
     }
   }
 
-  const reserved = new Set(["www", "app", "api", "admin", "dashboard", "recover"])
+  const reserved = new Set([
+    "www",
+    "app",
+    "api",
+    "admin",
+    "dashboard",
+    "recover",
+  ])
 
   if (pathname.startsWith("/api/")) {
     return NextResponse.next()
@@ -84,5 +97,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|robots.txt|logo.jpg).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon|robots.txt|logo).*)"],
 }

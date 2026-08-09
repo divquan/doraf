@@ -43,8 +43,8 @@ export async function generateMetadata(
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) {
       return {
-        title: "Doraf store",
-        description: "Buy WAEC and BECE result checkers securely on Doraf.",
+        title: "Dashchecker store",
+        description: "Buy WAEC and BECE result checkers securely on Dashchecker.",
         robots: { index: false, follow: true },
       }
     }
@@ -55,7 +55,7 @@ export async function generateMetadata(
   const title = `Buy WAEC checkers from ${name}`
   const description =
     storefront.agent.tagline ||
-    `Buy WAEC and BECE result checkers securely from ${name} on Doraf. Pay with Mobile Money and receive your serial and PIN by SMS.`
+    `Buy WAEC and BECE result checkers securely from ${name} on Dashchecker. Pay with Mobile Money and receive your serial and PIN by SMS.`
 
   return {
     title,

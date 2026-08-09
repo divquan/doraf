@@ -82,7 +82,7 @@ export class OrdersService {
       deliveryPhone.normalized,
     );
     const publicReference = randomReference('DRF', 12);
-    const providerReference = randomReference('DORAF', 18);
+    const providerReference = randomReference('DASHCHECKER', 18);
     const now = new Date();
     const priceExpiresAt = new Date(now.getTime() + PRICE_VALIDITY_MS);
     const authorizationExpiresAt = new Date(
@@ -345,7 +345,7 @@ export class OrdersService {
       throw new NotFoundException('Sales channel not found');
     }
 
-    const providerReference = randomReference('DORAF', 18);
+    const providerReference = randomReference('DASHCHECKER', 18);
     const now = new Date();
     const authorizationExpiresAt = new Date(
       now.getTime() + AUTHORIZATION_WINDOW_MS,

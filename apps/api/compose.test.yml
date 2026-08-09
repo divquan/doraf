@@ -2,13 +2,13 @@ services:
   postgres:
     image: postgres:17-alpine
     environment:
-      POSTGRES_DB: doraf_test
-      POSTGRES_PASSWORD: doraf_test
-      POSTGRES_USER: doraf_test
+      POSTGRES_DB: dashchecker_test
+      POSTGRES_PASSWORD: dashchecker_test
+      POSTGRES_USER: dashchecker_test
     ports:
       - "127.0.0.1:55434:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U doraf_test -d doraf_test"]
+      test: ["CMD-SHELL", "pg_isready -U dashchecker_test -d dashchecker_test"]
       interval: 2s
       timeout: 2s
       retries: 15

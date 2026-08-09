@@ -19,10 +19,17 @@ const fontMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Doraf Agent",
-    template: "%s · Doraf Agent",
+    default: "Dashchecker Agent",
+    template: "%s · Dashchecker Agent",
   },
-  description: "Manage your Doraf checker sales, pricing, and earnings.",
+  description: "Manage your Dashchecker checker sales, pricing, and earnings.",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
 }
 
 export default function RootLayout({

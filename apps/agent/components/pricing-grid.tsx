@@ -67,7 +67,7 @@ export function PricingGrid({
         <CardContent className="flex min-h-40 flex-col items-center justify-center gap-2 text-center">
           <p className="font-medium">Pricing is being prepared</p>
           <p className="max-w-md text-sm leading-6 text-muted-foreground">
-            Doraf has not published checker price ranges yet. Your products will
+            Dashchecker has not published checker price ranges yet. Your products will
             appear here as soon as they are ready.
           </p>
         </CardContent>
@@ -269,7 +269,7 @@ function PriceCard({
               {/* Price Limits Grid */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-xl border bg-card p-3">
-                  <p className="text-xs text-muted-foreground">Doraf Base Price</p>
+                  <p className="text-xs text-muted-foreground">Dashchecker Base Price</p>
                   <p className="mt-1 font-mono text-base font-semibold">{money(row.pricing.basePriceMinor)}</p>
                   <p className="text-[10px] text-muted-foreground">Cost deducted on sale</p>
                 </div>

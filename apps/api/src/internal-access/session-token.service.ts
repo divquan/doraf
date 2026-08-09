@@ -25,7 +25,7 @@ export class SessionTokenService {
 
   fingerprint(token: string): Buffer {
     return createHmac('sha256', this.fingerprintKey)
-      .update('doraf:session:v1\0', 'utf8')
+      .update('dashchecker:session:v1\0', 'utf8')
       .update(token, 'utf8')
       .digest();
   }

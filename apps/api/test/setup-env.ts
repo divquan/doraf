@@ -1,4 +1,4 @@
-process.env.DATABASE_URL ??= 'postgresql://localhost:5432/doraf_test';
+process.env.DATABASE_URL ??= 'postgresql://localhost:5432/dashchecker_test';
 process.env.VOUCHER_MASTER_KEY_BASE64 ??= Buffer.alloc(32, 6).toString(
   'base64',
 );
@@ -37,7 +37,7 @@ process.env.AGENT_AUTH_OTP_TTL_SECONDS ??= '300';
 process.env.AGENT_AUTH_OTP_MAX_ATTEMPTS ??= '5';
 process.env.AGENT_AUTH_REGISTRATION_TTL_SECONDS ??= '900';
 process.env.AGENT_AUTH_SESSION_TTL_SECONDS ??= '2592000';
-process.env.INTERNAL_AUTH_RP_NAME ??= 'Doraf Administration';
+process.env.INTERNAL_AUTH_RP_NAME ??= 'Dashchecker Administration';
 process.env.INTERNAL_AUTH_RP_ID ??= 'localhost';
 process.env.INTERNAL_AUTH_ORIGIN ??= 'http://localhost:3001';
 process.env.INTERNAL_AUTH_CHALLENGE_TTL_SECONDS ??= '300';

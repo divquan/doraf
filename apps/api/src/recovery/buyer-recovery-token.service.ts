@@ -25,7 +25,7 @@ export class BuyerRecoveryTokenService {
 
   codeFingerprint(challengeId: string, code: string) {
     return this.fingerprint(
-      'doraf:buyer-recovery-code:v1',
+      'dashchecker:buyer-recovery-code:v1',
       `${challengeId}\0${code}`,
     );
   }
@@ -42,7 +42,7 @@ export class BuyerRecoveryTokenService {
   }
 
   tokenFingerprint(token: string) {
-    return this.fingerprint('doraf:buyer-recovery-session:v1', token);
+    return this.fingerprint('dashchecker:buyer-recovery-session:v1', token);
   }
 
   private fingerprint(domain: string, value: string) {

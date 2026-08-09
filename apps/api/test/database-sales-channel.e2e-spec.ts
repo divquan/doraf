@@ -66,7 +66,7 @@ describe('agent web sales channel', () => {
     expect(ownChannel).toMatchObject({
       type: 'WEB',
       publicId: agent.webSalesId,
-      subdomainUrl: `https://${agent.webSalesId}.doraf.app`,
+      subdomainUrl: `https://${agent.webSalesId}.dashchecker.app`,
     });
     const publicStore = await service.resolveWebChannel(agent.webSalesId);
     expect(publicStore.agent).toMatchObject({ displayName: agent.name });

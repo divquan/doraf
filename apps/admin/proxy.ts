@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
-const sessionCookieName = "doraf_internal_session"
+const sessionCookieName = "dashchecker_internal_session"
 const workspacePaths = [
   "/dashboard",
   "/inventory",

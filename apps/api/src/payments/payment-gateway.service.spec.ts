@@ -30,7 +30,7 @@ describe('PaymentGatewayService', () => {
           status: true,
           message: 'Authorization URL created',
           data: {
-            reference: 'DORAF-sandbox-reference',
+            reference: 'DASHCHECKER-sandbox-reference',
             access_code: 'paystack-access-code',
           },
         }),
@@ -45,7 +45,7 @@ describe('PaymentGatewayService', () => {
     );
 
     await gateway.initialize({
-      reference: 'DORAF-sandbox-reference',
+      reference: 'DASHCHECKER-sandbox-reference',
       amountMinor: 2_000n,
       currency: 'GHS',
       email: '233241234567@example.com',
@@ -63,7 +63,7 @@ describe('PaymentGatewayService', () => {
       email: '233241234567@example.com',
       amount: '2000',
       currency: 'GHS',
-      reference: 'DORAF-sandbox-reference',
+      reference: 'DASHCHECKER-sandbox-reference',
     });
   });
 
@@ -86,7 +86,7 @@ describe('PaymentGatewayService', () => {
 
     await expect(
       gateway.initialize({
-        reference: 'DORAF-sandbox-reference',
+        reference: 'DASHCHECKER-sandbox-reference',
         amountMinor: 2_000n,
         currency: 'GHS',
         email: '233241234567@example.com',
@@ -139,7 +139,7 @@ describe('PaymentGatewayService', () => {
         JSON.stringify({
           status: true,
           data: {
-            reference: 'doraf_wd_1234567890123456',
+            reference: 'dashchecker_wd_1234567890123456',
             transfer_code: 'TRF_test',
             status: 'pending',
             amount: 2_000,
@@ -157,10 +157,10 @@ describe('PaymentGatewayService', () => {
     );
 
     await gateway.initiateTransfer({
-      reference: 'doraf_wd_1234567890123456',
+      reference: 'dashchecker_wd_1234567890123456',
       recipientCode: 'RCP_test',
       amountMinor: 2_000n,
-      reason: 'Doraf withdrawal',
+      reason: 'Dashchecker withdrawal',
     });
 
     const request = fetchSpy.mock.calls[0]?.[1];
@@ -169,9 +169,9 @@ describe('PaymentGatewayService', () => {
     expect(JSON.parse(request.body)).toEqual({
       source: 'balance',
       amount: '2000',
-      reference: 'doraf_wd_1234567890123456',
+      reference: 'dashchecker_wd_1234567890123456',
       recipient: 'RCP_test',
-      reason: 'Doraf withdrawal',
+      reason: 'Dashchecker withdrawal',
       currency: 'GHS',
     });
   });
@@ -230,7 +230,7 @@ describe('PaymentGatewayService', () => {
 
     await expect(
       gateway.initialize({
-        reference: 'DORAF-sandbox-reference',
+        reference: 'DASHCHECKER-sandbox-reference',
         amountMinor: 2_000n,
         currency: 'GHS',
         email: '233241234567@example.com',

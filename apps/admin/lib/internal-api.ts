@@ -3,10 +3,10 @@ import "server-only"
 import { cookies } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
 
-const sessionCookieName = "doraf_internal_session"
+const sessionCookieName = "dashchecker_internal_session"
 
 function apiBaseUrl() {
-  return (process.env.DORAF_API_URL ?? "http://localhost:3000/v1").replace(
+  return (process.env.DASHCHECKER_API_URL ?? "http://localhost:3000/v1").replace(
     /\/$/,
     ""
   )

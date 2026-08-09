@@ -16,17 +16,17 @@ describe('validateEnvironment', () => {
   it('applies safe local defaults', () => {
     expect(
       validateEnvironment({
-        DATABASE_URL: 'postgresql://localhost:5432/doraf',
+        DATABASE_URL: 'postgresql://localhost:5432/dashchecker',
         ...keyMaterial,
         PAYSTACK_SECRET_KEY: 'sk_test_environment-default',
-        INTERNAL_AUTH_RP_NAME: 'Doraf Administration',
+        INTERNAL_AUTH_RP_NAME: 'Dashchecker Administration',
         INTERNAL_AUTH_RP_ID: 'localhost',
         INTERNAL_AUTH_ORIGIN: 'http://localhost:3001',
       }),
     ).toEqual({
       NODE_ENV: 'development',
       PORT: 3000,
-      DATABASE_URL: 'postgresql://localhost:5432/doraf',
+      DATABASE_URL: 'postgresql://localhost:5432/dashchecker',
       ...keyMaterial,
       ORDER_CONTACT_ENCRYPTION_KEY_BASE64:
         keyMaterial.AGENT_PHONE_ENCRYPTION_KEY_BASE64,
@@ -35,7 +35,7 @@ describe('validateEnvironment', () => {
       PAYSTACK_GUEST_EMAIL_DOMAIN: 'example.com',
       PAYSTACK_MODE: 'sandbox',
       PAYSTACK_SECRET_KEY: 'sk_test_environment-default',
-      INTERNAL_AUTH_RP_NAME: 'Doraf Administration',
+      INTERNAL_AUTH_RP_NAME: 'Dashchecker Administration',
       INTERNAL_AUTH_RP_ID: 'localhost',
       INTERNAL_AUTH_ORIGIN: 'http://localhost:3001',
       INTERNAL_AUTH_CHALLENGE_TTL_SECONDS: 300,
@@ -51,11 +51,11 @@ describe('validateEnvironment', () => {
   it('requires a test key in Paystack sandbox mode', () => {
     expect(() =>
       validateEnvironment({
-        DATABASE_URL: 'postgresql://localhost:5432/doraf',
+        DATABASE_URL: 'postgresql://localhost:5432/dashchecker',
         ...keyMaterial,
         PAYSTACK_MODE: 'sandbox',
         PAYSTACK_SECRET_KEY: 'sk_live_wrong-environment',
-        INTERNAL_AUTH_RP_NAME: 'Doraf Administration',
+        INTERNAL_AUTH_RP_NAME: 'Dashchecker Administration',
         INTERNAL_AUTH_RP_ID: 'localhost',
         INTERNAL_AUTH_ORIGIN: 'http://localhost:3001',
       }),
@@ -65,9 +65,9 @@ describe('validateEnvironment', () => {
   it('requires a sandbox key when Paystack mode is omitted in development', () => {
     expect(() =>
       validateEnvironment({
-        DATABASE_URL: 'postgresql://localhost:5432/doraf',
+        DATABASE_URL: 'postgresql://localhost:5432/dashchecker',
         ...keyMaterial,
-        INTERNAL_AUTH_RP_NAME: 'Doraf Administration',
+        INTERNAL_AUTH_RP_NAME: 'Dashchecker Administration',
         INTERNAL_AUTH_RP_ID: 'localhost',
         INTERNAL_AUTH_ORIGIN: 'http://localhost:3001',
       }),
@@ -77,11 +77,11 @@ describe('validateEnvironment', () => {
   it('rejects a localhost Paystack guest email domain', () => {
     expect(() =>
       validateEnvironment({
-        DATABASE_URL: 'postgresql://localhost:5432/doraf',
+        DATABASE_URL: 'postgresql://localhost:5432/dashchecker',
         ...keyMaterial,
         PAYSTACK_SECRET_KEY: 'sk_test_environment-email-domain',
         PAYSTACK_GUEST_EMAIL_DOMAIN: 'guest.localhost',
-        INTERNAL_AUTH_RP_NAME: 'Doraf Administration',
+        INTERNAL_AUTH_RP_NAME: 'Dashchecker Administration',
         INTERNAL_AUTH_RP_ID: 'localhost',
         INTERNAL_AUTH_ORIGIN: 'http://localhost:3001',
       }),
@@ -91,11 +91,11 @@ describe('validateEnvironment', () => {
   it('does not allow live payment mode outside production', () => {
     expect(() =>
       validateEnvironment({
-        DATABASE_URL: 'postgresql://localhost:5432/doraf',
+        DATABASE_URL: 'postgresql://localhost:5432/dashchecker',
         ...keyMaterial,
         PAYSTACK_MODE: 'live',
         PAYSTACK_SECRET_KEY: 'sk_live_example',
-        INTERNAL_AUTH_RP_NAME: 'Doraf Administration',
+        INTERNAL_AUTH_RP_NAME: 'Dashchecker Administration',
         INTERNAL_AUTH_RP_ID: 'localhost',
         INTERNAL_AUTH_ORIGIN: 'http://localhost:3001',
       }),
@@ -105,7 +105,7 @@ describe('validateEnvironment', () => {
   it('rejects a missing database URL', () => {
     expect(() =>
       validateEnvironment({
-        INTERNAL_AUTH_RP_NAME: 'Doraf Administration',
+        INTERNAL_AUTH_RP_NAME: 'Dashchecker Administration',
         INTERNAL_AUTH_RP_ID: 'localhost',
         INTERNAL_AUTH_ORIGIN: 'http://localhost:3001',
       }),
@@ -115,10 +115,10 @@ describe('validateEnvironment', () => {
   it('rejects a WebAuthn origin with a path', () => {
     expect(() =>
       validateEnvironment({
-        DATABASE_URL: 'postgresql://localhost:5432/doraf',
+        DATABASE_URL: 'postgresql://localhost:5432/dashchecker',
         ...keyMaterial,
         PAYSTACK_SECRET_KEY: 'sk_test_environment-origin-domain',
-        INTERNAL_AUTH_RP_NAME: 'Doraf Administration',
+        INTERNAL_AUTH_RP_NAME: 'Dashchecker Administration',
         INTERNAL_AUTH_RP_ID: 'localhost',
         INTERNAL_AUTH_ORIGIN: 'http://localhost:3001/admin',
       }),
@@ -128,11 +128,11 @@ describe('validateEnvironment', () => {
   it('rejects an origin outside the configured relying-party domain', () => {
     expect(() =>
       validateEnvironment({
-        DATABASE_URL: 'postgresql://localhost:5432/doraf',
+        DATABASE_URL: 'postgresql://localhost:5432/dashchecker',
         ...keyMaterial,
         PAYSTACK_SECRET_KEY: 'sk_test_environment-origin-domain',
-        INTERNAL_AUTH_RP_NAME: 'Doraf Administration',
-        INTERNAL_AUTH_RP_ID: 'doraf.example',
+        INTERNAL_AUTH_RP_NAME: 'Dashchecker Administration',
+        INTERNAL_AUTH_RP_ID: 'dashchecker.example',
         INTERNAL_AUTH_ORIGIN: 'https://attacker.example',
       }),
     ).toThrow('INTERNAL_AUTH_ORIGIN hostname');

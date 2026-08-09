@@ -55,7 +55,7 @@ export function PasskeyLoginForm() {
   return (
     <div className="flex flex-col gap-5">
       <p className="text-sm leading-6 text-muted-foreground">
-        Use the passkey registered to your Doraf internal account. This can be
+        Use the passkey registered to your Dashchecker internal account. This can be
         your device biometrics, screen lock, or security key.
       </p>
       {error ? (
