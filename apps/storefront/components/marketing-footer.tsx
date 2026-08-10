@@ -41,6 +41,18 @@ export function MarketingFooter() {
           >
             Recover a purchase
           </Link>
+          <Link
+            className="transition-colors hover:text-foreground"
+            href="/terms-of-service"
+          >
+            Terms of Service
+          </Link>
+          <Link
+            className="transition-colors hover:text-foreground"
+            href="/privacy-policy"
+          >
+            Privacy Policy
+          </Link>
           <a
             className="transition-colors hover:text-foreground"
             href={getAgentPortalUrl()}
@@ -53,7 +65,8 @@ export function MarketingFooter() {
       </div>
       <div className="border-t border-border/60 px-5 py-4 sm:px-8">
         <p className="mx-auto max-w-6xl text-xs text-muted-foreground">
-          © {new Date().getFullYear()} Dashchecker. Built for independent sellers.
+          © {new Date().getFullYear()} Dashchecker. Built for independent
+          sellers.
         </p>
       </div>
     </footer>
