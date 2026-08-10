@@ -5,7 +5,11 @@ import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useTheme } from "next-themes"
-import { Menu01Icon, User02Icon } from "@hugeicons/core-free-icons"
+import {
+  ArrowRight01Icon,
+  Menu01Icon,
+  User02Icon,
+} from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Button } from "@workspace/ui/components/button"
 import { Badge } from "@workspace/ui/components/badge"
@@ -17,6 +21,7 @@ interface WorkspaceTopbarProps {
   phoneMask: string
   status: "ACTIVE" | "SUSPENDED"
   onOpenMobile: () => void
+  onContinueSetup?: () => void
 }
 
 export function WorkspaceTopbar({
@@ -24,6 +29,7 @@ export function WorkspaceTopbar({
   phoneMask,
   status,
   onOpenMobile,
+  onContinueSetup,
 }: WorkspaceTopbarProps) {
   const pathname = usePathname()
   const { theme, setTheme } = useTheme()
@@ -43,14 +49,18 @@ export function WorkspaceTopbar({
   const segments = pathname.split("/").filter(Boolean)
   const lastSegment = segments[segments.length - 1]
   const fallbackTitle = lastSegment
-    ? lastSegment.charAt(0).toUpperCase() + lastSegment.slice(1).replace(/-/g, " ")
+    ? lastSegment.charAt(0).toUpperCase() +
+      lastSegment.slice(1).replace(/-/g, " ")
     : "Workspace"
   const pageTitle = routeMap[pathname] || fallbackTitle
 
   // Close menu when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
         setMenuOpen(false)
       }
     }
@@ -123,81 +133,104 @@ export function WorkspaceTopbar({
         </Link>
 
         {/* Desktop Breadcrumbs */}
-        <div className="hidden lg:flex items-center gap-2 text-sm font-medium">
+        <div className="hidden items-center gap-2 text-sm font-medium lg:flex">
           <span className="text-muted-foreground select-none">Workspace</span>
           <span className="text-muted-foreground/30 select-none">/</span>
           <span className="text-foreground">{pageTitle}</span>
         </div>
       </div>
 
-      {/* Right: Unified Profile Button & Popover */}
-      <div className="relative" ref={containerRef}>
-        {/* Trigger Button */}
-        <button
-          onClick={() => setMenuOpen(!menuOpen)}
-          className="flex size-10 items-center justify-center rounded-full border border-border bg-muted/30 p-0 text-sm transition-colors duration-200 outline-none select-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:h-auto sm:w-auto sm:justify-start sm:gap-2.5 sm:py-1.5 sm:pr-3 sm:pl-2"
-          aria-haspopup="true"
-          aria-expanded={menuOpen}
-        >
-          <div className="relative flex size-7 items-center justify-center rounded-full bg-primary/10 text-primary shrink-0">
-            <HugeiconsIcon className="size-3.5" icon={User02Icon} />
-          </div>
-          <div className="hidden text-left sm:block min-w-0 max-w-[120px]">
-            <p className="text-xs font-semibold leading-tight text-foreground truncate">
-              {name}
-            </p>
-            <p className="text-[9px] leading-tight text-muted-foreground truncate">
-              {phoneMask}
-            </p>
-          </div>
-        </button>
+      {/* Right: Setup action, profile button & popover */}
+      <div className="flex items-center gap-2">
+        {onContinueSetup ? (
+          <Button
+            aria-label="Continue setup"
+            onClick={onContinueSetup}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            <span className="hidden sm:inline">Continue setup</span>
+            <HugeiconsIcon data-icon="inline-end" icon={ArrowRight01Icon} />
+          </Button>
+        ) : null}
 
-        {/* Popover Card */}
-        {menuOpen && (
-          <div className="absolute right-0 mt-2 w-64 rounded-xl border border-border bg-popover text-popover-foreground shadow-lg focus:outline-none z-50 p-4 space-y-4 animate-in fade-in-50 slide-in-from-top-1 duration-100">
-            {/* User Details */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                  Account
-                </span>
-                <Badge
-                  variant={status === "ACTIVE" ? "secondary" : "destructive"}
-                  className="text-[9px] px-1.5 py-0 h-4 leading-none"
-                >
-                  {status}
-                </Badge>
-              </div>
-              <div className="rounded-lg bg-muted/20 p-2.5 border">
-                <p className="text-sm font-semibold text-foreground truncate">{name}</p>
-                <p className="text-xs text-muted-foreground truncate">{phoneMask}</p>
-              </div>
+        <div className="relative" ref={containerRef}>
+          {/* Trigger Button */}
+          <button
+            onClick={() => setMenuOpen(!menuOpen)}
+            className="flex size-10 items-center justify-center rounded-full border border-border bg-muted/30 p-0 text-sm transition-colors duration-200 outline-none select-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:h-auto sm:w-auto sm:justify-start sm:gap-2.5 sm:py-1.5 sm:pr-3 sm:pl-2"
+            aria-haspopup="true"
+            aria-expanded={menuOpen}
+          >
+            <div className="relative flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <HugeiconsIcon className="size-3.5" icon={User02Icon} />
             </div>
+            <div className="hidden max-w-[120px] min-w-0 text-left sm:block">
+              <p className="truncate text-xs leading-tight font-semibold text-foreground">
+                {name}
+              </p>
+              <p className="truncate text-[9px] leading-tight text-muted-foreground">
+                {phoneMask}
+              </p>
+            </div>
+          </button>
 
-            {/* Appearance settings */}
-            <div className="space-y-2.5 border-t border-border pt-3">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                Preferences
-              </span>
+          {/* Popover Card */}
+          {menuOpen && (
+            <div className="absolute right-0 z-50 mt-2 w-64 animate-in space-y-4 rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-lg duration-100 fade-in-50 slide-in-from-top-1 focus:outline-none">
+              {/* User Details */}
               <div className="space-y-2">
-                <ThemeSelector />
-                <div className="text-[10px] text-muted-foreground/80 leading-normal bg-muted/10 p-2 rounded-lg border border-dashed">
-                 Press <kbd className="px-1.5 py-0.5 border rounded bg-background text-[9px] font-mono select-none font-semibold">D</kbd> on your keyboard to toggle theme.
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+                    Account
+                  </span>
+                  <Badge
+                    variant={status === "ACTIVE" ? "secondary" : "destructive"}
+                    className="h-4 px-1.5 py-0 text-[9px] leading-none"
+                  >
+                    {status}
+                  </Badge>
+                </div>
+                <div className="rounded-lg border bg-muted/20 p-2.5">
+                  <p className="truncate text-sm font-semibold text-foreground">
+                    {name}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {phoneMask}
+                  </p>
                 </div>
               </div>
-            </div>
 
-            {/* Actions */}
-            <div className="border-t border-border pt-3">
-              <LogoutButton
-                variant="destructive"
-                size="sm"
-                showText={true}
-                className="w-full justify-center text-xs"
-              />
+              {/* Appearance settings */}
+              <div className="space-y-2.5 border-t border-border pt-3">
+                <span className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+                  Preferences
+                </span>
+                <div className="space-y-2">
+                  <ThemeSelector />
+                  <div className="rounded-lg border border-dashed bg-muted/10 p-2 text-[10px] leading-normal text-muted-foreground/80">
+                    Press{" "}
+                    <kbd className="rounded border bg-background px-1.5 py-0.5 font-mono text-[9px] font-semibold select-none">
+                      D
+                    </kbd>{" "}
+                    on your keyboard to toggle theme.
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="border-t border-border pt-3">
+                <LogoutButton
+                  variant="destructive"
+                  size="sm"
+                  showText={true}
+                  className="w-full justify-center text-xs"
+                />
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </header>
   )

@@ -284,9 +284,28 @@ model Agent {
   wallet             WalletAccount?
   withdrawals        Withdrawal[]
   transferRecipients TransferRecipient[]
+  onboarding         AgentOnboarding?
 
   @@index([status])
   @@map("agent")
+}
+
+model AgentOnboarding {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  agentId              String    @unique @map("agent_id") @db.Uuid
+  currentStep          Int       @default(0) @map("current_step")
+  startedAt            DateTime? @map("started_at") @db.Timestamptz(6)
+  storefrontConfiguredAt DateTime? @map("storefront_configured_at") @db.Timestamptz(6)
+  pricesConfiguredAt   DateTime? @map("prices_configured_at") @db.Timestamptz(6)
+  productsReviewedAt   DateTime? @map("products_reviewed_at") @db.Timestamptz(6)
+  storefrontSharedAt   DateTime? @map("storefront_shared_at") @db.Timestamptz(6)
+  completedAt          DateTime? @map("completed_at") @db.Timestamptz(6)
+  lastDismissedAt      DateTime? @map("last_dismissed_at") @db.Timestamptz(6)
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  agent                Agent     @relation(fields: [agentId], references: [id], onDelete: Restrict)
+
+  @@map("agent_onboarding")
 }
 
 model OtpChallenge {

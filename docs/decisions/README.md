@@ -19,6 +19,7 @@ architecture, security, money movement, or operations.
 - [ADR-0012: Use an application-held voucher master key](ADR-0012-use-an-application-held-voucher-master-key.md)
 - [ADR-0013: Use Paystack hosted multi-channel checkout](ADR-0013-use-paystack-hosted-multi-channel-checkout.md)
 - [ADR-0014: Administrator-confirmed manual payouts](ADR-0014-manual-payouts.md)
+- [ADR-0015: Use a resumable, server-tracked agent first-run onboarding](ADR-0015-agent-first-run-onboarding.md)
 
 ## Status values
 

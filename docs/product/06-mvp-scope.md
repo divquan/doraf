@@ -174,7 +174,7 @@ needed to operate real money and secret voucher inventory.
 - More than five vouchers per order
 - Coupons, promotions, or quantity discounts
 - Custom domains
-- Custom storefront branding
+- Custom storefront branding beyond the store name
 - Multiple campaign links
 - USSD purchase and referral codes
 - Customer lists, CRM, or buyer marketing

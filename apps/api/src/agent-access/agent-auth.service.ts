@@ -209,6 +209,7 @@ export class AgentAuthService {
           encryptionKeyId: challenge.encryptionKeyId,
           formatVersion: challenge.formatVersion,
           tenant: { create: {} },
+          onboarding: { create: {} },
         },
         select: {
           id: true,

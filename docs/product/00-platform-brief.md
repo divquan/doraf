@@ -580,6 +580,7 @@ and resulting inventory and wallet movements are audited.
 ### PF-083 — Permanent agent sales channels
 
 Each agent receives one permanent personalized web sales link. The portal
+lets the agent set a store name and public link name during initial setup, then
 provides copy and device-share actions.
 
 Permanent web identifiers are never assigned to another agent.
@@ -633,8 +634,9 @@ and pending withdrawals.
 
 ### PF-092 — Agent portal MVP exclusions
 
-The MVP excludes custom branding, custom domains, multiple campaign links or
-codes, customer lists, agent staff, and delegated access.
+The MVP excludes custom branding beyond the store name, custom domains,
+multiple campaign links or codes, customer lists, agent staff, and delegated
+access.
 
 ### PF-093 — Administration dashboard
 

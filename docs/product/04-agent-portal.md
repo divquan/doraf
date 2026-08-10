@@ -40,11 +40,14 @@ the previous twenty-nine days.
 
 Each agent receives one permanent personalized web sales link.
 
-The portal provides copy and device-share actions. It clearly identifies which
-checker prices buyers will see. USSD is deferred until after the MVP.
+During first-run setup, the agent sets a store name and public link name. The
+underlying web sales identifier remains permanent. The portal provides copy and
+device-share actions and clearly identifies which checker prices buyers will
+see. USSD is deferred until after the MVP.
 
-Agents cannot customize the URL, identifier, domain, or branding in the MVP.
-Permanent web identifiers are never assigned to another agent.
+Agents cannot customize the underlying identifier or domain in the MVP.
+Permanent web identifiers are never assigned to another agent; the public link
+name is configured once during initial setup.
 
 ## Pricing
 
@@ -167,9 +170,9 @@ withdrawal.
 
 ## Explicitly outside the MVP
 
-- Custom storefront branding
+- Custom storefront branding beyond the store name
 - Custom domains
-- Custom or multiple sales links
+- Custom or multiple sales links beyond the one initial public link name
 - USSD purchase and referral codes
 - Multiple campaign links
 - Customer lists or contact-management tools

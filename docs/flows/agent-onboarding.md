@@ -23,13 +23,13 @@ notices remain part of the compliance topic.
 
 ## Initial setup
 
-1. Show the three checker products.
-2. Show effective base and maximum retail prices.
-3. Let the agent select a valid retail price for each product.
-4. Show profit per voucher.
-5. Show binary product availability.
-6. Present copy and share actions for the web link and USSD code.
-7. Take the agent to the dashboard.
+1. Let the agent set a store name and public link name.
+2. Show the checker products, effective base and maximum retail prices.
+3. Let the agent select a valid retail price for each product and show profit
+   per voucher.
+4. Show binary product availability for review.
+5. Present copy and share actions for the finished web link.
+6. Take the agent to the dashboard.
 
 Whether Doraf supplies a default retail price before the agent explicitly saves
 one remains open.
@@ -41,3 +41,18 @@ one remains open.
 3. Agent submits the OTP.
 4. Doraf opens the active portal or suspended read-only portal according to
    account status.
+
+## First-run portal presentation
+
+After an active agent signs in, the portal opens a short onboarding modal for
+the initial setup. It presents four checklist steps in order: set the store
+name and public link, set valid retail prices, review binary product
+availability, and finally copy or open the finished web sales link. The agent
+can postpone the modal and resume it from the portal, but it returns on a later
+login until the server records completion.
+
+The server records onboarding start, each meaningful step, dismissal, and final
+completion timestamps. Completion is accepted only after the API verifies the
+store identity, all configured products have valid retail prices, and the
+availability-review and storefront-share actions were recorded. The tracking
+record contains no buyer, voucher, phone, or inventory-secret data.

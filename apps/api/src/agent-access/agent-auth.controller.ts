@@ -23,6 +23,8 @@ import { PricingService } from '../pricing/pricing.service';
 import { SetAgentRetailPriceRequest } from '../pricing/dto/set-agent-retail-price.request';
 import { SalesChannelService } from './sales-channel.service';
 import { OrdersService } from '../orders/orders.service';
+import { AgentOnboardingService } from './agent-onboarding.service';
+import { UpdateAgentOnboardingRequest } from './dto/update-agent-onboarding.request';
 
 @Controller('agent-auth')
 @UseInterceptors(AgentNoStoreInterceptor)
@@ -32,6 +34,7 @@ export class AgentAuthController {
     private readonly pricing: PricingService,
     private readonly salesChannels: SalesChannelService,
     private readonly orders: OrdersService,
+    private readonly onboarding: AgentOnboardingService,
   ) {}
 
   @Post('registration/otp')
@@ -99,6 +102,21 @@ export class AgentAuthController {
         status: principal.status,
       },
     };
+  }
+
+  @Get('onboarding')
+  @UseGuards(AgentSessionGuard)
+  onboardingState(@CurrentAgentPrincipal() principal: AgentPrincipal) {
+    return this.onboarding.get(principal.agentId);
+  }
+
+  @Post('onboarding')
+  @UseGuards(AgentSessionGuard)
+  updateOnboarding(
+    @Body() request: UpdateAgentOnboardingRequest,
+    @CurrentAgentPrincipal() principal: AgentPrincipal,
+  ) {
+    return this.onboarding.record(principal.agentId, request.action);
   }
 
   @Post('logout')

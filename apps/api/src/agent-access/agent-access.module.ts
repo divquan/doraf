@@ -14,6 +14,7 @@ import { PricingModule } from '../pricing/pricing.module';
 import { OrdersModule } from '../orders/orders.module';
 import { SalesChannelController } from './sales-channel.controller';
 import { SalesChannelService } from './sales-channel.service';
+import { AgentOnboardingService } from './agent-onboarding.service';
 
 @Module({
   imports: [InternalAccessModule, PricingModule, OrdersModule],
@@ -30,6 +31,7 @@ import { SalesChannelService } from './sales-channel.service';
     PhoneProtectionService,
     OtpTokenService,
     SalesChannelService,
+    AgentOnboardingService,
     LocalSmsOtpSender,
     { provide: SMS_OTP_SENDER, useExisting: LocalSmsOtpSender },
   ],
