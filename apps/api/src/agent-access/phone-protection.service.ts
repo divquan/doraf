@@ -9,7 +9,7 @@ import {
 import type { AppEnvironment } from '../config/environment';
 import type { ProtectedPhone } from './agent-access.types';
 
-const aad = Buffer.from('doraf:agent-phone:v1', 'utf8');
+const aad = Buffer.from('dashchecker:agent-phone:v1', 'utf8');
 
 @Injectable()
 export class PhoneProtectionService {
@@ -75,7 +75,7 @@ export class PhoneProtectionService {
 
   fingerprint(normalized: string): Buffer {
     return createHmac('sha256', this.fingerprintKey)
-      .update('doraf:agent-phone:v1\0', 'utf8')
+      .update('dashchecker:agent-phone:v1\0', 'utf8')
       .update(normalized, 'utf8')
       .digest();
   }

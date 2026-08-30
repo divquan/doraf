@@ -9,7 +9,7 @@ before launch.
 
 ## Data governance
 
-Doraf must:
+Dashchecker must:
 
 - register with Ghana's Data Protection Commission before production
   processing,
@@ -71,7 +71,7 @@ confirm appropriate notices, consent, evidence handling, and support practices.
 
 Separate notices explain:
 
-- what Doraf collects,
+- what Dashchecker collects,
 - why it is needed,
 - required versus optional fields,
 - recipients and providers,
@@ -79,11 +79,11 @@ Separate notices explain:
 - retention,
 - security and incident handling,
 - data-subject rights, and
-- how to contact Doraf.
+- how to contact Dashchecker.
 
-Doraf supports authenticated requests for access, correction, objection, and
+Dashchecker supports authenticated requests for access, correction, objection, and
 deletion where applicable. A request does not erase immutable financial,
-security, fraud, dispute, or audit records when Doraf must retain them. Instead,
+security, fraud, dispute, or audit records when Dashchecker must retain them. Instead,
 the response explains the applicable restriction and removes data that is no
 longer needed where permitted.
 

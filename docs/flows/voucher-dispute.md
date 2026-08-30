@@ -21,7 +21,7 @@ Last updated: 2026-07-30
    dispute history.
 2. Access raw voucher data only when necessary and through an audited action.
 3. Determine whether the issue is:
-   - Doraf error,
+   - Dashchecker error,
    - credible invalid or previously used inventory,
    - buyer selection or delivery-entry error,
    - buyer misuse, or

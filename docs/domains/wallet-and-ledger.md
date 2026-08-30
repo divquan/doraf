@@ -6,7 +6,7 @@ Last updated: 2026-07-30
 ## Sale credit
 
 After Paystack payment is confirmed and the complete voucher allocation is
-converted to sold, Doraf appends one agent profit credit to the wallet ledger.
+converted to sold, Dashchecker appends one agent profit credit to the wallet ledger.
 
 The amount equals the immutable total agent profit snapshot on the order.
 Notification delivery is not a prerequisite for the credit.
@@ -28,7 +28,7 @@ Active withdrawal holds further reduce the withdrawable amount:
 
 The balance is limited to earnings and adjustments. Agents cannot top it up,
 receive buyer deposits, transfer it to another user, earn interest, or spend it
-inside Doraf.
+inside Dashchecker.
 
 ## Payment reversal
 
@@ -46,19 +46,19 @@ was appended:
 Reprocessing the same provider reversal must return the existing debit rather
 than append another one.
 
-If the provider later reinstates the payment, Doraf should append a compensating
+If the provider later reinstates the payment, Dashchecker should append a compensating
 credit rather than delete the reversal debit. The exact reinstatement workflow
 remains to be confirmed.
 
 A negative balance is a debt recorded against the agent wallet. Whether it
 triggers collection activity or a maximum debt threshold remains open. It does
-not automatically suspend new sales in the MVP. Doraf alerts Administrators and
+not automatically suspend new sales in the MVP. Dashchecker alerts Administrators and
 allows future earnings to offset the debt.
 
 ## Withdrawal destination
 
 MVP withdrawals go only to the agent's registered Ghana Mobile Money number.
-The agent selects its current Mobile Money network. Doraf creates or reuses the
+The agent selects its current Mobile Money network. Dashchecker creates or reuses the
 corresponding Paystack `mobile_money` transfer recipient and stores the returned
 recipient code.
 
@@ -72,14 +72,14 @@ Bank accounts and third-party Mobile Money numbers are outside the MVP.
 - Currency: GHS
 - Minimum net payout: GHS 10
 - Provider maximum net payout: GHS 50,000
-- Doraf maximum: configurable and no higher than the provider maximum
+- Dashchecker maximum: configurable and no higher than the provider maximum
 - Agent-paid Mobile Money transfer fee: GHS 1
 
 The request screen displays net payout, fee, and total wallet hold separately.
 For example, a GHS 20 payout requires GHS 21 withdrawable and places a GHS 21
 hold.
 
-Paystack's limits and fee are external configuration. Doraf must verify them
+Paystack's limits and fee are external configuration. Dashchecker must verify them
 before launch and monitor them for change.
 
 ## Withdrawal request
@@ -89,10 +89,10 @@ An agent:
 1. Selects or confirms the registered phone's Mobile Money network.
 2. Enters a valid net payout amount.
 3. Reviews the GHS 1 fee and total wallet reduction.
-4. Completes a fresh Doraf SMS OTP challenge.
+4. Completes a fresh Dashchecker SMS OTP challenge.
 5. Submits the request.
 
-In one transaction, Doraf rechecks the wallet and places a hold for the net
+In one transaction, Dashchecker rechecks the wallet and places a hold for the net
 payout plus fee. This prevents concurrent requests from spending the same
 balance.
 
@@ -109,7 +109,7 @@ withdrawal at approval time:
 - **Manual payout** moves the request to `AWAITING_MANUAL_PAYMENT` and keeps the
   hold active until the Administrator records the out-of-band payment.
 
-Immediately before Paystack initiation, Doraf rechecks:
+Immediately before Paystack initiation, Dashchecker rechecks:
 
 - agent and wallet status,
 - active hold,
@@ -154,7 +154,7 @@ Once submitted to Paystack:
 - `failed` atomically releases the hold, and
 - `reversed` releases the hold when debits were not posted.
 
-If Paystack reverses a transfer after success debits were posted, Doraf appends
+If Paystack reverses a transfer after success debits were posted, Dashchecker appends
 compensating credits for money returned by the provider rather than deleting
 the original debits. Treatment of a provider fee that is not returned must
 match the provider settlement record.
@@ -199,12 +199,12 @@ The agent can see:
 - timestamps, and
 - a safe failure reason when applicable.
 
-Doraf sends status notifications by SMS. Exact notification points remain to be
+Dashchecker sends status notifications by SMS. Exact notification points remain to be
 defined.
 
 ## Remaining wallet questions
 
-- Doraf's initial configurable maximum withdrawal amount
+- Dashchecker's initial configurable maximum withdrawal amount
 - Whether daily or rolling withdrawal limits apply
 - Administrator response time expectations
 - Request expiration before approval

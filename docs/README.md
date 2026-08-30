@@ -1,7 +1,7 @@
-# Doraf product and architecture documentation
+# Dashchecker product and architecture documentation
 
 This directory is the durable source of product context for humans and coding
-agents working on Doraf. Chat transcripts, tickets, and implementation details
+agents working on Dashchecker. Chat transcripts, tickets, and implementation details
 may supplement these documents, but they do not replace confirmed decisions
 recorded here.
 

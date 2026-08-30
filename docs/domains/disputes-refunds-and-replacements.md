@@ -33,9 +33,9 @@ Evidence uploads must be private, access-controlled, malware-checked, and
 excluded from analytics. Buyers should be asked to redact unrelated student
 information where possible.
 
-## Qualifying Doraf errors
+## Qualifying Dashchecker errors
 
-The following qualify for replacement when caused by Doraf:
+The following qualify for replacement when caused by Dashchecker:
 
 - wrong checker product delivered,
 - malformed PIN,
@@ -91,7 +91,7 @@ approves them with a recorded reason; approval creates durable provider-submissi
 work but does not itself call Paystack. Provider submission and reconciliation
 remain asynchronous so an approval transaction never waits on an external API.
 
-If Doraf cannot supply a valid replacement, an Administrator can refund the
+If Dashchecker cannot supply a valid replacement, an Administrator can refund the
 affected unit.
 
 For each refunded voucher unit:
@@ -103,7 +103,7 @@ For each refunded voucher unit:
 
 The agent wallet may become negative under the existing payment-reversal rules.
 
-A duplicate or excess payment refund has no agent-wallet effect because Doraf
+A duplicate or excess payment refund has no agent-wallet effect because Dashchecker
 did not append another sale-profit credit.
 
 Refund and wallet effects must be idempotent. Repeated provider callbacks or

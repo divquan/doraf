@@ -5,7 +5,7 @@ Date: 2026-07-31
 
 ## Context
 
-Doraf's Administrator and Support operators require authentication stronger
+Dashchecker's Administrator and Support operators require authentication stronger
 than agent SMS OTP. These accounts can reach inventory, configuration,
 investigation, and money-operation workflows, so passwords or SMS-only login
 would create avoidable phishing and account-recovery risk.
@@ -19,7 +19,7 @@ Use discoverable WebAuthn passkeys as the MVP internal login credential. Require
 authenticator user verification during both registration and authentication.
 Use no passwords and no SMS fallback for internal login.
 
-Use `@simplewebauthn/server` behind a Doraf-owned adapter. Store only credential
+Use `@simplewebauthn/server` behind a Dashchecker-owned adapter. Store only credential
 IDs, public keys, counters, transports, device/backup metadata, names, and
 operational timestamps. Private key material remains with the operator's
 authenticator or passkey provider.

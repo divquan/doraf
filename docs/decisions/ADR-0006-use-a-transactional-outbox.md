@@ -5,7 +5,7 @@ Date: 2026-07-30
 
 ## Context
 
-After a payment commits, Doraf must not lose SMS, email, notification, and
+After a payment commits, Dashchecker must not lose SMS, email, notification, and
 follow-up work. Calling external providers before commit can expose vouchers for
 an order that is not durably paid. Calling them after commit without durable
 intent can lose work if the process crashes.

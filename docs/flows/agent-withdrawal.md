@@ -10,7 +10,7 @@ Last updated: 2026-07-30
 - The Mobile Money network is selected.
 - Wallet balance is positive.
 - Withdrawable funds cover the net payout and GHS 1 fee.
-- The payout is at least GHS 10 and no more than the effective Doraf and
+- The payout is at least GHS 10 and no more than the effective Dashchecker and
   provider limit.
 
 ## Request
@@ -18,7 +18,7 @@ Last updated: 2026-07-30
 1. Enter the desired net payout.
 2. Show the GHS 1 fee and total wallet reduction.
 3. Show the masked registered Mobile Money destination and selected network.
-4. Require a fresh Doraf SMS OTP.
+4. Require a fresh Dashchecker SMS OTP.
 5. Recheck available funds and request eligibility.
 6. Create the withdrawal and atomically place a hold for payout plus fee.
 7. Notify the agent that the request awaits Administrator approval.
@@ -51,7 +51,7 @@ the payment:
    - enters a transaction reference,
    - types the exact net payout amount shown on the request, and
    - optionally adds a note.
-3. Doraf atomically appends the `PAYOUT_DEBIT` and `PAYOUT_FEE_DEBIT` ledger
+3. Dashchecker atomically appends the `PAYOUT_DEBIT` and `PAYOUT_FEE_DEBIT` ledger
    entries, consumes the hold, marks the withdrawal `SUCCESS`, and records a
    `WITHDRAWAL_MANUAL_PAID` audit event with the reference, note, and actor.
 4. Confirmation is idempotent: retries and double clicks cannot post debits
@@ -100,7 +100,7 @@ As of 2026-07-30, Paystack documents:
 - webhook-based final status, and
 - merchant transfer OTP or other configured transfer approval.
 
-These are external constraints, not permanent Doraf constants. Verify them
+These are external constraints, not permanent Dashchecker constants. Verify them
 before launch and monitor them for change.
 
 Official references:

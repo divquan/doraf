@@ -8,7 +8,7 @@ the responsible professional or provider supplies appropriate evidence.
 
 ## Data protection
 
-- [ ] Register Doraf with Ghana's Data Protection Commission.
+- [ ] Register Dashchecker with Ghana's Data Protection Commission.
 - [ ] Assign data-protection responsibility.
 - [ ] Complete the DPC self-assessment or equivalent readiness review.
 - [ ] Approve agent and guest-buyer privacy notices.
@@ -26,9 +26,9 @@ Official sources:
 
 ## Payments and financial regulation
 
-- [ ] Obtain qualified Ghanaian advice on Doraf's earnings-ledger, agent,
+- [ ] Obtain qualified Ghanaian advice on Dashchecker's earnings-ledger, agent,
   payment-collection, and payout model.
-- [ ] Confirm whether Doraf needs authorization, registration, contractual
+- [ ] Confirm whether Dashchecker needs authorization, registration, contractual
   controls, or model changes under the Bank of Ghana framework.
 - [ ] Preserve the restriction that agent balances cannot be topped up, spent,
   or transferred.
@@ -39,7 +39,7 @@ Official sources:
 - [ ] Test live-mode operational controls with authorized low-value scenarios.
 
 The Bank of Ghana currently lists Paystack Ghana LTD as PSP Enhanced. This does
-not itself determine Doraf's regulatory classification.
+not itself determine Dashchecker's regulatory classification.
 
 Official sources:
 

@@ -11,7 +11,7 @@ ownership and invariants.
 
 - Internal primary keys are non-sequential UUIDs.
 - Buyer-facing order references are separate high-entropy identifiers.
-- Provider references are separate from Doraf IDs.
+- Provider references are separate from Dashchecker IDs.
 - Monetary values are integer pesewas with currency `GHS`.
 - Timestamps are stored in UTC.
 - Records use explicit lifecycle state rather than deletion when history must
@@ -128,7 +128,7 @@ No internal account is shared.
 
 Owner: Agents and sales channels
 
-One permanent web identifier (`webSalesId`) and optional custom subdomain slug (`slug`) for one agent. Includes agent-customizable storefront branding (store name, tagline, logo URL, hero banner URL, WhatsApp contact number, theme preset, and announcement ticker). Subdomains (`https://{slug}.doraf.app/`) replace path-based URLs, with legacy `/buy/{id}` requests permanently redirected.
+One permanent web identifier (`webSalesId`) and optional custom subdomain slug (`slug`) for one agent. Includes agent-customizable storefront branding (store name, tagline, logo URL, hero banner URL, WhatsApp contact number, theme preset, and announcement ticker). Subdomains (`https://{slug}.dashchecker.app/`) replace path-based URLs, with legacy `/buy/{id}` requests permanently redirected.
 
 ### `UssdReferralCode`
 

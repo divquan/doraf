@@ -6,18 +6,18 @@ Last updated: 2026-07-30
 ## Self-service recovery
 
 1. Buyer opens the recovery page.
-2. Buyer enters the high-entropy Doraf order reference.
-3. Doraf responds generically to prevent order-reference enumeration.
-4. If the order is eligible, Doraf sends an SMS OTP to its immutable delivery
+2. Buyer enters the high-entropy Dashchecker order reference.
+3. Dashchecker responds generically to prevent order-reference enumeration.
+4. If the order is eligible, Dashchecker sends an SMS OTP to its immutable delivery
    phone number.
 5. Buyer submits the OTP before expiry and within the allowed attempt count.
-6. Doraf displays:
+6. Dashchecker displays:
    - checker product,
    - each voucher's position,
    - serial number,
    - 12-digit PIN, and
    - WAEC usage restrictions.
-7. Doraf records the successful recovery access.
+7. Dashchecker records the successful recovery access.
 
 The page does not display:
 
@@ -46,7 +46,7 @@ If the buyer contacts Support:
 1. Support inspects masked history and safe error details.
 2. Support escalates a resend request when appropriate.
 3. An Administrator reviews and records a reason.
-4. Doraf resends only to an original immutable destination.
+4. Dashchecker resends only to an original immutable destination.
 5. The resend receives its own attempt and audit history.
 
 Neither Support nor the buyer can replace the post-payment destination.

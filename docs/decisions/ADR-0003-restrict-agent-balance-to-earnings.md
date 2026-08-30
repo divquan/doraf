@@ -5,7 +5,7 @@ Date: 2026-07-30
 
 ## Context
 
-Doraf owes agents profit from attributed voucher sales and pays those earnings
+Dashchecker owes agents profit from attributed voucher sales and pays those earnings
 to a registered Mobile Money number. A general-purpose wallet would add product,
 fraud, accounting, and potentially regulatory complexity unrelated to the core
 reseller proposition.
@@ -34,11 +34,11 @@ post-payout payment reversals.
 
 - The balance directly represents earnings, adjustments, and payout activity.
 - Reconciliation and agent explanations remain narrower.
-- Doraf cannot use the balance as a consumer wallet or payment instrument.
-- Agents cannot fund or transfer value through Doraf.
+- Dashchecker cannot use the balance as a consumer wallet or payment instrument.
+- Agents cannot fund or transfer value through Dashchecker.
 - Product expansion into spending, top-up, or third-party transfer requires a
   new regulatory review and superseding decision.
-- Qualified advice is still required to determine Doraf's actual regulatory
+- Qualified advice is still required to determine Dashchecker's actual regulatory
   classification.
 
 ## Alternatives considered

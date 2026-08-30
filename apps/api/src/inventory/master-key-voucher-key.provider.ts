@@ -19,7 +19,7 @@ export class MasterKeyVoucherKeyProvider implements VoucherKeyProvider {
 
     try {
       const cipher = createCipheriv('aes-256-gcm', this.masterKey, nonce);
-      cipher.setAAD(Buffer.from('doraf:voucher-batch-key:v1', 'utf8'));
+      cipher.setAAD(Buffer.from('dashchecker:voucher-batch-key:v1', 'utf8'));
       const ciphertext = Buffer.concat([
         cipher.update(plaintextKey),
         cipher.final(),

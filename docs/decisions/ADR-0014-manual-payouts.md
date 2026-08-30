@@ -8,7 +8,7 @@ Date: 2026-08-08
 Every approved withdrawal currently goes to Paystack for Mobile Money transfer
 initiation, finalization, webhook settlement, and reconciliation. Some payouts
 need to be paid out of band (for example by the Administrator sending Mobile
-Money directly, or settling cash), with Doraf recording that the payment
+Money directly, or settling cash), with Dashchecker recording that the payment
 happened after the fact.
 
 The product owner confirmed:

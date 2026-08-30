@@ -17,11 +17,11 @@ PostgreSQL is the source of truth for:
 - reconciliation runs.
 
 A queue, cache, search index, analytics system, or provider dashboard is never
-the canonical Doraf record.
+the canonical Dashchecker record.
 
 ## Short transactions
 
-Database transactions remain short. Doraf never holds a transaction open while
+Database transactions remain short. Dashchecker never holds a transaction open while
 waiting for:
 
 - buyer Mobile Money authorization,

@@ -5,7 +5,7 @@ Date: 2026-07-30
 
 ## Context
 
-Doraf requires relational constraints, short atomic transactions, concurrency
+Dashchecker requires relational constraints, short atomic transactions, concurrency
 control, append-only financial records, inventory uniqueness, and reproducible
 migrations.
 

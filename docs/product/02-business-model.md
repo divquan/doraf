@@ -5,12 +5,12 @@ Last updated: 2026-07-30
 
 ## Revenue model
 
-Doraf centrally acquires WAEC PIN inventory and defines a base price for each
+Dashchecker centrally acquires WAEC PIN inventory and defines a base price for each
 PIN product. The base price is intended to cover:
 
 - inventory acquisition cost,
 - payment and delivery operating costs, and
-- Doraf's platform margin.
+- Dashchecker's platform margin.
 
 Agents choose a higher buyer-facing retail price and earn the difference
 between that retail price and the effective base price.
@@ -97,7 +97,7 @@ The notification sent to an affected agent, if any, remains to be defined.
 
 - Whether inventory acquisition cost is tracked per batch or as a product
   standard cost
-- Whether Doraf's realized margin is calculated from standard or batch cost
+- Whether Dashchecker's realized margin is calculated from standard or batch cost
 - Tax treatment and required invoice or receipt breakdown
 - How refunds, reversals, discounts, and promotions affect agent profit
 - Whether agent-specific overrides can have effective dates or scheduled expiry

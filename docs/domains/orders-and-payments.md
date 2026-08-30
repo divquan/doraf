@@ -26,7 +26,7 @@ Checkout receives:
 - the required delivery number entered twice,
 - an optional delivery email entered twice.
 
-Before the buyer confirms, Doraf displays:
+Before the buyer confirms, Dashchecker displays:
 
 - the selected checker's supported examination types,
 - the three-use and candidate-lock restriction,
@@ -73,11 +73,11 @@ depend on session state remaining available.
 
 ## Guest payment identity
 
-Doraf does not require a guest buyer to provide an email address. The checkout
+Dashchecker does not require a guest buyer to provide an email address. The checkout
 collects the required voucher delivery phone number. A buyer may optionally
 provide a real email address as a second voucher-delivery channel.
 
-Paystack requires an email field when initializing a transaction. Doraf
+Paystack requires an email field when initializing a transaction. Dashchecker
 satisfies the integration requirement by generating a synthetic email:
 
 ```text
@@ -87,18 +87,18 @@ satisfies the integration requirement by generating a synthetic email:
 For example, the Ghana number `0241234567` may normalize to a digits-only
 international representation before being placed in the local part. Local
 development uses `example.com`, which Paystack accepts for sandbox testing.
-Production must set `PAYSTACK_GUEST_EMAIL_DOMAIN` to a Doraf-controlled domain.
+Production must set `PAYSTACK_GUEST_EMAIL_DOMAIN` to a Dashchecker-controlled domain.
 
 ## Synthetic-email rules
 
-- Generate the value on Doraf's backend.
+- Generate the value on Dashchecker's backend.
 - Derive it from the required voucher delivery number.
-- Use a domain controlled by Doraf.
+- Use a domain controlled by Dashchecker.
 - Store it on the payment-attempt record alongside the delivery contact.
 - Pass it to Paystack as the required customer email.
 - Never describe it as a buyer-provided email.
 - Never display it as a buyer contact method.
-- Never use it for Doraf marketing or transactional communication.
+- Never use it for Dashchecker marketing or transactional communication.
 - Treat it as personal data because it is directly derived from a phone number.
 - Do not put it in ordinary application logs.
 - Do not replace it with the optional buyer-provided delivery email in Paystack
@@ -110,11 +110,11 @@ create a mailbox accessible to another customer.
 
 ## Payment initiation response handling
 
-Doraf initializes the transaction on its server, stores Paystack's access code,
+Dashchecker initializes the transaction on its server, stores Paystack's access code,
 and opens the Paystack InlineJS checkout popup in the buyer's browser. The
-checkout displays the payment channels enabled for Doraf's Paystack account.
+checkout displays the payment channels enabled for Dashchecker's Paystack account.
 The browser never receives the Paystack secret key. The buyer can use the built-in completion action to
-ask Doraf to verify a completed popup transaction; a signed webhook remains
+ask Dashchecker to verify a completed popup transaction; a signed webhook remains
 the asynchronous confirmation path.
 
 An uncertain initialization response is treated as potentially in-flight:
@@ -137,7 +137,7 @@ defined with the fulfillment flow.
 
 ## Payment references
 
-Every Paystack initialization must use a unique Doraf-generated reference and
+Every Paystack initialization must use a unique Dashchecker-generated reference and
 persist it before or atomically with the external request. The synthetic email
 is not an order identifier or idempotency key.
 
@@ -166,7 +166,7 @@ Ghana Mobile Money. This provider behavior should be verified during
 integration and treated as configuration where practical.
 
 Inventory reservation covers the authorization window. When no success webhook
-arrives, Doraf verifies the transaction before releasing the reservation.
+arrives, Dashchecker verifies the transaction before releasing the reservation.
 Terminal failure or abandonment releases the inventory; success sells it; a
 non-terminal response retains it for a short configurable reconciliation grace
 period. The confirmed grace period is five minutes after the initial
@@ -175,7 +175,7 @@ period. The confirmed grace period is five minutes after the initial
 ## Successful-payment transaction
 
 After authenticating the Paystack webhook or obtaining a verification result,
-Doraf must also match the provider reference, currency, amount, and expected
+Dashchecker must also match the provider reference, currency, amount, and expected
 order before accepting success.
 
 One short database transaction then:
@@ -199,7 +199,7 @@ existing effects rather than create duplicates.
 - A missing webhook triggers verification before inventory release.
 - A non-terminal verification result retains the reservation for a configurable
   five-minute grace period and schedules another check.
-- After that grace period, Doraf releases the reservation but continues
+- After that grace period, Dashchecker releases the reservation but continues
   background reconciliation.
 - A failure on one attempt does not make a later attempt reuse its Paystack
   reference.
@@ -242,7 +242,7 @@ non-refundable because the secret has been exposed.
 Refunds are permitted for:
 
 - duplicate or excess payments, and
-- paid orders Doraf cannot fulfill or recover.
+- paid orders Dashchecker cannot fulfill or recover.
 
 When an original allocation cannot be fulfilled, an Administrator first tries
 audited replacement inventory. If replacement cannot complete the purchased
@@ -251,7 +251,7 @@ quantity, the order proceeds to refund.
 ## Post-sale payment reversal
 
 A provider reversal after fulfillment does not make sold vouchers available
-again. Doraf records the payment reversal and appends one corresponding debit
+again. Dashchecker records the payment reversal and appends one corresponding debit
 for the agent profit to the wallet ledger.
 
 The debit is idempotent and linked to the original payment, order, and sale
@@ -303,13 +303,13 @@ active reservation through the confirmed five-minute grace period, and then
 releases that reservation while continuing background verification. A provider
 timeout retains the reservation and schedules another verification. A late
 success after release first claims a complete fresh allocation under the same
-payment transaction. If that is unavailable, Doraf records a paid fulfillment
+payment transaction. If that is unavailable, Dashchecker records a paid fulfillment
 exception for Administrator recovery rather than losing the payment. An
 additional successful payment attempt creates a `REQUESTED` excess-payment
 refund queue entry; it does not initiate a provider refund or alter agent profit
 until an Administrator approves it.
 
-When Paystack definitively rejects initialization, Doraf records the failed
+When Paystack definitively rejects initialization, Dashchecker records the failed
 attempt and releases the complete reservation immediately. A network timeout or
 provider-side error is ambiguous, so the reservation remains held in
 reconciliation rather than risking a duplicate charge. Provider diagnostics are

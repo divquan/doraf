@@ -5,7 +5,7 @@ Date: 2026-07-30
 
 ## Context
 
-Doraf processes payments, agent earnings, high-value voucher secrets, and
+Dashchecker processes payments, agent earnings, high-value voucher secrets, and
 personal data. It needs managed relational storage, durable object storage,
 controlled encryption keys, environment isolation, observability, and tested
 recovery without operating several unrelated infrastructure platforms.

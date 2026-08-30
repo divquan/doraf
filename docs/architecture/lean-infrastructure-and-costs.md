@@ -59,7 +59,7 @@ It also:
 
 - pauses after one week of inactivity,
 - has no automatic backups, and
-- has no production availability commitment suitable for Doraf.
+- has no production availability commitment suitable for Dashchecker.
 
 Therefore the Free plan must not process meaningful live customer money.
 Create a scheduled encrypted off-site `pg_dump` even during the pilot.
@@ -141,7 +141,7 @@ voucher encryption because database readers must not see plaintext vouchers.
 Use envelope encryption:
 
 1. An application-held 32-byte master key protects a data-encryption key.
-2. Doraf encrypts voucher serial/PIN pairs with AES-256-GCM.
+2. Dashchecker encrypts voucher serial/PIN pairs with AES-256-GCM.
 3. A unique nonce and authenticated record context prevent ciphertext reuse or
    substitution.
 4. Store ciphertext, wrapped data key, nonce, algorithm version, and master-key
@@ -176,10 +176,10 @@ Never log:
 - unfiltered webhook/provider payloads.
 
 Google currently includes the first 50 GiB of logs per project per month and
-30-day retention. A small Doraf launch should remain at $0. Exclude routine
+30-day retention. A small Dashchecker launch should remain at $0. Exclude routine
 health checks, avoid debug logging in production, and alarm on ingestion growth.
 
-Cloud logs support operations; they are not Doraf's durable audit ledger.
+Cloud logs support operations; they are not Dashchecker's durable audit ledger.
 Business audit, payment events, inventory events, wallet entries, and
 reconciliation facts remain append-only PostgreSQL records.
 

@@ -3,7 +3,7 @@
 Status: Accepted direction  
 Last updated: 2026-07-30
 
-Provider-specific statuses are translated into these normalized Doraf states.
+Provider-specific statuses are translated into these normalized Dashchecker states.
 Every transition validates its expected prior state and records required event
 history.
 

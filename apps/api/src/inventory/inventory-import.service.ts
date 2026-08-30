@@ -200,7 +200,7 @@ function voucherContext(
   field: 'serial' | 'pin',
   cryptoVersion: number,
 ): string {
-  return `doraf:voucher:${voucherId}:${productId}:${batchId}:${field}:v${cryptoVersion}`;
+  return `dashchecker:voucher:${voucherId}:${productId}:${batchId}:${field}:v${cryptoVersion}`;
 }
 
 function maskSerial(serialNumber: string): string {

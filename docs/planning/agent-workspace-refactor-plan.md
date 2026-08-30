@@ -40,7 +40,7 @@ Confirmed by reading the code and the Next.js 16 docs bundled at
    UI-package dependency) but not used directly in `apps/agent`.
 4. **`PageProps<'/route'>` and `LayoutProps<'/route'>`** are global helpers
    (already used in `app/dashboard/page.tsx` and `app/buy/[webSalesId]/page.tsx`).
-5. **Session cookies**: `doraf_agent_session`, `doraf_agent_registration`
+5. **Session cookies**: `dashchecker_agent_session`, `dashchecker_agent_registration`
    (`lib/agent-session.ts`).
 6. **Current proxy behavior** (`proxy.ts`): no-session `/dashboard` → `/login`;
    has-session on `/login`|`/register` → `/dashboard`. Matcher:
@@ -54,7 +54,7 @@ Confirmed by reading the code and the Next.js 16 docs bundled at
    `buyer-recovery-flow.tsx`, `withdrawal-panel.tsx`); `money()` ×4 with **two
    signatures**; date formatters ×2 (`formatAccraDate`, `formatDate`).
 10. **Sales URL** computed in `dashboard/page.tsx` from `channel.path` +
-    `DORAF_AGENT_WEB_URL` env (default `http://localhost:3002`).
+    `DASHCHECKER_AGENT_WEB_URL` env (default `http://localhost:3002`).
 
 ---
 
@@ -135,7 +135,7 @@ Confirmed by reading the code and the Next.js 16 docs bundled at
 | Logout button | `components/logout-button.tsx` | `/dashboard` header | workspace header (all) | Reuse in layout | Sign-out + redirect |
 | Storefront | `app/buy/[webSalesId]/page.tsx` + `components/storefront-checkout.tsx` | `/buy/[webSalesId]` | `(storefront)/buy/[webSalesId]` | Move; buyer layout; split (§6) | Paystack inline, polling, status card, empty store |
 | Recovery | `app/recover/page.tsx` + `components/buyer-recovery-flow.tsx` | `/recover` | `(storefront)/recover` | Move; buyer layout | 3-step wizard, anti-enumeration, voucher reveal |
-| Brand mark | `components/doraf-mark.tsx` | all headers | all | Add `variant` prop | Logo; buyer variant hides "Agent" subtext |
+| Brand mark | `components/dashchecker-mark.tsx` | all headers | all | Add `variant` prop | Logo; buyer variant hides "Agent" subtext |
 | Money format | `lib/money-format.ts` + 4 inline `money()` | many | `lib/format.ts` | Consolidate (§8) | `pesewasToGhs` semantics |
 | Date format | 2 inline formatters | 2 files | `lib/format.ts` | Consolidate (§8) | `Africa/Accra` tz |
 | `readResponse` | 3 inline copies | 3 files | `lib/api-client.ts` | Consolidate (§8) | Error message extraction |
@@ -176,7 +176,7 @@ apps/agent/
       withdrawals/page.tsx           # NEW: WithdrawalPanel (request gated) + history
       settings/page.tsx              # NEW: AccountSummaryCard + Appearance + Legal (+ reserved sections)
     (storefront)/
-      layout.tsx                     # NEW: buyer header (DorafMark variant="buyer" + Recover link)
+      layout.tsx                     # NEW: buyer header (DashcheckerMark variant="buyer" + Recover link)
       buy/[webSalesId]/page.tsx      # MOVED (URL /buy/[webSalesId] stable)
       recover/page.tsx               # MOVED (URL /recover stable)
     api/                             # UNCHANGED — all 16 BFF route handlers stay in place
@@ -271,7 +271,7 @@ decided at implementation time.
 - A persistent left **side navigation** (or a sticky top bar with the nav items)
   rendered by `(workspace)/layout.tsx`. Recommended: vertical side rail on
   `lg+`, collapsing to a top bar on smaller screens.
-- The workspace header sits above the nav/page area and contains: `DorafMark`
+- The workspace header sits above the nav/page area and contains: `DashcheckerMark`
   (agent variant), agent name + masked phone (hidden on small screens), and
   `LogoutButton`. This is the existing dashboard header, generalized into the
   layout.
@@ -294,7 +294,7 @@ decided at implementation time.
 - Active state is applied to the `<Link>` via `className` and `aria-current="page"`.
 
 ### Workspace header responsibilities
-- Render `DorafMark` (agent variant).
+- Render `DashcheckerMark` (agent variant).
 - Render signed-in agent's name and masked phone (from session, passed from the
   server layout).
 - Render `LogoutButton` (reused unchanged).
@@ -500,15 +500,15 @@ behavior, related links, and what must **not** appear.
 ### Public storefront layout `(storefront)/layout.tsx`
 
 - **Purpose:** Shared buyer chrome for `/buy/[webSalesId]` and `/recover`.
-- **Contents:** A buyer header containing `DorafMark variant="buyer"` (no
+- **Contents:** A buyer header containing `DashcheckerMark variant="buyer"` (no
   "Agent" subtext) and, on the storefront, a "Recover purchase" ghost link to
   `/recover`. The recovery page keeps its existing two-column marketing layout;
   the layout only wraps the header.
 - **No auth:** These routes are public; `proxy.ts` does not match them.
-- **Behavior preserved:** The storefront header currently renders `DorafMark` +
+- **Behavior preserved:** The storefront header currently renders `DashcheckerMark` +
   "Recover purchase" + "Secure checkout" badge. That composition moves into the
   layout; the page keeps the hero + products + checkout. The recovery page's
-  own header (currently just `DorafMark`) is replaced by the layout header.
+  own header (currently just `DashcheckerMark`) is replaced by the layout header.
 
 ### `(auth)/layout.tsx`
 
@@ -540,7 +540,7 @@ These components relocate into their new pages with no internal changes:
 - `AgentAuthFlow` → `(auth)/login`, `(auth)/register` (via layout).
 - `BuyerRecoveryFlow` → `(storefront)/recover` (via layout).
 - `LogoutButton` → workspace header (layout).
-- `DorafMark` → everywhere, with a new `variant` prop (Phase 4).
+- `DashcheckerMark` → everywhere, with a new `variant` prop (Phase 4).
 
 ### Assessed for split
 
@@ -628,7 +628,7 @@ These components relocate into their new pages with no internal changes:
 #### `SalesLinkCard` (97 lines)
 - **Verdict:** **Move unchanged** into `/sales`. Clean.
 
-#### `DorafMark` (20 lines)
+#### `DashcheckerMark` (20 lines)
 - **Change:** Add `variant?: "agent" | "buyer"` (default `"agent"`). Buyer
   variant omits the "Agent" subtext line. This is a Phase 4 change (buyer
   separation) and is the single source of the branding fix.
@@ -639,7 +639,7 @@ These components relocate into their new pages with no internal changes:
 ## 7. Data and API dependency map
 
 "All endpoints" below are the existing BFF routes under `app/api/`, which proxy
-to the Nest API at `DORAF_API_URL`. No BFF or backend contract changes in
+to the Nest API at `DASHCHECKER_API_URL`. No BFF or backend contract changes in
 Phases 1–5.
 
 | Page | Server data fetches (existing) | Client mutations | URL params | Auth | Missing APIs (Category C) |
@@ -776,7 +776,7 @@ improvements and before any new features.
 - **Changes:**
   - Create `app/(workspace)/layout.tsx` (server): fetch `session`; render
     `WorkspaceHeader` + `WorkspaceNav` + `{children}`. On 401 → `redirect("/login")`.
-  - Create `components/_workspace/workspace-header.tsx` (client): `DorafMark` +
+  - Create `components/_workspace/workspace-header.tsx` (client): `DashcheckerMark` +
     agent name/phone + `LogoutButton`.
   - Create `components/_workspace/workspace-nav.tsx` (client): nav list with
     `usePathname` active state; only Dashboard is a live link initially.
@@ -873,9 +873,9 @@ improvements and before any new features.
 - **Objective:** Separate the public buyer surface into its own route group with
   buyer-appropriate chrome, without changing URLs.
 - **Changes:**
-  - Add `variant` prop to `DorafMark` (`"agent"` | `"buyer"`); buyer variant
+  - Add `variant` prop to `DashcheckerMark` (`"agent"` | `"buyer"`); buyer variant
     omits "Agent" subtext.
-  - Create `app/(storefront)/layout.tsx`: buyer header (`DorafMark variant="buyer"`
+  - Create `app/(storefront)/layout.tsx`: buyer header (`DashcheckerMark variant="buyer"`
     + "Recover purchase" link to `/recover`).
   - Move `app/buy/[webSalesId]/page.tsx` → `app/(storefront)/buy/[webSalesId]/page.tsx`.
   - Move `app/recover/page.tsx` → `app/(storefront)/recover/page.tsx`.
@@ -883,9 +883,9 @@ improvements and before any new features.
   - Move `app/login/page.tsx` → `app/(auth)/login/page.tsx`; `app/register/page.tsx`
     → `app/(auth)/register/page.tsx`. Pages become thin wrappers around
     `AgentAuthFlow` (the shell moves to the layout).
-  - Replace buyer-page `DorafMark` usages with the buyer variant.
+  - Replace buyer-page `DashcheckerMark` usages with the buyer variant.
 - **Files created:** `(storefront)/layout.tsx`, `(auth)/layout.tsx`.
-- **Files modified:** `doraf-mark.tsx` (variant). Moved page files.
+- **Files modified:** `dashchecker-mark.tsx` (variant). Moved page files.
 - **Files removed:** old `buy/...`, `recover/`, `login/`, `register/` page paths
   (after move).
 - **Dependencies:** Phase 2 (so workspace is settled). Can run in parallel with
@@ -992,7 +992,7 @@ noted. Task IDs: `P<phase>-<n>`.
 - **Purpose:** Shared header with brand, agent identity, sign-out.
 - **Files:** create `apps/agent/components/_workspace/workspace-header.tsx`.
 - **Instructions:** `"use client"` component exporting `WorkspaceHeader` taking
-  `{ name, phoneMask }` props. Render `DorafMark` (agent variant), the name +
+  `{ name, phoneMask }` props. Render `DashcheckerMark` (agent variant), the name +
   masked phone (hidden on small screens, matching current dashboard header), and
   the existing `LogoutButton`. Reuse `LogoutButton` unchanged.
 - **Prerequisites:** P1-1.
@@ -1228,9 +1228,9 @@ noted. Task IDs: `P<phase>-<n>`.
 
 ### Phase 4 tasks
 
-#### P4-1 Add a variant to DorafMark
+#### P4-1 Add a variant to DashcheckerMark
 - **Purpose:** Enable buyer vs agent branding.
-- **Files:** modify `apps/agent/components/doraf-mark.tsx`.
+- **Files:** modify `apps/agent/components/dashchecker-mark.tsx`.
 - **Instructions:** Add `variant?: "agent" | "buyer"` (default `"agent"`). In the
   buyer variant, omit the "Agent" subtext `<span>`.
 - **Prerequisites:** none.
@@ -1242,7 +1242,7 @@ noted. Task IDs: `P<phase>-<n>`.
 - **Files:** create `apps/agent/app/(storefront)/layout.tsx`; move
   `app/buy/[webSalesId]/page.tsx` → `app/(storefront)/buy/[webSalesId]/page.tsx`;
   move `app/recover/page.tsx` → `app/(storefront)/recover/page.tsx`.
-- **Instructions:** `layout.tsx` renders a buyer header: `DorafMark variant="buyer"`
+- **Instructions:** `layout.tsx` renders a buyer header: `DashcheckerMark variant="buyer"`
   + a "Recover purchase" ghost link to `/recover`. The storefront page currently
   renders its own header — remove the inline header from the page (layout
   provides it); keep the "Secure checkout" badge in the layout header if
@@ -1340,7 +1340,7 @@ noted. Task IDs: `P<phase>-<n>`.
 
 How to avoid regressions in each risk area.
 
-- **Session cookies:** `agentSessionCookie` (`doraf_agent_session`) and
+- **Session cookies:** `agentSessionCookie` (`dashchecker_agent_session`) and
   `registrationCookie` are unchanged. The layout and pages use the existing
   `apiRequest(..., true)` which reads the cookie server-side. No cookie logic
   changes.
@@ -1599,7 +1599,7 @@ clearly marked as a recommendation.
    `/pricing`, `/sales`, `/settings`; slim `/dashboard` to overview; wire nav.
 4. **Phase 3** — Progressive disclosure: gate withdrawals, confirm pricing, theme
    selector, storefront preview, OTP resend, suspension guidance.
-5. **Phase 4** — Buyer/auth separation: `DorafMark` variant, `(storefront)`
+5. **Phase 4** — Buyer/auth separation: `DashcheckerMark` variant, `(storefront)`
    layout + move buyer pages, `(auth)` layout + move auth pages.
 6. **Phase 5** — Utility/component cleanup: consolidate `money`/date/`readResponse`;
    split `WithdrawalPanel` and `StorefrontCheckout`.

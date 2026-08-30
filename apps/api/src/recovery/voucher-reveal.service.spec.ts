@@ -18,7 +18,7 @@ describe('VoucherRevealService', () => {
       batch: { encryptedDataKey: batchKey.encryptedDataKey },
     };
     const context = (field: 'serial' | 'pin') =>
-      `doraf:voucher:${voucher.id}:${voucher.productId}:${voucher.batchId}:${field}:v1`;
+      `dashchecker:voucher:${voucher.id}:${voucher.productId}:${voucher.batchId}:${field}:v1`;
     const serial = crypto.encrypt(
       'SERIAL-RECOVERY-41',
       batchKey.plaintextKey,

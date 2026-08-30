@@ -5,7 +5,7 @@ Date: 2026-07-30
 
 ## Context
 
-Doraf needs delayed verification, delivery retries, reservation expiry,
+Dashchecker needs delayed verification, delivery retries, reservation expiry,
 notifications, exports, and reconciliation. PostgreSQL is already the canonical
 store, and the MVP should minimize additional stateful infrastructure without
 weakening durable job execution.
@@ -17,7 +17,7 @@ worker scheduling, retry, concurrency, and dead-letter behavior.
 
 Use `pg-boss` with PostgreSQL for the MVP durable job queue.
 
-Run it in a dedicated PostgreSQL schema. Dispatch minimal jobs from Doraf
+Run it in a dedicated PostgreSQL schema. Dispatch minimal jobs from Dashchecker
 outbox records and process them in the separate worker deployment.
 
 Assume handlers and provider side effects can be observed more than once despite
@@ -25,7 +25,7 @@ queue delivery guarantees. Keep all handlers idempotent and reconcile ambiguous
 external outcomes.
 
 Adopt a current supported `pg-boss` release during implementation. Its current
-documented runtime requirement is Node.js 22.12 or newer, so raise Doraf's Node
+documented runtime requirement is Node.js 22.12 or newer, so raise Dashchecker's Node
 engine floor accordingly rather than pinning an obsolete queue release.
 
 ## Consequences
@@ -48,11 +48,11 @@ requires it.
 
 ### Poll only the custom outbox
 
-Rejected as the sole job mechanism because Doraf would need to build retry,
+Rejected as the sole job mechanism because Dashchecker would need to build retry,
 scheduling, concurrency, heartbeat, and dead-letter capabilities already
 provided by a maintained queue.
 
-### Publish directly without a Doraf outbox
+### Publish directly without a Dashchecker outbox
 
 Rejected because the outbox is the durable, inspectable business intent and
 supports recovery if queue dispatch is interrupted.

@@ -146,7 +146,7 @@ Agents can export:
 - wallet ledger history.
 
 CSV exports exclude buyer personal data, voucher secrets, Paystack customer
-identifiers, vendor data, inventory counts, acquisition cost, and Doraf margin.
+identifiers, vendor data, inventory counts, acquisition cost, and Dashchecker margin.
 Export access and generation are audited.
 
 ## Suspended agent

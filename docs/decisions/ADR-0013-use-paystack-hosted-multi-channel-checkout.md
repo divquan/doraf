@@ -5,8 +5,8 @@ Date: 2026-08-01
 
 ## Context
 
-Collecting a Mobile Money number and network in Doraf duplicated payment data
-entry and coupled checkout to Paystack's direct charge API. Doraf needs a
+Collecting a Mobile Money number and network in Dashchecker duplicated payment data
+entry and coupled checkout to Paystack's direct charge API. Dashchecker needs a
 single payment experience that can use the methods enabled on its Paystack
 account without exposing payment secrets to the storefront.
 
@@ -15,10 +15,10 @@ account without exposing payment secrets to the storefront.
 The API initializes each payment with Paystack's Transaction Initialize API and
 stores the returned access code. The storefront opens Paystack InlineJS with
 that code in a popup. Paystack owns payment-method selection and payment-detail
-collection. Doraf no longer collects or persists payer phone or network details
+collection. Dashchecker no longer collects or persists payer phone or network details
 for new web orders.
 
-Doraf verifies the result server-side after the buyer completes checkout, with
+Dashchecker verifies the result server-side after the buyer completes checkout, with
 the signed webhook retained as the asynchronous confirmation path.
 
 ## Consequences
@@ -32,5 +32,5 @@ the signed webhook retained as the asynchronous confirmation path.
 
 ### Direct Mobile Money charge
 
-Rejected because it forces Doraf to collect and validate provider-specific
+Rejected because it forces Dashchecker to collect and validate provider-specific
 details and does not allow Paystack to present additional enabled channels.

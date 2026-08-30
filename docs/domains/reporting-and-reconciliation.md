@@ -80,7 +80,7 @@ Report separately:
 Do not offset negative agent wallets against positive agent liabilities in the
 headline liability metric.
 
-## Doraf commercial reporting
+## Dashchecker commercial reporting
 
 ### Gross base-price revenue
 
@@ -100,7 +100,7 @@ minus:
 - acquisition cost of the actually allocated voucher items,
 - actual payment-provider fees,
 - actual SMS and email costs,
-- actual withdrawal costs borne by Doraf, if any, and
+- actual withdrawal costs borne by Dashchecker, if any, and
 - other directly attributable provider costs.
 
 The accounting treatment of taxes and the point of formal revenue recognition

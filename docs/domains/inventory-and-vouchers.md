@@ -14,7 +14,7 @@ This domain owns:
 - allocation of vouchers to paid orders, and
 - the audit trail for inventory movement and sensitive access.
 
-It does not own post-sale usage on WAEC systems. Doraf cannot currently observe
+It does not own post-sale usage on WAEC systems. Dashchecker cannot currently observe
 whether a buyer has used a voucher zero, one, two, or three times.
 
 ## Inventory item
@@ -68,7 +68,7 @@ Validation should reject:
 - a malformed serial number,
 - duplicate serial numbers,
 - duplicate PINs,
-- a pair already known to Doraf, or
+- a pair already known to Dashchecker, or
 - a row whose product is ambiguous.
 
 The entire batch is validated before inventory is created. Any invalid or
@@ -142,7 +142,7 @@ when another product has available inventory.
 ## Reservation policy
 
 An order contains one to five vouchers of one checker product. Immediately
-before Doraf initiates Paystack payment, it reserves the order's complete
+before Dashchecker initiates Paystack payment, it reserves the order's complete
 quantity atomically. If the complete quantity is unavailable, no voucher is
 reserved and payment is not initiated.
 
@@ -162,7 +162,7 @@ authorization window. At the end of that window:
 Reservation state is committed data, not a long-running database lock. Each
 reserve, sell, or release transition occurs in a short transaction.
 
-If background reconciliation later finds a successful payment, Doraf atomically
+If background reconciliation later finds a successful payment, Dashchecker atomically
 allocates fresh inventory. If the full quantity is unavailable, it does not
 partially fulfill; the paid order enters the Administrator exception queue.
 

@@ -59,7 +59,7 @@ export class VoucherRevealService {
       this.masterKey,
       protectedKey.subarray(0, 12),
     );
-    decipher.setAAD(Buffer.from('doraf:voucher-batch-key:v1', 'utf8'));
+    decipher.setAAD(Buffer.from('dashchecker:voucher-batch-key:v1', 'utf8'));
     decipher.setAuthTag(protectedKey.subarray(12, 28));
     return Buffer.concat([
       decipher.update(protectedKey.subarray(28)),
@@ -84,6 +84,6 @@ export class VoucherRevealService {
   }
 
   private context(voucher: ProtectedVoucher, field: 'serial' | 'pin') {
-    return `doraf:voucher:${voucher.id}:${voucher.productId}:${voucher.batchId}:${field}:v${voucher.cryptoVersion}`;
+    return `dashchecker:voucher:${voucher.id}:${voucher.productId}:${voucher.batchId}:${field}:v${voucher.cryptoVersion}`;
   }
 }

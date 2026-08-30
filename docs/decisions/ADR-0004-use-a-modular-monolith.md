@@ -5,7 +5,7 @@ Date: 2026-07-30
 
 ## Context
 
-Doraf has strongly related inventory, payment, wallet, delivery, and refund
+Dashchecker has strongly related inventory, payment, wallet, delivery, and refund
 transactions. The MVP team needs clear domain ownership without introducing
 distributed transaction and deployment complexity before measured need exists.
 

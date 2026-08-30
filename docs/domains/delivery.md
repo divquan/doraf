@@ -15,7 +15,7 @@ order. The optional delivery email is not the synthetic Paystack email.
 
 ## Message composition
 
-Doraf sends one SMS per voucher. Each message contains:
+Dashchecker sends one SMS per voucher. Each message contains:
 
 - high-entropy order reference,
 - checker product,
@@ -64,7 +64,7 @@ the voucher allocation. Providers should receive a stable idempotency or client
 reference when supported.
 
 The system must avoid sending duplicate messages after a provider accepted a
-request but Doraf did not receive the response. The exact reconciliation method
+request but Dashchecker did not receive the response. The exact reconciliation method
 depends on the selected providers.
 
 Current implementation uses a persisted pending attempt and a stable
@@ -104,7 +104,7 @@ phone number, serial number, PIN, or rendered voucher content. It runs only in
 the development environment; selecting and implementing real providers remains
 external work.
 
-If the provider accepted a request but its final status is unknown, Doraf
+If the provider accepted a request but its final status is unknown, Dashchecker
 queries or reconciles that request before submitting another. A timeout after
 submission is not sufficient proof that the provider rejected it.
 
@@ -117,10 +117,10 @@ Recovery is available immediately after the paid order and sold vouchers are
 committed:
 
 1. Buyer supplies the high-entropy order reference.
-2. Doraf returns the same generic response whether or not the reference exists.
-3. For a valid order, Doraf sends an OTP to the immutable SMS delivery number.
+2. Dashchecker returns the same generic response whether or not the reference exists.
+3. For a valid order, Dashchecker sends an OTP to the immutable SMS delivery number.
 4. Buyer submits the OTP subject to expiry and attempt limits.
-5. Doraf displays only the checker product and serial-number/PIN pairs belonging
+5. Dashchecker displays only the checker product and serial-number/PIN pairs belonging
    to that order.
 6. Recovery access is audited and rate-limited.
 
@@ -147,7 +147,7 @@ the original delivery history.
 
 ## Retention and secrecy
 
-Doraf retains sold serial-number/PIN pairs encrypted so recovery remains
+Dashchecker retains sold serial-number/PIN pairs encrypted so recovery remains
 possible. Raw secrets are excluded from:
 
 - application and provider-integration logs,

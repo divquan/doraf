@@ -10,7 +10,7 @@ credentials below are development-only values.
 docker compose up -d
 ```
 
-- PostgreSQL: `postgresql://doraf:doraf@localhost:5432/doraf`
+- PostgreSQL: `postgresql://dashchecker:dashchecker@localhost:5432/dashchecker`
 
 The database is stored in the named `postgres-data` volume. Stop the stack with
 `docker compose down`. To remove all local Compose database data, use
@@ -22,8 +22,8 @@ After PostgreSQL is available, configure `apps/api/.env` from its example and
 apply the local schema and seeds:
 
 ```sh
-pnpm --filter @doraf/api db:migrate:deploy
-pnpm --filter @doraf/api db:seed
+pnpm --filter @dashchecker/api db:migrate:deploy
+pnpm --filter @dashchecker/api db:seed
 ```
 
 Generate a separate value for every placeholder key in `apps/api/.env` before
@@ -47,7 +47,7 @@ pnpm dev
 After the API starts, create the single bootstrap enrollment token:
 
 ```sh
-pnpm --filter @doraf/api internal:bootstrap-admin "Your Name"
+pnpm --filter @dashchecker/api internal:bootstrap-admin "Your Name"
 ```
 
 Open http://localhost:3001/enroll, paste that token, and create a passkey. The
@@ -57,10 +57,10 @@ after an internal user exists; create later operators through the authenticated
 Administration dashboard.
 
 The agent portal and public attributed storefront run at http://localhost:3002 and
-http://localhost:3003 respectively. Set `DORAF_STOREFRONT_URL=http://localhost:3003`
+http://localhost:3003 respectively. Set `DASHCHECKER_STOREFRONT_URL=http://localhost:3003`
 in `apps/agent/.env` when overriding the example environment; this is the base
 URL the agent portal uses to build buyer-facing sales links. The legacy
-`DORAF_AGENT_WEB_URL` is still accepted as a fallback. In development, sent OTPs are
+`DASHCHECKER_AGENT_WEB_URL` is still accepted as a fallback. In development, sent OTPs are
 written only to the API terminal so registration and sign-in can be tested
 without an SMS account. They are never returned to or displayed by the agent
 application. Production OTP requests fail closed until the selected SMS provider

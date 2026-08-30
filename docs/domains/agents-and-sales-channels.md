@@ -32,7 +32,7 @@ one sales channel: the permanent personalized web link.
 
 ## Attribution
 
-Before showing the final purchase confirmation, Doraf must:
+Before showing the final purchase confirmation, Dashchecker must:
 
 - resolve the channel identifier,
 - verify that the agent exists and can receive new sales, and

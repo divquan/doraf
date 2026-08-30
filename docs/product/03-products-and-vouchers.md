@@ -5,7 +5,7 @@ Last updated: 2026-07-30
 
 ## Product catalog
 
-Doraf's MVP catalog contains three distinct WAEC result-checker products.
+Dashchecker's MVP catalog contains three distinct WAEC result-checker products.
 
 ### BECE Checker
 
@@ -45,12 +45,12 @@ remain paired throughout import, storage, allocation, delivery, recovery, and
 support.
 
 The buyer uses both values on an official WAEC result portal alongside the
-candidate's Index Number, Examination Year, and Exam Type. Doraf does not need
+candidate's Index Number, Examination Year, and Exam Type. Dashchecker does not need
 to collect those candidate details to sell the voucher.
 
 ## Voucher validity
 
-Unused vouchers have no calendar expiration date. An item may remain in Doraf's
+Unused vouchers have no calendar expiration date. An item may remain in Dashchecker's
 available inventory indefinitely provided it has never been used and has not
 been invalidated for another operational reason.
 
@@ -59,7 +59,7 @@ candidate's Index Number and Examination Year. The remaining uses cannot be
 transferred to another candidate. The voucher also remains restricted to the
 examination types supported by its product.
 
-Doraf's inventory lifecycle tracks whether the voucher has been sold, not the
+Dashchecker's inventory lifecycle tracks whether the voucher has been sold, not the
 number of times the buyer subsequently uses it on a WAEC portal. No integration
 providing post-sale usage counts has been identified.
 

@@ -5,7 +5,7 @@ Last updated: 2026-08-01
 
 ## Product summary
 
-Doraf is a B2B2C marketplace through which people in Ghana can resell digital
+Dashchecker is a B2B2C marketplace through which people in Ghana can resell digital
 WAEC result-checking PINs for a profit.
 
 The platform operates as a multi-tenant agent system. An agent signs up, sets a
@@ -212,7 +212,7 @@ The system must reject any pricing policy whose maximum is below its base price.
 
 ### PF-033 — Three WAEC checker products
 
-Doraf sells three distinct products:
+Dashchecker sells three distinct products:
 
 1. BECE Checker
 2. WASSCE Checker
@@ -260,14 +260,14 @@ Each voucher:
 - cannot then be transferred to another candidate, and
 - works only for the examination types supported by its checker product.
 
-Doraf sells unused vouchers. It does not currently receive usage information
+Dashchecker sells unused vouchers. It does not currently receive usage information
 from the WAEC result portal and therefore cannot track the remaining checks
 after a voucher is sold.
 
 ### PF-039 — Synthetic Paystack customer email
 
 Guest buyers are not required to provide an email address. When Paystack
-requires an email, Doraf generates a synthetic email from the normalized Mobile
+requires an email, Dashchecker generates a synthetic email from the normalized Mobile
 Money payer number under a merchant-controlled guest subdomain.
 
 The generated value is stored with the payment attempt and sent to Paystack. It
@@ -291,7 +291,7 @@ provided, the same optional delivery email.
 ### PF-042 — Product-specific inventory batches
 
 An Administrator enters vouchers in product-specific batches through a
-structured manual form. Doraf records the vendor, vendor invoice or reference,
+structured manual form. Dashchecker records the vendor, vendor invoice or reference,
 acquisition date, unit cost, uploader, and import timestamp. CSV upload is
 outside the MVP.
 
@@ -300,11 +300,11 @@ rejects the entire batch and produces row-level errors.
 
 ### PF-043 — Pre-payment inventory reservation
 
-Doraf reserves the complete voucher quantity immediately before initiating
+Dashchecker reserves the complete voucher quantity immediately before initiating
 Paystack payment. The reservation covers Paystack's 180-second Mobile Money
 authorization window.
 
-When a success webhook has not arrived at the end of the window, Doraf verifies
+When a success webhook has not arrived at the end of the window, Dashchecker verifies
 the transaction with Paystack before releasing inventory. A non-terminal
 provider result retains the reservation for a short, configurable
 reconciliation grace period.
@@ -340,7 +340,7 @@ open.
 
 ### PF-047 — Exactly-once payment effects
 
-A verified successful payment causes Doraf to:
+A verified successful payment causes Dashchecker to:
 
 - mark the payment attempt successful,
 - mark the order paid,
@@ -359,7 +359,7 @@ credit.
 
 ### PF-049 — Retrying a failed payment
 
-After a terminal payment failure, Doraf releases the reservation. The buyer may
+After a terminal payment failure, Dashchecker releases the reservation. The buyer may
 retry payment for the same order using a new payment attempt, unique Paystack
 reference, and fresh inventory reservation.
 
@@ -374,7 +374,7 @@ criteria.
 
 ### PF-055 — Payment reversal to agent wallet
 
-If a payment is reversed after Doraf credited the sale profit, Doraf appends an
+If a payment is reversed after Dashchecker credited the sale profit, Dashchecker appends an
 equal reversal debit to the agent's wallet ledger. The original sale credit is
 not edited or deleted.
 
@@ -394,37 +394,37 @@ already active before the deadline.
 ### PF-057 — Payment reconciliation grace period
 
 When no webhook arrives during Paystack's 180-second authorization window,
-Doraf verifies the transaction. A non-terminal result is retried during a
+Dashchecker verifies the transaction. A non-terminal result is retried during a
 five-minute reconciliation grace period.
 
-After the grace period, Doraf releases the reservation but continues background
+After the grace period, Dashchecker releases the reservation but continues background
 reconciliation.
 
 ### PF-058 — Late payment success
 
-If payment succeeds after its reservation was released, Doraf attempts to
+If payment succeeds after its reservation was released, Dashchecker attempts to
 allocate fresh inventory. If the complete quantity is unavailable, the paid
 order enters an operational exception queue for an Administrator to refund.
 
 ### PF-059 — Duplicate successful payment
 
 If more than one payment attempt unexpectedly succeeds for the same order,
-Doraf fulfills the order and credits the agent once. Additional successful
+Dashchecker fulfills the order and credits the agent once. Additional successful
 payments are recorded as excess payments and refunded.
 
 ### PF-060 — Payment mismatch
 
-Doraf does not fulfill a payment whose provider reference, amount, or currency
+Dashchecker does not fulfill a payment whose provider reference, amount, or currency
 does not match the expected payment attempt. It records the result for
 Administrator investigation.
 
 ### PF-061 — Voucher refund boundary
 
 A delivered voucher is normally non-refundable because its secret has been
-exposed. Refunds are allowed for duplicate charges and paid orders that Doraf
+exposed. Refunds are allowed for duplicate charges and paid orders that Dashchecker
 cannot fulfill or recover.
 
-When fulfillment cannot be completed with the original allocation, Doraf tries
+When fulfillment cannot be completed with the original allocation, Dashchecker tries
 audited replacement inventory before refunding.
 
 ### PF-062 — Mobile Money withdrawals
@@ -433,13 +433,13 @@ MVP withdrawals use Paystack Transfers and pay only the agent's registered Ghana
 Mobile Money number. Bank-account withdrawals and third-party payout
 destinations are outside the MVP.
 
-The agent selects the Mobile Money network and completes a fresh Doraf SMS OTP
+The agent selects the Mobile Money network and completes a fresh Dashchecker SMS OTP
 challenge for each request.
 
 ### PF-063 — Withdrawal amount and fee
 
 The minimum net payout is GHS 10 and the provider maximum is GHS 50,000, subject
-to a lower configurable Doraf risk limit.
+to a lower configurable Dashchecker risk limit.
 
 The agent pays the GHS 1 Mobile Money transfer fee. A request is valid only when
 the withdrawable amount covers the net payout plus fee.
@@ -467,25 +467,25 @@ hold or compensates already-posted debits, depending on when it occurs.
 ### PF-067 — Reversal during withdrawal
 
 If a sale reversal makes the wallet insufficient before Paystack initiation,
-Doraf cancels the withdrawal and releases its hold.
+Dashchecker cancels the withdrawal and releases its hold.
 
-If transfer processing has already begun, Doraf allows it to reach a terminal
+If transfer processing has already begun, Dashchecker allows it to reach a terminal
 state. A successful payout may leave the wallet balance negative.
 
 ### PF-068 — Negative balance behavior
 
 A negative wallet balance blocks withdrawals but does not automatically block
-new sales. Future sale credits offset the debt, and Doraf alerts Administrators.
+new sales. Future sale credits offset the debt, and Dashchecker alerts Administrators.
 
 ### PF-069 — One SMS per voucher
 
-Doraf sends one SMS per purchased voucher. For a multi-voucher order, messages
+Dashchecker sends one SMS per purchased voucher. For a multi-voucher order, messages
 are numbered and each contains the order reference, checker product, voucher
 position, serial number, 12-digit PIN, and WAEC usage reminder.
 
 ### PF-070 — One optional delivery email
 
-When a web buyer provided a delivery email, Doraf sends one email containing all
+When a web buyer provided a delivery email, Dashchecker sends one email containing all
 vouchers in the order. Voucher secrets never appear in the email subject.
 
 ### PF-071 — Delivery retry policy
@@ -494,7 +494,7 @@ Delivery begins immediately after the paid-order transaction commits. An
 explicitly rejected or failed provider request receives up to three retries,
 approximately 1, 5, and 15 minutes after the initial attempt.
 
-When a provider accepted a request but its outcome is unknown, Doraf reconciles
+When a provider accepted a request but its outcome is unknown, Dashchecker reconciles
 the existing request before resending.
 
 ### PF-072 — Independent delivery channels
@@ -518,7 +518,7 @@ an audited resend, and only to the order's original delivery destinations.
 
 ### PF-075 — Retained recoverable secrets
 
-Doraf retains sold voucher serial-number/PIN pairs encrypted so buyers can
+Dashchecker retains sold voucher serial-number/PIN pairs encrypted so buyers can
 recover them. Raw values are excluded from logs, analytics, and ordinary
 Support tools.
 
@@ -530,15 +530,15 @@ available.
 Support receives buyer complaints and inspects masked voucher data. Only an
 Administrator can approve a replacement or refund.
 
-### PF-077 — Doraf-error replacement
+### PF-077 — Dashchecker-error replacement
 
 A wrong checker product, malformed PIN, mismatched serial-number/PIN pair, or
-incomplete delivered quantity caused by Doraf qualifies for replacement.
+incomplete delivered quantity caused by Dashchecker qualifies for replacement.
 
 ### PF-078 — WAEC rejection evidence
 
 An invalid or already-used voucher complaint requires the order reference,
-exact WAEC error message, and preferably a screenshot. Doraf does not impose a
+exact WAEC error message, and preferably a screenshot. Dashchecker does not impose a
 short claim deadline solely based on purchase date because unused vouchers have
 no calendar expiration.
 
@@ -555,7 +555,7 @@ Replacement does not create or reverse agent profit.
 
 ### PF-080 — Refund after unavailable replacement
 
-When Doraf cannot provide a valid replacement, it refunds the affected
+When Dashchecker cannot provide a valid replacement, it refunds the affected
 voucher's unit retail price and appends a proportional reversal debit for that
 unit's agent profit.
 
@@ -564,7 +564,7 @@ payment did not create an agent credit.
 
 ### PF-081 — Non-refundable buyer error or misuse
 
-After voucher delivery, Doraf does not refund or replace:
+After voucher delivery, Dashchecker does not refund or replace:
 
 - a checker product the buyer selected after its scope was displayed,
 - delivery to a phone number or email the buyer entered and confirmed,
@@ -691,7 +691,7 @@ form, bulk raw-voucher export, agent impersonation, or unaudited record mutation
 
 ### PF-101 — Reporting time
 
-Doraf stores timestamps in UTC and applies the `Africa/Accra` timezone for
+Dashchecker stores timestamps in UTC and applies the `Africa/Accra` timezone for
 product reporting.
 
 Agent report periods are:
@@ -717,7 +717,7 @@ Positive wallet balances are reported as agent liabilities. Negative balances
 are reported separately as agent debt and are not netted against the positive
 liability figure.
 
-### PF-104 — Doraf revenue and contribution
+### PF-104 — Dashchecker revenue and contribution
 
 Gross base-price revenue is the sum of base-price snapshots for sold voucher
 units. Reporting separately identifies refunded and payment-reversed sales.
@@ -728,7 +728,7 @@ costs from the applicable base-price revenue.
 
 ### PF-105 — Continuous and daily reconciliation
 
-Doraf performs continuous exception checks and a formal daily reconciliation
+Dashchecker performs continuous exception checks and a formal daily reconciliation
 covering payments, orders, inventory, agent ledger entries, refunds, reversals,
 withdrawals, transfers, settlements, and delivery-provider costs.
 
@@ -763,7 +763,7 @@ The MVP does not permit:
 
 ### PF-109 — Data protection governance
 
-Before production processing, Doraf registers with Ghana's Data Protection
+Before production processing, Dashchecker registers with Ghana's Data Protection
 Commission, assigns responsibility for data protection, maintains a
 data-processing inventory, and publishes clear privacy notices for agents and
 guest buyers.
@@ -776,13 +776,13 @@ details, or age.
 
 ### PF-111 — Provider data controls
 
-Doraf maintains written processing and security terms with payment, SMS, email,
+Dashchecker maintains written processing and security terms with payment, SMS, email,
 hosting, monitoring, and support providers. Data locations and
 cross-border processing are documented and reviewed.
 
 ### PF-112 — Data rights and retention
 
-Doraf implements data-subject request procedures and a category-specific
+Dashchecker implements data-subject request procedures and a category-specific
 retention schedule for accounts, orders, payments, voucher secrets, OTPs, logs,
 audit records, exports, and dispute evidence.
 
@@ -791,7 +791,7 @@ security, accounting, fraud, or dispute purposes.
 
 ### PF-113 — Incident and breach response
 
-Doraf maintains an incident-response process covering detection, containment,
+Dashchecker maintains an incident-response process covering detection, containment,
 evidence, restoration, communication, and notification to the Data Protection
 Commission and affected people where required.
 
@@ -803,7 +803,7 @@ authenticator-based MFA and recovery design.
 
 ### PF-115 — Secret and provider security
 
-Doraf encrypts voucher secrets and sensitive personal data, separates encryption
+Dashchecker encrypts voucher secrets and sensitive personal data, separates encryption
 keys from application data, audits decryption, rotates keys, verifies provider
 webhooks, protects API credentials, and isolates test and production
 environments.
@@ -812,7 +812,7 @@ Non-production systems cannot initiate production money movement.
 
 ### PF-116 — External launch approvals
 
-Production launch is blocked until Doraf completes:
+Production launch is blocked until Dashchecker completes:
 
 - Ghana data-protection registration and readiness,
 - qualified review of Bank of Ghana implications,

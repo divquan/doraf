@@ -26,7 +26,7 @@ details can be addressed alongside security and operational flows.
 - Agent identity verification is not included in the MVP.
 - Each agent tenant contains one user.
 - Buyers can purchase as guests.
-- The delivery phone is a Doraf delivery destination; Paystack intentionally
+- The delivery phone is a Dashchecker delivery destination; Paystack intentionally
   owns payment-method and payer-detail collection.
 - Agents authenticate with a phone number and SMS OTP.
 - One phone number can have only one agent account.
@@ -56,7 +56,7 @@ details can be addressed alongside security and operational flows.
 ## Resolved in Topic 2 — Pricing and platform revenue
 
 - Each PIN product has a platform-defined base price and retail maximum.
-- The base price covers acquisition cost, operating costs, and Doraf's margin.
+- The base price covers acquisition cost, operating costs, and Dashchecker's margin.
 - Agents set a retail price within their effective pricing range.
 - Agent profit is retail price minus effective base price.
 - Buyers see one final price without checkout surcharges.
@@ -80,7 +80,7 @@ details can be addressed alongside security and operational flows.
 - Unused inventory has no calendar expiration.
 - Each sold voucher supports three checks and locks to one candidate and
   examination year after first use.
-- Doraf does not currently track the voucher's post-sale WAEC usage count.
+- Dashchecker does not currently track the voucher's post-sale WAEC usage count.
 
 ## Open in Topic 3 — Inventory policy
 
@@ -91,10 +91,10 @@ design.
 ## Resolved payment integration details
 
 - Guest buyers are not required to provide email addresses.
-- Doraf generates a synthetic email from the normalized delivery phone for
+- Dashchecker generates a synthetic email from the normalized delivery phone for
   Paystack.
 - The synthetic email uses a merchant-controlled guest subdomain.
-- Doraf stores it with the payment attempt and passes it to Paystack.
+- Dashchecker stores it with the payment attempt and passes it to Paystack.
 - The synthetic email is not buyer-provided contact information.
 - Buyers may optionally provide a real email for voucher delivery.
 - The optional delivery email remains separate from Paystack's synthetic email.
@@ -116,7 +116,7 @@ design.
 - One invalid or duplicate row rejects the whole batch with row-level errors.
 - The complete order quantity is reserved before Paystack initiation.
 - The reservation covers Paystack's 180-second authorization window.
-- Doraf verifies an unconfirmed transaction before releasing inventory.
+- Dashchecker verifies an unconfirmed transaction before releasing inventory.
 - Non-terminal results retain inventory for a configurable reconciliation
   grace period.
 - Sold vouchers never return to available inventory after delivery failure.
@@ -152,11 +152,11 @@ replacement behavior.
 USSD was removed from the MVP by product-owner decision on 2026-08-01. The
 items below are retained as post-MVP discovery history.
 
-- Doraf uses one shared USSD service code and one short unique referral code per
+- Dashchecker uses one shared USSD service code and one short unique referral code per
   agent.
 - The direct dial string contains the agent code when the provider supports it.
 - Otherwise, the buyer enters the agent code inside the session.
-- Doraf validates the agent and displays agent identity before confirmation.
+- Dashchecker validates the agent and displays agent identity before confirmation.
 - The USSD session number defaults the SMS delivery and payer numbers.
 - Buyers may replace either number and select the payer network.
 - USSD supports one product and a quantity from one to five per order.
@@ -170,7 +170,7 @@ items below are retained as post-MVP discovery history.
 
 ## Deferred until after MVP
 
-1. Which USSD provider and shared code will Doraf use?
+1. Which USSD provider and shared code will Dashchecker use?
 2. Does the provider support agent codes in the initial dial string?
 3. What agent-code length and alphabet fit the provider and buyer experience?
 4. Should retired agent codes ever be reused?
@@ -179,7 +179,7 @@ items below are retained as post-MVP discovery history.
 ## Resolved payment-reversal policy
 
 - A provider reversal does not alter or delete the original sale credit.
-- Doraf appends an equal reversal debit to the agent wallet.
+- Dashchecker appends an equal reversal debit to the agent wallet.
 - The wallet balance may become negative.
 - Future earnings offset a negative balance.
 - No funds are withdrawable until the wallet balance becomes positive.
@@ -188,8 +188,8 @@ items below are retained as post-MVP discovery history.
 
 ## Open wallet effects
 
-1. Should Doraf define a maximum negative balance before administrative action?
-2. How should Doraf handle a payment that is reinstated after reversal?
+1. Should Dashchecker define a maximum negative balance before administrative action?
+2. How should Dashchecker handle a payment that is reinstated after reversal?
 
 ## Resolved payment exceptions and reconciliation
 
@@ -207,7 +207,7 @@ items below are retained as post-MVP discovery history.
   investigation.
 - Exposed voucher secrets are normally non-refundable.
 - Duplicate charges and irrecoverably unfulfilled paid orders are refundable.
-- Doraf tries audited replacement inventory before refunding an unfulfilled
+- Dashchecker tries audited replacement inventory before refunding an unfulfilled
   paid order.
 
 ## Resolved in Topic 6 — Wallet withdrawals
@@ -215,8 +215,8 @@ items below are retained as post-MVP discovery history.
 - MVP payouts use Paystack Ghana Mobile Money Transfers.
 - Payouts go only to the agent's registered phone number.
 - Bank and third-party-destination withdrawals are outside the MVP.
-- Each request requires a fresh Doraf SMS OTP.
-- Net payout is GHS 10 to GHS 50,000, subject to a lower Doraf limit.
+- Each request requires a fresh Dashchecker SMS OTP.
+- Net payout is GHS 10 to GHS 50,000, subject to a lower Dashchecker limit.
 - The agent pays the GHS 1 Mobile Money transfer fee.
 - A hold for payout plus fee is placed atomically at request time.
 - Every request requires Administrator approval.
@@ -231,7 +231,7 @@ items below are retained as post-MVP discovery history.
 
 ## Resolved in Topic 7 — Delivery and recovery
 
-- Doraf sends one numbered SMS per voucher.
+- Dashchecker sends one numbered SMS per voucher.
 - Each voucher SMS includes order reference, product, serial number, PIN, and
   usage reminder.
 - Optional email sends every voucher in one email without secrets in its
@@ -252,7 +252,7 @@ items below are retained as post-MVP discovery history.
 
 - Support records complaints with masked voucher access.
 - Only Administrators decide and execute replacements or refunds.
-- Doraf data and fulfillment errors qualify for replacement.
+- Dashchecker data and fulfillment errors qualify for replacement.
 - Invalid or already-used claims require exact error evidence and preferably a
   screenshot.
 - No short claim deadline exists solely because of purchase age.
@@ -292,7 +292,7 @@ items below are retained as post-MVP discovery history.
 ## Open after Topic 9
 
 1. Which agent events use in-portal notification, SMS, or both?
-2. Does Doraf assign a default retail price before an agent sets one?
+2. Does Dashchecker assign a default retail price before an agent sets one?
 3. Resolved 2026-08-01: the MVP web link is `/buy/{public-id}` using a
    non-sequential lowercase 24-character hexadecimal identifier. USSD is
    deferred until after the MVP.
@@ -359,13 +359,13 @@ operators.
 - Agent balances are restricted earnings ledgers, not general-purpose wallets.
 - Top-ups, deposits, transfers, interest, and internal spending are prohibited.
 - Data Protection Commission registration is a production launch gate.
-- Doraf assigns data-protection responsibility and maintains processing records.
+- Dashchecker assigns data-protection responsibility and maintains processing records.
 - Agents and guest buyers receive plain-language privacy notices.
 - Every personal-data field needs a purpose and lawful basis.
 - Ordinary product flows avoid student exam data and age.
 - Provider contracts, data locations, and cross-border processing are reviewed.
 - Data-subject procedures and category-specific retention are required.
-- Doraf maintains incident and breach-response procedures.
+- Dashchecker maintains incident and breach-response procedures.
 - Internal operators use stronger authentication than agent SMS OTP.
 - Voucher and sensitive personal data encryption use separated keys and audited
   access.
@@ -389,7 +389,7 @@ operators.
 
 ## Resolved in Topic 14 — System architecture
 
-- Doraf starts as a modular monolith.
+- Dashchecker starts as a modular monolith.
 - Agent web, administration web, API, and worker are separate deployables.
 - NestJS domain modules own business rules.
 - Next.js applications do not calculate authoritative money or inventory state.
@@ -398,7 +398,7 @@ operators.
 - Critical invariants use short PostgreSQL transactions and constraints.
 - Asynchronous work uses a transactional outbox and durable at-least-once queue.
 - API and worker processes scale independently.
-- Providers are isolated behind Doraf-owned adapters.
+- Providers are isolated behind Dashchecker-owned adapters.
 - Complaint evidence and exports use private object storage.
 - Voucher encryption is a dedicated boundary.
 - Tenant-scoped repositories and database tests protect isolation.

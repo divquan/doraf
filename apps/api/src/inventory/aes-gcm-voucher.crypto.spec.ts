@@ -16,7 +16,7 @@ describe('AesGcmVoucherCrypto', () => {
   const crypto = new AesGcmVoucherCrypto(keyProvider, Buffer.alloc(32, 9));
 
   it('encrypts and authenticates a leading-zero PIN', () => {
-    const context = 'doraf:test:pin:v1';
+    const context = 'dashchecker:test:pin:v1';
     const encrypted = crypto.encrypt('012345678912', dataKey, context);
     const decipher = createDecipheriv('aes-256-gcm', dataKey, encrypted.nonce);
     decipher.setAAD(Buffer.from(context));

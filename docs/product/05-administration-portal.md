@@ -6,7 +6,7 @@ Last updated: 2026-07-30
 ## Purpose
 
 The administration portal gives authorized internal operators structured tools
-to operate and investigate Doraf. It is not a general-purpose database editor.
+to operate and investigate Dashchecker. It is not a general-purpose database editor.
 
 The portal enforces the two confirmed internal roles:
 

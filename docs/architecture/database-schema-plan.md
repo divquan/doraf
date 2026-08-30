@@ -56,7 +56,7 @@ the database.
 
 ## PostgreSQL enum plan
 
-Use native PostgreSQL enums only for closed Doraf-owned state sets. Provider
+Use native PostgreSQL enums only for closed Dashchecker-owned state sets. Provider
 names, provider error codes, event names, reason codes, and extensible routing
 values use constrained text or lookup tables so adding an integration does not
 require changing a central enum.

@@ -63,7 +63,7 @@ passkey-auth.controller.ts` (`@Controller('internal-auth')`) exposes only
 authenticationStrength, authenticatedAt, stepUpAt }`
    (`internal-access.types.ts`). Adding a `@Get('session')` is a small additive
    change mirroring `agent-auth.controller.ts:90`.
-6. **Session cookie**: `doraf_internal_session` (`apps/admin/lib/internal-api.ts`,
+6. **Session cookie**: `dashchecker_internal_session` (`apps/admin/lib/internal-api.ts`,
    HttpOnly, sameSite lax). `internal-api.ts` starts with `import "server-only"`
    — **client components cannot import it**. That is why the passkey forms each
    carry an inline `readJson` (§8).
@@ -80,7 +80,7 @@ authenticationStrength, authenticatedAt, stepUpAt }`
 8. **`app/dashboard/page.tsx` (142 lines) is the entire admin surface.** It
    fetches `/admin/products/pricing`, `/admin/inventory`,
    `/admin/reporting/overview` in parallel and additionally `/admin/withdrawals`
-   when `viewerRole === "ADMINISTRATOR"`. It renders: header (text "Doraf
+   when `viewerRole === "ADMINISTRATOR"`. It renders: header (text "Dashchecker
    Administration" + `LogoutButton`), executive overview (`OperationsDashboard`),
    inventory operations (`InventoryOverview` + `ManualInventoryForm`, admin),
    pricing operations (`PricingControls` + `ProductAvailability`, admin),
@@ -111,7 +111,7 @@ number)` Intl `en-GH` GHS currency (`pricing-controls.tsx:59`);
     `withdrawals`, `pricing`) and top-level `app/agents/`, `app/pricing/`,
     `app/team/`, `app/withdrawals/`. See P1-7.
 12. **No `public/` directory** in `apps/admin` — there is no `logo.jpg`, so the
-    brand is text ("Doraf Administration"). The admin app is also a separate
+    brand is text ("Dashchecker Administration"). The admin app is also a separate
     Next.js app and **cannot import from `apps/agent`**; the `_workspace/`
     primitives below are new admin-local components (informed by, not shared
     with, the agent versions).
@@ -123,7 +123,7 @@ number)` Intl `en-GH` GHS currency (`pricing-controls.tsx:59`);
     elsewhere: `AdminReportingOverviewData` (financial / fulfillment /
     operations / invariants). It is the entire basis for the slimmed overview.
 15. **All 14 BFF routes** under `app/api/` are thin same-origin proxies that
-    forward the `doraf_internal_session` cookie as a Bearer token. Contracts stay
+    forward the `dashchecker_internal_session` cookie as a Bearer token. Contracts stay
     unchanged (only one _additive_ route is proposed: `app/api/session`).
 
 ---
@@ -662,7 +662,7 @@ These components relocate into their new pages with no internal changes:
 ## 7. Data and API dependency map
 
 "All endpoints" below are the existing BFF routes under `app/api/`, which proxy
-to the Nest API at `DORAF_API_URL`. No existing BFF or backend contract changes.
+to the Nest API at `DASHCHECKER_API_URL`. No existing BFF or backend contract changes.
 Only `/api/session` is new (additive).
 
 | Page                           | Server data fetches (existing)                                | Client mutations                                                                            | Auth                                   | Missing APIs (Category C)          |
@@ -1031,7 +1031,7 @@ noted. Task IDs: `P<phase>-<n>`.
   `{ href, label, icon, roles: InternalRole[] }`. Initially include Dashboard,
   Inventory, Pricing, Settings (all roles). Filter by `role`. Use `usePathname()`
   with an `isActive` helper (`/dashboard` exact; others prefix). Brand area:
-  text "Doraf" + "Administration" label (no image — `apps/admin` has no
+  text "Dashchecker" + "Administration" label (no image — `apps/admin` has no
   `public/`). Desktop fixed `lg:block w-64`; mobile slide-over drawer with
   backdrop + close button. Use `aria-current="page"`.
 - **Prerequisites:** Phase 0.
@@ -1389,7 +1389,7 @@ agents/`, `apps/admin/app/pricing/`, `apps/admin/app/team/`,
 
 How to avoid regressions in each risk area.
 
-- **Session cookies:** `doraf_internal_session` is unchanged. The layout and
+- **Session cookies:** `dashchecker_internal_session` is unchanged. The layout and
   pages use the existing `apiRequest(..., true)` which reads the cookie
   server-side. No cookie logic changes.
 - **Authentication redirects:** `proxy.ts` keeps the same intent (no-session

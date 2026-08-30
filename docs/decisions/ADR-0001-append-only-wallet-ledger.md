@@ -5,7 +5,7 @@ Date: 2026-07-30
 
 ## Context
 
-Doraf credits agent profit after a paid order, debits profit when a customer
+Dashchecker credits agent profit after a paid order, debits profit when a customer
 payment reverses, holds funds during withdrawal approval, and records final
 withdrawal payouts and fees.
 

@@ -142,7 +142,7 @@ Use application-layer envelope encryption for voucher serial/PIN pairs:
 4. The encrypted data key, ciphertext, nonce, algorithm version, and KMS key
    identifier are stored; plaintext keys are removed from memory promptly.
 
-The encryption context binds data to its Doraf purpose and environment. The API
+The encryption context binds data to its Dashchecker purpose and environment. The API
 and worker receive only the narrow KMS permissions they need. Administrator and
 Support browser sessions never receive general decrypt capability.
 
@@ -206,7 +206,7 @@ High-cardinality identifiers stay in safe logs rather than metric labels.
 
 ## Availability and recovery objectives
 
-Targets apply to Doraf-controlled systems and exclude a separately measured
+Targets apply to Dashchecker-controlled systems and exclude a separately measured
 provider outage:
 
 | Failure scope | RPO | RTO |

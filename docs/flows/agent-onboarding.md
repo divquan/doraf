@@ -6,14 +6,14 @@ Last updated: 2026-07-30
 ## Registration
 
 1. Agent enters their phone number.
-2. Doraf sends an SMS OTP.
+2. Dashchecker sends an SMS OTP.
 3. Agent submits the OTP within its expiry and attempt limits.
-4. Doraf verifies that the phone number has no existing agent account.
+4. Dashchecker verifies that the phone number has no existing agent account.
 5. Agent enters their name.
-6. Doraf creates the individual one-user tenant.
-7. Doraf assigns one permanent web sales link.
-8. Doraf assigns one permanent USSD referral code.
-9. Doraf creates the wallet and default product-pricing records.
+6. Dashchecker creates the individual one-user tenant.
+7. Dashchecker assigns one permanent web sales link.
+8. Dashchecker assigns one permanent USSD referral code.
+9. Dashchecker creates the wallet and default product-pricing records.
 
 Identity verification, email, business details, and staff invitations are not
 part of MVP registration.
@@ -31,15 +31,15 @@ notices remain part of the compliance topic.
 5. Present copy and share actions for the finished web link.
 6. Take the agent to the dashboard.
 
-Whether Doraf supplies a default retail price before the agent explicitly saves
+Whether Dashchecker supplies a default retail price before the agent explicitly saves
 one remains open.
 
 ## Returning sign-in
 
 1. Agent enters the registered phone number.
-2. Doraf sends an SMS OTP.
+2. Dashchecker sends an SMS OTP.
 3. Agent submits the OTP.
-4. Doraf opens the active portal or suspended read-only portal according to
+4. Dashchecker opens the active portal or suspended read-only portal according to
    account status.
 
 ## First-run portal presentation

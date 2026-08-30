@@ -88,7 +88,7 @@ export class OrderContactProtectionService {
     mask: string,
   ): ProtectedContact {
     const nonce = randomBytes(12);
-    const aad = Buffer.from(`doraf:order-contact:${purpose}:v1`, 'utf8');
+    const aad = Buffer.from(`dashchecker:order-contact:${purpose}:v1`, 'utf8');
     const cipher = createCipheriv('aes-256-gcm', this.encryptionKey, nonce);
     cipher.setAAD(aad);
     const encrypted = Buffer.concat([
@@ -99,7 +99,7 @@ export class OrderContactProtectionService {
       normalized,
       ciphertext: Buffer.concat([nonce, cipher.getAuthTag(), encrypted]),
       fingerprint: createHmac('sha256', this.fingerprintKey)
-        .update(`doraf:order-contact:${purpose}:v1\0`, 'utf8')
+        .update(`dashchecker:order-contact:${purpose}:v1\0`, 'utf8')
         .update(normalized, 'utf8')
         .digest(),
       mask,
@@ -117,7 +117,7 @@ export class OrderContactProtectionService {
     const authTag = protectedValue.subarray(12, 28);
     const encrypted = protectedValue.subarray(28);
     const decipher = createDecipheriv('aes-256-gcm', this.encryptionKey, nonce);
-    decipher.setAAD(Buffer.from(`doraf:order-contact:${purpose}:v1`, 'utf8'));
+    decipher.setAAD(Buffer.from(`dashchecker:order-contact:${purpose}:v1`, 'utf8'));
     decipher.setAuthTag(authTag);
     return Buffer.concat([
       decipher.update(encrypted),

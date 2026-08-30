@@ -5,7 +5,7 @@ Last updated: 2026-07-30
 
 ## Architecture style
 
-Doraf starts as a modular monolith. Business capabilities are separated into
+Dashchecker starts as a modular monolith. Business capabilities are separated into
 NestJS modules with explicit ownership and interfaces, but they deploy as one
 API codebase plus a worker process.
 

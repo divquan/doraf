@@ -5,7 +5,7 @@ Last updated: 2026-07-30
 
 ## Adapter rule
 
-External providers are accessed through Doraf-owned interfaces. Domain modules
+External providers are accessed through Dashchecker-owned interfaces. Domain modules
 use normalized commands and results rather than provider SDK types.
 
 Provider adapters translate:
@@ -34,7 +34,7 @@ Capabilities:
 - transfer verification, and
 - payment, refund, transfer, fee, and settlement reconciliation.
 
-The adapter does not decide Doraf order, inventory, wallet, or refund policy.
+The adapter does not decide Dashchecker order, inventory, wallet, or refund policy.
 
 ## SMS
 

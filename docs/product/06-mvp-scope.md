@@ -7,7 +7,7 @@ Last updated: 2026-07-30
 
 Launch a controlled B2B2C marketplace in Ghana where an individual agent can
 set prices and share permanent sales channels, a guest buyer can pay for one to
-five same-product WAEC vouchers using Mobile Money, Doraf can fulfill from
+five same-product WAEC vouchers using Mobile Money, Dashchecker can fulfill from
 central inventory, and the agent can withdraw auditable earnings.
 
 The MVP is not complete merely when the happy-path checkout works. It includes
@@ -154,7 +154,7 @@ needed to operate real money and secret voucher inventory.
 - Business or organization agent accounts
 - Agent staff, invitations, teams, or delegated roles
 - Buyer accounts
-- Doraf-operated agent KYC
+- Dashchecker-operated agent KYC
 
 ### Money movement
 
@@ -164,7 +164,7 @@ needed to operate real money and secret voucher inventory.
 - Buyer deposits
 - Agent-to-agent or peer-to-peer transfer
 - Interest
-- Spending agent balance inside Doraf
+- Spending agent balance inside Dashchecker
 - Multiple currencies
 - Additional payment gateways
 

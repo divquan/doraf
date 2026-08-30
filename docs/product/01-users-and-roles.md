@@ -84,7 +84,7 @@ other orders or agent information.
 The buyer, Mobile Money payer, PIN recipient, and student may be different
 people. Product copy and data naming should not assume they are the same person.
 
-Doraf does not require a guest buyer to provide an email. A synthetic email
+Dashchecker does not require a guest buyer to provide an email. A synthetic email
 generated to satisfy Paystack's API is integration metadata and must not be
 presented or used as the buyer's contact information. However, a buyer may
 optionally provide a real email specifically to receive the purchased vouchers.
@@ -121,7 +121,7 @@ Inventory uploads do not require approval by a second operator in the MVP.
 - Agent staff accounts
 - Agent team roles and invitations
 - Buyer accounts
-- Agent identity verification performed by Doraf
+- Agent identity verification performed by Dashchecker
 - Reusable agent passwords or sign-in PINs
 - Automated agent account recovery
 - Delivery-number verification by OTP

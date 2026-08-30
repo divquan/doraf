@@ -104,12 +104,12 @@ outbox, idempotency, export, and broader audit slices remain here.
 
 ## Managed job infrastructure
 
-Doraf records business intent in `OutboxEvent`. The selected hosted deployment
+Dashchecker records business intent in `OutboxEvent`. The selected hosted deployment
 dispatches minimal Cloud Tasks or Pub/Sub messages containing the outbox ID and
 routing metadata.
 
 No `pg-boss` schema is created for the Supabase/Google Cloud deployment.
-`pg-boss` remains a documented fallback if Doraf later operates a continuously
+`pg-boss` remains a documented fallback if Dashchecker later operates a continuously
 running PostgreSQL-connected worker.
 
 ## Seed

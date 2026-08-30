@@ -5,7 +5,7 @@ Date: 2026-07-30
 
 ## Context
 
-Doraf needs PostgreSQL transactions and constraints but must minimize fixed
+Dashchecker needs PostgreSQL transactions and constraints but must minimize fixed
 infrastructure cost during development and early validation. Its web and API
 applications can use request-driven compute, while background operations can
 be delivered to request-driven workers.
@@ -64,7 +64,7 @@ provisioned containers create a fixed monthly cost inappropriate for the pilot.
 
 ### Vercel
 
-Not selected because Doraf is commercial and cannot use Vercel Hobby; the Pro
+Not selected because Dashchecker is commercial and cannot use Vercel Hobby; the Pro
 plan adds a fixed cost while PostgreSQL and durable job design remain separate.
 
 ### Cloudflare Workers

@@ -5,7 +5,7 @@ Date: 2026-07-31
 
 ## Context
 
-Doraf needs application-layer encryption for high-value voucher serials and
+Dashchecker needs application-layer encryption for high-value voucher serials and
 PINs, but operating Google Cloud KMS adds a provider dependency and recurring
 key-management complexity that is disproportionate during the MVP.
 

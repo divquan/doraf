@@ -8,7 +8,7 @@ Last updated: 2026-07-30
 1. Select the completed `Africa/Accra` reporting date.
 2. Record source cut-off timestamps.
 3. Create an immutable reconciliation-run identity.
-4. Read canonical provider and Doraf records without changing them.
+4. Read canonical provider and Dashchecker records without changing them.
 
 ## Reconcile
 

@@ -5,11 +5,11 @@ Date: 2026-07-30
 
 ## Context
 
-WAEC vouchers have no calendar expiration, and Doraf cannot observe their
+WAEC vouchers have no calendar expiration, and Dashchecker cannot observe their
 post-sale usage count. Buyers may lose an SMS or experience provider delivery
 failure after payment.
 
-Recovery requires Doraf to reproduce the original serial-number/PIN pair.
+Recovery requires Dashchecker to reproduce the original serial-number/PIN pair.
 Deleting or irreversibly hashing sold voucher secrets would make recovery
 impossible, while retaining plaintext would create unacceptable inventory and
 customer risk.
@@ -31,7 +31,7 @@ email subjects.
 
 - Buyers can recover vouchers after delivery failure or message loss.
 - Delivery failure does not require returning a voucher to inventory.
-- Doraf must operate encryption keys and tightly controlled decryption paths.
+- Dashchecker must operate encryption keys and tightly controlled decryption paths.
 - A database compromise alone should not reveal plaintext voucher inventory.
 - Key compromise remains a high-impact risk requiring monitoring and rotation.
 - Legal retention and deletion obligations still require qualified review.
@@ -40,7 +40,7 @@ email subjects.
 
 ### Delete sold voucher secrets after delivery
 
-Rejected because Doraf could not support recovery for vouchers without calendar
+Rejected because Dashchecker could not support recovery for vouchers without calendar
 expiration.
 
 ### Store only a non-reversible hash

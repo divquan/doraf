@@ -11,7 +11,7 @@ describe('MasterKeyVoucherKeyProvider', () => {
     const authTag = batchKey.encryptedDataKey.subarray(12, 28);
     const ciphertext = batchKey.encryptedDataKey.subarray(28);
     const decipher = createDecipheriv('aes-256-gcm', masterKey, nonce);
-    decipher.setAAD(Buffer.from('doraf:voucher-batch-key:v1', 'utf8'));
+    decipher.setAAD(Buffer.from('dashchecker:voucher-batch-key:v1', 'utf8'));
     decipher.setAuthTag(authTag);
     const recovered = Buffer.concat([
       decipher.update(ciphertext),

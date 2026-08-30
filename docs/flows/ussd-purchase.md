@@ -5,12 +5,12 @@ Last updated: 2026-07-30
 
 ## Entry and agent attribution
 
-1. The buyer dials a shared Doraf USSD service code.
+1. The buyer dials a shared Dashchecker USSD service code.
 2. If the provider supports parameters in the dial string, the agent's unique
    referral code is included.
-3. Otherwise, Doraf prompts the buyer to enter the referral code.
-4. Doraf resolves the code and verifies that the agent can receive new sales.
-5. Doraf shows the agent's identity before final purchase confirmation.
+3. Otherwise, Dashchecker prompts the buyer to enter the referral code.
+4. Dashchecker resolves the code and verifies that the agent can receive new sales.
+5. Dashchecker shows the agent's identity before final purchase confirmation.
 
 An invalid, disabled, or suspended agent code returns a safe error and does not
 create an order.
@@ -31,7 +31,7 @@ USSD checkout does not collect an email address.
 
 ## Review and confirmation
 
-Doraf shows a compact review containing:
+Dashchecker shows a compact review containing:
 
 - agent identity,
 - checker product,
@@ -41,7 +41,7 @@ Doraf shows a compact review containing:
 - payer phone number, and
 - payer network.
 
-The buyer explicitly confirms before Doraf creates an order.
+The buyer explicitly confirms before Dashchecker creates an order.
 
 ## Payment handoff
 

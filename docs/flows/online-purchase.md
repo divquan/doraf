@@ -36,7 +36,7 @@ Last updated: 2026-08-08
 4. Generate the synthetic Paystack email from the normalized delivery phone.
 5. Persist the attempt before or atomically with requesting the Paystack hosted
    checkout.
-6. Open Paystack's hosted collection flow. Doraf does not collect or persist
+6. Open Paystack's hosted collection flow. Dashchecker does not collect or persist
    the payer number or network for new web orders.
 7. Tell the buyer to authorize the prompt within Paystack's 180-second window.
 8. If Paystack initialization is temporarily uncertain, the checkout keeps the
@@ -51,7 +51,7 @@ If complete inventory cannot be reserved, do not initiate payment.
 Paystack may report success through a webhook or transaction verification. The
 hosted popup's `onSuccess` callback now triggers one immediate server-side
 verification for a faster buyer experience, but the callback is only an
-accelerator. Doraf verifies the authenticity and matches the reference, amount,
+accelerator. Dashchecker verifies the authenticity and matches the reference, amount,
 and currency to the expected attempt.
 
 In one short internal transaction:
@@ -73,7 +73,7 @@ idempotent and do not change the commercial outcome.
   Paystack before releasing inventory.
 - If verification is non-terminal, retain the reservation for a configurable
   reconciliation grace period and verify again.
-- After terminal failure, the buyer may retry the same order. Doraf creates a
+- After terminal failure, the buyer may retry the same order. Dashchecker creates a
   new payment attempt, Paystack reference, and inventory reservation.
 - Once an order exists, the buyer cannot go back and create a second active
   reservation from the same checkout; they can close the modal and resume the
@@ -92,7 +92,7 @@ A failed SMS or email attempt does not:
 - remove the agent's wallet credit, or
 - change the immutable delivery destination.
 
-Doraf retries delivery and permits buyer recovery using the order reference and
+Dashchecker retries delivery and permits buyer recovery using the order reference and
 verification of the delivery phone number.
 
 ## Open policies

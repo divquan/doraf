@@ -55,7 +55,7 @@ export class AesGcmVoucherCrypto implements VoucherCrypto {
 
   private fingerprint(type: 'serial' | 'pin', value: string): Buffer {
     return createHmac('sha256', this.fingerprintKey)
-      .update(`doraf:voucher:${type}:v1\0`, 'utf8')
+      .update(`dashchecker:voucher:${type}:v1\0`, 'utf8')
       .update(value, 'utf8')
       .digest();
   }
