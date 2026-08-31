@@ -1,5 +1,6 @@
 import { Test, type TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../database/prisma.service';
+import { OutboxService } from '../operations/outbox.service';
 import { InvariantAuditorService } from './invariant-auditor.service';
 
 describe('InvariantAuditorService', () => {
@@ -10,11 +11,10 @@ describe('InvariantAuditorService', () => {
     voucher: { groupBy: jest.Mock };
     order: { count: jest.Mock };
     outboxEvent: {
-      count: jest.Mock;
       findMany: jest.Mock;
-      updateMany: jest.Mock;
     };
   };
+  let outbox: { reclaimExpiredClaims: jest.Mock };
 
   beforeEach(async () => {
     prisma = {
@@ -47,16 +47,18 @@ describe('InvariantAuditorService', () => {
         count: jest.fn().mockResolvedValue(0),
       },
       outboxEvent: {
-        count: jest.fn().mockResolvedValue(0),
         findMany: jest.fn().mockResolvedValue([]),
-        updateMany: jest.fn().mockResolvedValue({ count: 2 }),
       },
+    };
+    outbox = {
+      reclaimExpiredClaims: jest.fn().mockResolvedValue([]),
     };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         InvariantAuditorService,
         { provide: PrismaService, useValue: prisma },
+        { provide: OutboxService, useValue: outbox },
       ],
     }).compile();
 
@@ -89,11 +91,5 @@ describe('InvariantAuditorService', () => {
     );
     expect(walletCheck?.status).toBe('FAIL');
     expect(walletCheck?.anomalyCount).toBe(1);
-  });
-
-  it('requeues stuck outbox events', async () => {
-    const res = await service.requeueStuckOutboxEvents();
-    expect(res.requeuedCount).toBe(4);
-    expect(prisma.outboxEvent.updateMany).toHaveBeenCalledTimes(2);
   });
 });

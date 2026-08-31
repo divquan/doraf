@@ -19,6 +19,12 @@ export class PricingOutboxHandler {
         id: eventId,
         claimToken,
         state: { in: ['CLAIMED', 'QUEUED'] },
+        eventType: {
+          in: [
+            'PRODUCT_PRICING_POLICY_ACTIVATION_DUE',
+            'AGENT_PRICING_OVERRIDE_ACTIVATION_DUE',
+          ],
+        },
       },
     });
     if (!event) return false;

@@ -517,7 +517,8 @@ async function claimOne(
       LIMIT 1 FOR UPDATE SKIP LOCKED
     )
     UPDATE outbox_event AS event
-    SET state = 'CLAIMED', claimed_at = NOW(), claim_token = $1,
+    SET state = 'CLAIMED', claimed_at = NOW(),
+        lease_until = NOW() + INTERVAL '2 minutes', claim_token = $1,
         attempt_count = attempt_count + 1
     FROM candidate
     WHERE event.id = candidate.id

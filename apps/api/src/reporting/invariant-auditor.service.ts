@@ -1,6 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { WalletHoldState } from '../generated/prisma/client';
+import type { InternalPrincipal } from '../internal-access/internal-access.types';
+import {
+  OutboxService,
+  OUTBOX_CLAIM_LEASE_MS,
+} from '../operations/outbox.service';
 
 export type InvariantCheckStatus = 'PASS' | 'FAIL';
 
@@ -29,20 +34,14 @@ export interface InvariantAuditReport {
   checks: InvariantCheckResult[];
 }
 
-const INFORMATIONAL_EVENT_TYPES = [
-  'PRODUCT_PRICING_POLICY_CREATED',
-  'AGENT_PRICING_OVERRIDE_CREATED',
-  'AGENT_PRICING_OVERRIDE_CLOSED',
-  'AGENT_RETAIL_PRICE_SET',
-  'PAYMENT_INITIALIZATION_REQUESTED',
-  'RESERVATION_EXPIRY_DUE',
-];
-
 @Injectable()
 export class InvariantAuditorService {
   private readonly logger = new Logger(InvariantAuditorService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly outbox: OutboxService,
+  ) {}
 
   async runFullAudit(): Promise<InvariantAuditReport> {
     const [walletCheck, inventoryCheck, fulfillmentCheck, outboxCheck] =
@@ -72,27 +71,19 @@ export class InvariantAuditorService {
     };
   }
 
-  async requeueStuckOutboxEvents() {
-    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
-    const [claimedReset, informationalDispatched] = await Promise.all([
-      this.prisma.outboxEvent.updateMany({
-        where: {
-          state: 'CLAIMED',
-          createdAt: { lt: tenMinutesAgo },
-        },
-        data: { state: 'PENDING' },
-      }),
-      this.prisma.outboxEvent.updateMany({
-        where: {
-          state: 'PENDING',
-          createdAt: { lt: tenMinutesAgo },
-          eventType: { in: INFORMATIONAL_EVENT_TYPES },
-        },
-        data: { state: 'DISPATCHED', dispatchedAt: new Date() },
-      }),
-    ]);
+  async requeueStuckOutboxEvents(actor: InternalPrincipal, requestId: string) {
+    const reclaimed = await this.outbox.reclaimExpiredClaims({
+      claimedBefore: new Date(Date.now() - OUTBOX_CLAIM_LEASE_MS),
+      audit: {
+        actorInternalUserId: actor.userId,
+        actorRole: actor.role,
+        authenticationStrength: actor.authenticationStrength,
+        requestId,
+        reason: 'Manual recovery of expired outbox claim',
+      },
+    });
     return {
-      requeuedCount: claimedReset.count + informationalDispatched.count,
+      requeuedCount: reclaimed.length,
     };
   }
 
@@ -208,8 +199,22 @@ export class InvariantAuditorService {
     const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
     const stuckEvents = await this.prisma.outboxEvent.findMany({
       where: {
-        state: { in: ['PENDING', 'CLAIMED'] },
-        createdAt: { lt: tenMinutesAgo },
+        OR: [
+          {
+            state: 'PENDING',
+            availableAt: { lt: tenMinutesAgo },
+          },
+          {
+            state: { in: ['CLAIMED', 'QUEUED'] },
+            OR: [
+              { leaseUntil: { lt: new Date() } },
+              {
+                leaseUntil: null,
+                claimedAt: { lt: tenMinutesAgo },
+              },
+            ],
+          },
+        ],
       },
       take: 10,
       orderBy: { createdAt: 'asc' },
@@ -219,6 +224,9 @@ export class InvariantAuditorService {
         aggregateType: true,
         aggregateId: true,
         state: true,
+        availableAt: true,
+        claimedAt: true,
+        leaseUntil: true,
         lastError: true,
         createdAt: true,
       },

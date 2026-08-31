@@ -751,6 +751,16 @@ export class PricingService {
           (policy.effectiveTo !== null && policy.effectiveTo <= now)
         )
           return 0;
+        const currentPolicy = await transaction.productPricingPolicy.findFirst({
+          where: {
+            productId: policy.productId,
+            effectiveFrom: { lte: now },
+            OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
+          },
+          orderBy: { effectiveFrom: 'desc' },
+          select: { id: true },
+        });
+        if (currentPolicy?.id !== policy.id) return 0;
         const audit = await transaction.auditEvent.findFirstOrThrow({
           where: {
             entityType: 'PRODUCT_PRICING_POLICY',
@@ -786,6 +796,18 @@ export class PricingService {
           (override.effectiveTo !== null && override.effectiveTo <= now)
         )
           return 0;
+        const currentOverride =
+          await transaction.agentPricingOverride.findFirst({
+            where: {
+              agentId: override.agentId,
+              productId: override.productId,
+              effectiveFrom: { lte: now },
+              OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
+            },
+            orderBy: { effectiveFrom: 'desc' },
+            select: { id: true },
+          });
+        if (currentOverride?.id !== override.id) return 0;
         const [policy, audit] = await Promise.all([
           transaction.productPricingPolicy.findFirst({
             where: {

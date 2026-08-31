@@ -45,6 +45,10 @@ export interface ProviderPaymentResult {
 export interface ProviderRefundResult {
   reference: string;
   status: string;
+  transactionReference?: string | null;
+  amountMinor?: bigint | null;
+  currency?: string | null;
+  merchantNote?: string | null;
 }
 
 export interface ProviderTransferRecipient {
@@ -96,6 +100,7 @@ export class PaymentGatewayService {
     transactionReference: string;
     amountMinor: bigint;
     currency: string;
+    merchantNote: string;
   }): Promise<ProviderRefundResult> {
     const payload = await this.request('/refund', {
       method: 'POST',
@@ -103,6 +108,7 @@ export class PaymentGatewayService {
         transaction: input.transactionReference,
         amount: input.amountMinor.toString(),
         currency: input.currency,
+        merchant_note: input.merchantNote,
       }),
     });
     return normalizeRefundResult(payload);
@@ -114,6 +120,36 @@ export class PaymentGatewayService {
       { method: 'GET' },
     );
     return normalizeRefundResult(payload);
+  }
+
+  async findRefundByTransaction(input: {
+    transactionReference: string;
+    providerTransactionId: string | null;
+    amountMinor: bigint;
+    currency: string;
+    merchantNote: string;
+  }): Promise<ProviderRefundResult | null> {
+    const transaction =
+      input.providerTransactionId ?? input.transactionReference;
+    const payload = await this.request(
+      `/refund?transaction=${encodeURIComponent(transaction)}&perPage=100`,
+      { method: 'GET' },
+    );
+    if (!isRecord(payload) || !Array.isArray(payload.data)) {
+      throw new BadGatewayException('Paystack returned an invalid refund list');
+    }
+    const match = payload.data
+      .filter(isRecord)
+      .map((refund) => normalizeRefundRecord(refund))
+      .find(
+        (refund) =>
+          refund.amountMinor === input.amountMinor &&
+          refund.currency === input.currency.toUpperCase() &&
+          refund.merchantNote === input.merchantNote &&
+          (refund.transactionReference === input.transactionReference ||
+            refund.transactionReference === input.providerTransactionId),
+      );
+    return match ?? null;
   }
 
   async resolveAccount(input: {
@@ -369,12 +405,26 @@ function normalizeRefundResult(payload: unknown): ProviderRefundResult {
   if (!isRecord(payload) || !isRecord(payload.data)) {
     throw new BadGatewayException('Paystack returned an invalid refund');
   }
-  const reference = stringValue(payload.data.id);
-  const status = stringValue(payload.data.status)?.toLowerCase();
+  return normalizeRefundRecord(payload.data);
+}
+
+function normalizeRefundRecord(
+  data: Record<string, unknown>,
+): ProviderRefundResult {
+  const reference = stringValue(data.id);
+  const status = stringValue(data.status)?.toLowerCase();
   if (!reference || !status) {
     throw new BadGatewayException('Paystack returned an invalid refund');
   }
-  return { reference, status };
+  return {
+    reference,
+    status,
+    transactionReference:
+      stringValue(data.transaction_reference) ?? stringValue(data.transaction),
+    amountMinor: integerValue(data.amount),
+    currency: stringValue(data.currency)?.toUpperCase() ?? null,
+    merchantNote: stringValue(data.merchant_note),
+  };
 }
 
 function normalizeTransferResult(

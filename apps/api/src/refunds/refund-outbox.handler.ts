@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { OutboxState, RefundState } from '../generated/prisma/client';
+import { OutboxState, Prisma, RefundState } from '../generated/prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { OutboxService } from '../operations/outbox.service';
 import {
@@ -31,27 +31,68 @@ export class RefundOutboxHandler {
       where: { id: event.aggregateId },
       include: { paymentAttempt: true },
     });
-    if (!refund || refund.state !== RefundState.APPROVED) {
+    if (
+      !refund ||
+      refund.state === RefundState.SUCCESS ||
+      refund.state === RefundState.FAILED ||
+      refund.state === RefundState.CANCELLED
+    ) {
       await this.outbox.markDispatched(event.id, claimToken);
       return true;
     }
-    await this.prisma.refund.update({
-      where: { id: refund.id },
-      data: { state: RefundState.SUBMITTED },
-    });
+
+    if (refund.providerReference) {
+      await this.outbox.markDispatched(event.id, claimToken);
+      return true;
+    }
+
+    const submissionKey =
+      refund.submissionKey ?? `dashchecker-refund-${event.id}`;
+    const submissionState = refund.state;
+    if (!refund.submissionKey) {
+      await this.prisma.refund.update({
+        where: { id: refund.id },
+        data: {
+          submissionKey,
+          state:
+            submissionState === RefundState.APPROVED
+              ? RefundState.SUBMITTING
+              : submissionState,
+          attemptCount: { increment: 1 },
+        },
+      });
+    }
+
     try {
+      const existing = await this.gateway.findRefundByTransaction({
+        transactionReference: refund.paymentAttempt.providerReference,
+        providerTransactionId: refund.paymentAttempt.providerTransactionId,
+        amountMinor: refund.amountMinor,
+        currency: refund.currency,
+        merchantNote: submissionKey,
+      });
+      if (existing) {
+        await this.recordProviderOutcome(refund.id, existing);
+        await this.outbox.markDispatched(event.id, claimToken);
+        return true;
+      }
+
+      // Once a POST has been attempted, a missing provider match is
+      // intentionally not retried automatically: Paystack does not expose
+      // an idempotency-key parameter for refunds, so another POST could
+      // create a duplicate refund.
+      if (submissionState !== RefundState.APPROVED) {
+        await this.deferUnknownOutcome(event.id, claimToken, refund.id);
+        return false;
+      }
+
       const submitted = await this.gateway.submitRefund({
         transactionReference: refund.paymentAttempt.providerReference,
         amountMinor: refund.amountMinor,
         currency: refund.currency,
+        merchantNote: submissionKey,
       });
-      await this.prisma.refund.update({
-        where: { id: refund.id },
-        data: {
-          providerReference: submitted.reference,
-          state: refundStateFromProvider(submitted.status),
-        },
-      });
+      await this.recordProviderOutcome(refund.id, submitted);
       await this.outbox.markDispatched(event.id, claimToken);
       this.logger.log(`Paystack refund submitted refundId=${refund.id}`);
       return true;
@@ -63,21 +104,64 @@ export class RefundOutboxHandler {
         where: { id: refund.id },
         data: {
           state: ambiguous ? RefundState.PENDING : RefundState.FAILED,
+          nextReconciliationAt: ambiguous
+            ? new Date(Date.now() + 30_000)
+            : null,
+          lastError:
+            error instanceof Error
+              ? error.message.slice(0, 1000)
+              : 'Refund submission failed',
           safeMetadata: {
-            ...(refund.safeMetadata as object),
+            ...(refund.safeMetadata as Prisma.JsonObject),
             submissionOutcome: ambiguous ? 'UNKNOWN' : 'REJECTED',
+            submissionKey,
           },
         },
       });
       await this.outbox.reschedule(event.id, claimToken, {
-        availableAt: new Date(),
+        availableAt: new Date(Date.now() + (ambiguous ? 30_000 : 0)),
         error: ambiguous
           ? 'refund submission outcome unknown; reconcile before retry'
           : 'refund submission rejected',
-        terminal: true,
+        terminal: !ambiguous,
       });
-      throw error;
+      if (!ambiguous) throw error;
+      return false;
     }
+  }
+
+  private async recordProviderOutcome(
+    refundId: string,
+    outcome: { reference: string; status: string },
+  ) {
+    await this.prisma.refund.update({
+      where: { id: refundId },
+      data: {
+        providerReference: outcome.reference,
+        state: refundStateFromProvider(outcome.status),
+        nextReconciliationAt:
+          refundStateFromProvider(outcome.status) === RefundState.PENDING
+            ? new Date(Date.now() + 30_000)
+            : null,
+        lastError: null,
+      },
+    });
+  }
+
+  private async deferUnknownOutcome(
+    eventId: string,
+    claimToken: string,
+    refundId: string,
+  ) {
+    const nextReconciliationAt = new Date(Date.now() + 30_000);
+    await this.prisma.refund.update({
+      where: { id: refundId },
+      data: { state: RefundState.PENDING, nextReconciliationAt },
+    });
+    await this.outbox.reschedule(eventId, claimToken, {
+      availableAt: nextReconciliationAt,
+      error: 'refund not visible at provider; reconciliation will retry lookup',
+    });
   }
 }
 

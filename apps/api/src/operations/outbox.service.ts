@@ -1,8 +1,14 @@
 import { ConflictException, Injectable } from '@nestjs/common';
-import { OutboxEvent, OutboxState, Prisma } from '../generated/prisma/client';
+import {
+  InternalRole,
+  OutboxEvent,
+  OutboxState,
+  Prisma,
+} from '../generated/prisma/client';
 import { PrismaService } from '../database/prisma.service';
 
 export const OUTBOX_CLAIM_LEASE_MS = 2 * 60_000;
+const OUTBOX_RETRY_DELAY_MS = 5_000;
 
 @Injectable()
 export class OutboxService {
@@ -37,6 +43,7 @@ export class OutboxService {
       )
       UPDATE outbox_event AS event
       SET state = 'CLAIMED', claimed_at = CURRENT_TIMESTAMP,
+          lease_until = CURRENT_TIMESTAMP + ${OUTBOX_CLAIM_LEASE_MS} * INTERVAL '1 millisecond',
           claim_token = ${claimToken}::uuid, attempt_count = attempt_count + 1
       FROM candidates
       WHERE event.id = candidates.id
@@ -50,6 +57,7 @@ export class OutboxService {
                 event.attempt_count AS "attemptCount",
                 event.available_at AS "availableAt",
                 event.claimed_at AS "claimedAt",
+                event.lease_until AS "leaseUntil",
                 event.claim_token AS "claimToken",
                 event.dispatched_at AS "dispatchedAt",
                 event.last_error AS "lastError",
@@ -77,6 +85,7 @@ export class OutboxService {
       )
       UPDATE outbox_event AS event
       SET state = 'CLAIMED', claimed_at = CURRENT_TIMESTAMP,
+          lease_until = CURRENT_TIMESTAMP + ${OUTBOX_CLAIM_LEASE_MS} * INTERVAL '1 millisecond',
           claim_token = ${claimToken}::uuid, attempt_count = attempt_count + 1
       FROM candidates
       WHERE event.id = candidates.id
@@ -90,6 +99,7 @@ export class OutboxService {
                 event.attempt_count AS "attemptCount",
                 event.available_at AS "availableAt",
                 event.claimed_at AS "claimedAt",
+                event.lease_until AS "leaseUntil",
                 event.claim_token AS "claimToken",
                 event.dispatched_at AS "dispatchedAt",
                 event.last_error AS "lastError",
@@ -108,6 +118,7 @@ export class OutboxService {
       data: {
         state: OutboxState.DISPATCHED,
         claimedAt: null,
+        leaseUntil: null,
         claimToken: null,
         dispatchedAt: new Date(),
       },
@@ -139,12 +150,14 @@ export class OutboxService {
         ? {
             state: OutboxState.FAILED,
             claimedAt: null,
+            leaseUntil: null,
             claimToken: null,
             lastError: input.error,
           }
         : {
             state: OutboxState.PENDING,
             claimedAt: null,
+            leaseUntil: null,
             claimToken: null,
             availableAt: input.availableAt,
             lastError: input.error,
@@ -155,16 +168,82 @@ export class OutboxService {
   }
 
   async releaseStaleClaims(claimedBefore: Date): Promise<number> {
-    const result = await this.prisma.outboxEvent.updateMany({
-      where: { state: OutboxState.CLAIMED, claimedAt: { lt: claimedBefore } },
-      data: {
-        state: OutboxState.PENDING,
-        claimedAt: null,
-        claimToken: null,
-        availableAt: new Date(),
-      },
+    const reclaimed = await this.reclaimExpiredClaims({ claimedBefore });
+    return reclaimed.length;
+  }
+
+  async reclaimExpiredClaims(input: {
+    claimedBefore: Date;
+    audit?: {
+      actorInternalUserId: string;
+      actorRole: InternalRole;
+      authenticationStrength: string;
+      requestId: string;
+      reason: string;
+    };
+  }): Promise<OutboxEvent[]> {
+    return this.prisma.$transaction(async (transaction) => {
+      const reclaimed = await transaction.$queryRaw<OutboxEvent[]>`
+        WITH candidates AS (
+          SELECT id
+          FROM outbox_event
+          WHERE state IN ('CLAIMED', 'QUEUED')
+            AND (
+              lease_until <= CURRENT_TIMESTAMP
+              OR (lease_until IS NULL AND claimed_at < ${input.claimedBefore})
+            )
+          ORDER BY COALESCE(lease_until, claimed_at), created_at
+          LIMIT 100
+          FOR UPDATE SKIP LOCKED
+        )
+        UPDATE outbox_event AS event
+        SET state = 'PENDING',
+            claimed_at = NULL,
+            lease_until = NULL,
+            claim_token = NULL,
+            available_at = CURRENT_TIMESTAMP + ${OUTBOX_RETRY_DELAY_MS} * INTERVAL '1 millisecond',
+            last_error = 'Outbox claim lease expired; retry scheduled'
+        FROM candidates
+        WHERE event.id = candidates.id
+        RETURNING event.id,
+                  event.event_type AS "eventType",
+                  event.aggregate_type AS "aggregateType",
+                  event.aggregate_id AS "aggregateId",
+                  event.aggregate_version AS "aggregateVersion",
+                  event.payload,
+                  event.state,
+                  event.attempt_count AS "attemptCount",
+                  event.available_at AS "availableAt",
+                  event.claimed_at AS "claimedAt",
+                  event.lease_until AS "leaseUntil",
+                  event.claim_token AS "claimToken",
+                  event.dispatched_at AS "dispatchedAt",
+                  event.last_error AS "lastError",
+                  event.created_at AS "createdAt"
+      `;
+
+      if (input.audit && reclaimed.length > 0) {
+        await transaction.auditEvent.createMany({
+          data: reclaimed.map((event) => ({
+            actorInternalUserId: input.audit!.actorInternalUserId,
+            actorRole: input.audit!.actorRole,
+            action: 'OUTBOX_CLAIM_REQUEUED',
+            entityType: 'OUTBOX_EVENT',
+            entityId: event.id,
+            reason: input.audit!.reason,
+            authenticationStrength: input.audit!.authenticationStrength,
+            requestId: input.audit!.requestId,
+            safeMetadata: {
+              eventType: event.eventType,
+              aggregateType: event.aggregateType,
+              aggregateId: event.aggregateId,
+              attemptCount: event.attemptCount,
+            },
+          })),
+        });
+      }
+      return reclaimed;
     });
-    return result.count;
   }
 
   async getClaimedEvent(id: string, claimToken: string) {

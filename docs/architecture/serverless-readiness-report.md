@@ -51,7 +51,7 @@ The following work runs only when the dedicated worker process is launched with 
 | Payment reconciliation      | `src/payments/payment-reconciliation.worker.ts`    | Database attempt scan every 5s    | Provider confirmation is not reconciled.                     |
 | Delivery outbox             | `src/operations/redis-outbox.consumer.ts`          | Development gateway only          | Production delivery remains unavailable until F-07 is fixed. |
 | Refund submission           | `src/operations/redis-outbox.consumer.ts`          | Redis Streams                     | Approved refunds wait in the outbox.                         |
-| Refund reconciliation       | `src/refunds/refund-reconciliation.worker.ts`      | Database scan every 30s           | Unknown refund outcomes are not reconciled.                  |
+| Refund reconciliation       | `src/refunds/refund-reconciliation.worker.ts`      | Database scan every 30s           | Unknown refunds are looked up by provider reference or transaction identity. |
 | Withdrawal submission       | `src/operations/redis-outbox.consumer.ts`          | Redis Streams                     | Approved withdrawals wait in the outbox.                     |
 | Withdrawal reconciliation   | `src/wallet/withdrawal-reconciliation.worker.ts`   | Database scan every 30s           | Unknown transfer outcomes are not reconciled.                |
 | Invariant auditing          | `src/reporting/invariant-reconciliation.worker.ts` | Database scan every 60s           | Drift detection stops.                                       |
@@ -130,15 +130,16 @@ When the second branch is reclaimed, preserve the same payment attempt, merchant
 ### F-04 — Refund submission is not crash- or ambiguity-safe
 
 **Category:** Financial correctness  
+**Status:** Application recovery path complete; live-provider failure exercise remains a deployment verification item.
 **Impact:** A crash after local state changes but before the provider result can leave a refund permanently stuck. Retrying blindly can also create duplicate refunds where the provider accepted the first request.
 
 **Effort:** L  
 **Fix risk:** High — refunds require conservative handling of unknown provider outcomes.  
 **Confidence:** High.
 
-**Evidence:** `apps/api/src/refunds/refund-outbox.handler.ts` changes the refund to `SUBMITTED` before calling the provider. `apps/api/src/refunds/refund-reconciliation.worker.ts` only scans pending refunds with a provider reference. The ambiguous-error path can leave a pending refund without that reference.
+**Evidence:** `apps/api/src/refunds/refund-outbox.handler.ts` persists `SUBMITTING`, a stable `submissionKey`, and an attempt count before the provider call. Ambiguous outcomes remain `PENDING`; the outbox is rescheduled, and reconciliation looks up `SUBMITTING`, legacy `SUBMITTED`, and `PENDING` refunds without requiring a stored provider reference. `apps/api/test/database-orders.e2e-spec.ts` proves that a timeout followed by provider visibility reaches one successful refund while the provider submission is called once. Paystack's refund API does not expose a request idempotency-key parameter, so the lookup uses the stable merchant note, transaction identity, amount, and currency before any retry.
 
-**Fix:**
+**Fix implemented:**
 
 1. Introduce an explicit `SUBMITTING` or equivalent state.
 2. Persist a stable internal submission key before the provider call.
@@ -148,21 +149,21 @@ When the second branch is reclaimed, preserve the same payment attempt, merchant
 6. Use provider idempotency if supported. If it is not supported, reconcile using the strongest provider-visible identifiers before attempting another submission.
 7. Store the provider response, last error, retry count, and next retry time.
 
-The handler must be safe when replayed after a crash at every point before and after the external call.
+The handler is safe to replay after the local pre-submit write, after an ambiguous provider response, and after a database failure following provider acceptance. A live Paystack sandbox termination test is still required before production approval.
 
 ### F-05 — Outbox lease recovery is incomplete and manual requeue is unsafe
 
 **Category:** Reliability / financial correctness  
-**Status:** Expired-claim recovery slice implemented; manual repair and stronger lease semantics remain.  
+**Status:** Complete for application behavior; deployment scheduling and operational alerting remain.
 **Impact:** A crashed worker can strand a financial event in `CLAIMED`. The manual requeue path can also requeue an actively running old event, causing duplicate external side effects.
 
 **Effort:** M  
 **Fix risk:** High — incorrect lease recovery can duplicate payments, refunds, or withdrawals.  
 **Confidence:** High.
 
-**Evidence:** `apps/api/src/operations/outbox-lease-recovery.worker.ts` now invokes `releaseStaleClaims()` from the dedicated worker; recovery uses `claimedAt` and clears claim metadata. `apps/api/src/reporting/invariant-auditor.service.ts` still has a manual repair path based on `createdAt`, rather than claim age, and does not fully clear claim metadata.
+**Evidence:** `apps/api/src/operations/outbox.service.ts` writes `lease_until` on every claim and reclaims only expired `CLAIMED`/`QUEUED` rows with `FOR UPDATE SKIP LOCKED`. Reclamation clears `claimed_at`, `lease_until`, and `claim_token`, records bounded retry availability, and the admin repair path writes `OUTBOX_CLAIM_REQUEUED` audit events. `apps/api/test/database-orders.e2e-spec.ts` proves an expired lease is reclaimed with claim metadata cleared.
 
-**Fix:** Centralize claim recovery:
+**Fix implemented:** Centralize claim recovery:
 
 - Use `claimedAt` or, preferably, an explicit `leaseUntil` timestamp.
 - Set the lease longer than the maximum provider request plus a safety margin.
@@ -172,21 +173,21 @@ The handler must be safe when replayed after a crash at every point before and a
 - Run repair independently of the API process.
 - Restrict manual requeue to expired claims and require an audit record.
 
-The repair path must not requeue a row solely because it was created long ago.
+The repair path no longer requeues a row solely because it was created long ago; pending work is inspected by availability time, while claimed/queued work is inspected by lease expiry.
 
 ### F-06 — Scheduled pricing events require durable routing and idempotency
 
 **Category:** Correctness  
-**Status:** Dedicated worker and Redis routing implemented; activation idempotency remains.  
+**Status:** Complete for durable routing and activation replay behavior; deployment scheduling remains.
 **Impact:** A future product or agent price can fail to activate, causing customers to see or pay the wrong price.
 
 **Effort:** S/M  
 **Fix risk:** Medium — event routing changes can affect pricing transitions.  
 **Confidence:** High.
 
-**Evidence:** `apps/api/src/pricing/pricing-outbox.handler.ts` handles pricing activation events; `apps/api/src/pricing/pricing-outbox.worker.ts` claims them in Postgres mode; `apps/api/src/operations/redis-outbox.consumer.ts` routes them in Redis mode.
+**Evidence:** `apps/api/src/pricing/pricing-outbox.handler.ts` validates the event type and claim; `apps/api/src/pricing/pricing-outbox.worker.ts` claims activation events in Postgres mode; `apps/api/src/operations/redis-outbox.consumer.ts` routes them in Redis mode; `apps/api/src/pricing/pricing.service.ts` ignores stale activation events and makes repeated activation a no-op after the intended effective price is present. `apps/api/test/database-pricing.e2e-spec.ts` proves the persisted price/version is unchanged on replay.
 
-**Fix:** Route pricing activation events through a dispatcher that claims them, or create a dedicated scheduled-pricing job. Add a database-level uniqueness/idempotency rule for an activation event and make re-running an activation a no-op after the intended effective state is present.
+**Fix implemented:** Route pricing activation events through the transactional outbox dispatcher in both Postgres and Redis modes. The existing database uniqueness rule prevents duplicate activation events for one aggregate/version, while the handler and pricing service reject stale windows and make re-running an activation a no-op after the intended effective state is present.
 
 ### F-07 — Production delivery is not wired
 
@@ -367,7 +368,7 @@ Do not add tests that only assert that a timer exists, that a method calls a moc
 
 ### Step 2 — Correct payment and refund state machines
 
-F-03 is implemented in the current slice; complete F-04 before treating the queue migration as safe. Add failure-injection tests around the provider boundary:
+F-03 and the application portions of F-04 are implemented in the current slice. The focused database test covers an ambiguous refund with no provider reference and proves one provider submission; a live sandbox termination test remains part of deployment verification. Preserve the following failure-injection coverage as the broader payment/refund release gate:
 
 - provider timeout after accepting a request;
 - process termination before the local result is saved;
@@ -380,7 +381,7 @@ The expected assertions must be final business states: exactly one payment resul
 
 ### Step 3 — Make outbox leases recoverable
 
-The current slice adds a dedicated expired-claim worker and routes pricing activation through both worker modes. Complete F-05/F-06 by removing the unsafe `createdAt`-based manual repair, adopting one lease/backoff policy, and making activation idempotency explicit. Add integration tests that create old and active claims, terminate the worker between claim and completion, run repair, and verify that only expired claims are retried.
+The current slice adds a dedicated expired-claim worker, an explicit lease/backoff policy, audited manual recovery, and idempotent pricing activation in both worker modes. The focused integration tests prove expired-claim reclamation and pricing replay behavior. Deployment still needs scheduler/worker monitoring and a process-termination exercise against the production queue topology.
 
 ### Step 4 — Wire production communication providers
 

@@ -197,6 +197,16 @@ describe('pricing transactions', () => {
     ).resolves.toEqual({ retailPriceMinor: 2_500n, version: 3 });
 
     await expect(
+      pricing.applyScheduledDefaultPolicy(created.policy.id),
+    ).resolves.toBe(0);
+    await expect(
+      prisma.agentProductPrice.findUniqueOrThrow({
+        where: { agentId_productId: { agentId, productId } },
+        select: { retailPriceMinor: true, version: true },
+      }),
+    ).resolves.toEqual({ retailPriceMinor: 2_500n, version: 3 });
+
+    await expect(
       pricing.createDefaultPolicy({
         productId,
         basePriceMinor: 2_600,

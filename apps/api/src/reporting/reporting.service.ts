@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
+import type { InternalPrincipal } from '../internal-access/internal-access.types';
 import { WalletHoldState, WithdrawalState } from '../generated/prisma/client';
 import {
   InvariantAuditorService,
@@ -195,7 +196,7 @@ export class ReportingService {
     return this.auditor.runFullAudit();
   }
 
-  async requeueStuckOutbox() {
-    return this.auditor.requeueStuckOutboxEvents();
+  async requeueStuckOutbox(actor: InternalPrincipal, requestId: string) {
+    return this.auditor.requeueStuckOutboxEvents(actor, requestId);
   }
 }

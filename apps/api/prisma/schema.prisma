@@ -141,6 +141,7 @@ enum PaymentAttemptClassification {
 enum RefundState {
   REQUESTED
   APPROVED
+  SUBMITTING
   SUBMITTED
   PENDING
   SUCCESS
@@ -463,6 +464,7 @@ model OutboxEvent {
   attemptCount     Int         @default(0) @map("attempt_count")
   availableAt      DateTime    @default(now()) @map("available_at") @db.Timestamptz(6)
   claimedAt        DateTime?   @map("claimed_at") @db.Timestamptz(6)
+  leaseUntil       DateTime?   @map("lease_until") @db.Timestamptz(6)
   claimToken       String?     @map("claim_token") @db.Uuid
   dispatchedAt     DateTime?   @map("dispatched_at") @db.Timestamptz(6)
   lastError        String?     @map("last_error") @db.VarChar(1000)
@@ -825,7 +827,11 @@ model Refund {
   currency          String         @default("GHS") @db.Char(3)
   reason            String         @db.VarChar(80)
   state             RefundState    @default(REQUESTED)
+  submissionKey     String?        @unique @map("submission_key") @db.VarChar(160)
   providerReference String?        @unique @map("provider_reference") @db.VarChar(160)
+  attemptCount      Int            @default(0) @map("attempt_count")
+  nextReconciliationAt DateTime?   @map("next_reconciliation_at") @db.Timestamptz(6)
+  lastError         String?        @map("last_error") @db.VarChar(1000)
   safeMetadata      Json           @default("{}") @map("safe_metadata")
   requestedAt       DateTime       @default(now()) @map("requested_at") @db.Timestamptz(6)
   approvedAt        DateTime?      @map("approved_at") @db.Timestamptz(6)
@@ -837,6 +843,7 @@ model Refund {
   approvedBy        InternalUser?  @relation(fields: [approvedById], references: [id], onDelete: Restrict)
 
   @@index([state, requestedAt])
+  @@index([state, nextReconciliationAt])
   @@index([orderId, createdAt])
   @@map("refund")
 }

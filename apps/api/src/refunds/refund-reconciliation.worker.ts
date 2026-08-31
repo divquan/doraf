@@ -41,22 +41,61 @@ export class RefundReconciliationWorker
     this.running = true;
     try {
       const refunds = await this.prisma.refund.findMany({
-        where: { state: RefundState.PENDING, providerReference: { not: null } },
+        where: {
+          state: {
+            in: [
+              RefundState.SUBMITTING,
+              RefundState.SUBMITTED,
+              RefundState.PENDING,
+            ],
+          },
+          OR: [
+            { nextReconciliationAt: null },
+            { nextReconciliationAt: { lte: new Date() } },
+          ],
+        },
         take: 20,
         orderBy: { updatedAt: 'asc' },
+        include: { paymentAttempt: true },
       });
       for (const refund of refunds) {
         try {
-          const result = await this.gateway.fetchRefund(
-            refund.providerReference!,
-          );
+          const result = refund.providerReference
+            ? await this.gateway.fetchRefund(refund.providerReference)
+            : await this.gateway.findRefundByTransaction({
+                transactionReference: refund.paymentAttempt.providerReference,
+                providerTransactionId:
+                  refund.paymentAttempt.providerTransactionId,
+                amountMinor: refund.amountMinor,
+                currency: refund.currency,
+                merchantNote: refund.submissionKey ?? `refund-${refund.id}`,
+              });
+          if (!result) {
+            await this.prisma.refund.update({
+              where: { id: refund.id },
+              data: {
+                state: RefundState.PENDING,
+                nextReconciliationAt: new Date(Date.now() + 30_000),
+                lastError: 'Refund is not yet visible at provider',
+              },
+            });
+            continue;
+          }
           await this.prisma.refund.update({
             where: { id: refund.id },
-            data: { state: stateFromProvider(result.status) },
+            data: {
+              providerReference: result.reference,
+              state: stateFromProvider(result.status),
+              nextReconciliationAt:
+                stateFromProvider(result.status) === RefundState.PENDING
+                  ? new Date(Date.now() + 30_000)
+                  : null,
+              lastError: null,
+            },
           });
-        } catch {
+        } catch (error) {
           this.logger.warn(
-            `Refund reconciliation deferred refundId=${refund.id}`,
+            `Refund reconciliation deferred refundId=${refund.id} reason=${error instanceof Error ? error.message.slice(0, 300) : 'unknown'}`,
           );
           if (isRunOnceWorker(this.config)) {
             throw new Error(

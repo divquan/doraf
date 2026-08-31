@@ -21,6 +21,7 @@ import { SMS_OTP_SENDER } from '../src/agent-access/agent-access.types';
 import { BuyerRecoveryService } from '../src/recovery/buyer-recovery.service';
 import { BuyerRecoveryTokenService } from '../src/recovery/buyer-recovery-token.service';
 import { VoucherRevealService } from '../src/recovery/voucher-reveal.service';
+import { RefundOutboxHandler } from '../src/refunds/refund-outbox.handler';
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
 if (!databaseUrl)
@@ -33,13 +34,21 @@ describe('order creation and inventory reservation', () => {
   let payments: PaymentProcessingService;
   let paymentInitialization: PaymentInitializationWorker;
   let delivery: DeliveryOutboxHandler;
+  let refunds: RefundOutboxHandler;
+  let outbox: OutboxService;
   let recovery: BuyerRecoveryService;
   let recoverySms: { send: jest.Mock };
   let paymentGateway: {
     mode: 'sandbox';
     initialize: jest.Mock;
     verify: jest.Mock;
+    findRefundByTransaction: jest.Mock;
+    submitRefund: jest.Mock;
   };
+  const initializedPayments = new Map<
+    string,
+    { amountMinor: bigint; currency: string }
+  >();
 
   beforeAll(async () => {
     const values: Partial<AppEnvironment> = {
@@ -61,10 +70,6 @@ describe('order creation and inventory reservation', () => {
       AGENT_AUTH_OTP_TTL_SECONDS: 300,
       AGENT_AUTH_OTP_MAX_ATTEMPTS: 5,
     };
-    const initializedPayments = new Map<
-      string,
-      { amountMinor: bigint; currency: string }
-    >();
     const deliveryGateway = {
       submit: jest.fn((input: { stableClientReference: string }) => ({
         provider: 'test-delivery',
@@ -117,6 +122,8 @@ describe('order creation and inventory reservation', () => {
           message: 'Sandbox payment verified',
         };
       }),
+      findRefundByTransaction: jest.fn().mockResolvedValue(null),
+      submitRefund: jest.fn(),
     };
     const config = {
       get: jest.fn((key: keyof AppEnvironment) => values[key]),
@@ -144,6 +151,7 @@ describe('order creation and inventory reservation', () => {
         BuyerRecoveryService,
         { provide: SMS_OTP_SENDER, useValue: recoverySms },
         { provide: VoucherRevealService, useValue: voucherReveal },
+        RefundOutboxHandler,
       ],
     }).compile();
     prisma = module.get(PrismaService);
@@ -151,6 +159,8 @@ describe('order creation and inventory reservation', () => {
     payments = module.get(PaymentProcessingService);
     paymentInitialization = module.get(PaymentInitializationWorker);
     delivery = module.get(DeliveryOutboxHandler);
+    refunds = module.get(RefundOutboxHandler);
+    outbox = module.get(OutboxService);
     recovery = module.get(BuyerRecoveryService);
   });
 
@@ -370,7 +380,12 @@ describe('order creation and inventory reservation', () => {
         eventType: 'DELIVERY_MESSAGE_REQUESTED',
         state: 'PENDING',
       },
-      data: { state: 'CLAIMED', claimToken, claimedAt: new Date() },
+      data: {
+        state: 'CLAIMED',
+        claimToken,
+        claimedAt: new Date(),
+        leaseUntil: new Date(Date.now() + 120_000),
+      },
     });
     const events = await prisma.outboxEvent.findMany({
       where: { claimToken, state: 'CLAIMED' },
@@ -469,16 +484,36 @@ describe('order creation and inventory reservation', () => {
       providerReference: created.payment.reference,
     });
 
-    paymentGateway.initialize.mockImplementationOnce(() => ({
-      reference: created.payment.reference,
-      status: 'ongoing',
-      amountMinor: ambiguous.expectedAmountMinor,
-      currency: ambiguous.currency,
-      transactionId: 'recovered-initialization-transaction',
-      accessCode: 'recovered-access-code',
-      displayText: 'Approve the recovered payment prompt.',
-      message: 'Recovered payment initialization',
-    }));
+    paymentGateway.initialize.mockImplementation(
+      (input: { reference: string; amountMinor: bigint; currency: string }) => {
+        if (input.reference === created.payment.reference) {
+          return {
+            reference: created.payment.reference,
+            status: 'ongoing',
+            amountMinor: ambiguous.expectedAmountMinor,
+            currency: ambiguous.currency,
+            transactionId: 'recovered-initialization-transaction',
+            accessCode: 'recovered-access-code',
+            displayText: 'Approve the recovered payment prompt.',
+            message: 'Recovered payment initialization',
+          };
+        }
+        initializedPayments.set(input.reference, {
+          amountMinor: input.amountMinor,
+          currency: input.currency,
+        });
+        return {
+          reference: input.reference,
+          status: 'initialized',
+          amountMinor: input.amountMinor,
+          currency: input.currency,
+          transactionId: 'sandbox-recovery-transaction',
+          accessCode: 'sandbox-recovery-access-code',
+          displayText: 'Approve the payment prompt on your phone.',
+          message: 'Sandbox payment initialized',
+        };
+      },
+    );
     await paymentInitialization.runOnce();
 
     const recovered = await prisma.paymentAttempt.findUniqueOrThrow({
@@ -652,7 +687,7 @@ describe('order creation and inventory reservation', () => {
     await payments.claimDueReconciliationAttempts();
     await expect(
       payments.reconcileDuePayment(created.payment.reference),
-    ).rejects.toThrow('Paystack payment initialization failed');
+    ).rejects.toThrow('Paystack request failed');
 
     const attempt = await prisma.paymentAttempt.findUniqueOrThrow({
       where: { providerReference: created.payment.reference },
@@ -662,6 +697,170 @@ describe('order creation and inventory reservation', () => {
     expect(attempt.providerStatus).toBe('VERIFICATION_UNCONFIRMED');
     expect(attempt.nextReconciliationAt?.getTime()).toBeGreaterThan(Date.now());
     expect(attempt.reservation?.state).toBe('ACTIVE');
+  });
+
+  it('recovers an ambiguous refund without issuing a second provider submission', async () => {
+    const fixture = await createCheckoutFixture(prisma, 1);
+    const created = await orders.createWebOrder(
+      checkoutCommand(fixture, randomUUID(), 1),
+    );
+    const attempt = await prisma.paymentAttempt.findUniqueOrThrow({
+      where: { providerReference: created.payment.reference },
+    });
+    const refund = await prisma.refund.create({
+      data: {
+        orderId: attempt.orderId,
+        paymentAttemptId: attempt.id,
+        amountMinor: attempt.expectedAmountMinor,
+        currency: attempt.currency,
+        reason: 'UNFULFILLABLE_PAID_ORDER',
+        state: 'APPROVED',
+      },
+    });
+    const event = await prisma.outboxEvent.create({
+      data: {
+        eventType: 'REFUND_SUBMISSION_REQUIRED',
+        aggregateType: 'REFUND',
+        aggregateId: refund.id,
+        aggregateVersion: 1,
+        payload: { refundId: refund.id },
+      },
+    });
+    const firstClaimToken = randomUUID();
+    const firstClaim = await outbox.claimAvailableForEventTypes(
+      10,
+      firstClaimToken,
+      ['REFUND_SUBMISSION_REQUIRED'],
+    );
+    expect(firstClaim.some((candidate) => candidate.id === event.id)).toBe(
+      true,
+    );
+    paymentGateway.findRefundByTransaction.mockResolvedValueOnce(null);
+    paymentGateway.submitRefund.mockImplementationOnce(() => {
+      throw new PaymentProviderRequestException(
+        'ambiguous',
+        null,
+        'Request timed out after Paystack accepted the refund',
+      );
+    });
+
+    await expect(
+      refunds.handleClaimed(event.id, firstClaimToken),
+    ).resolves.toBe(false);
+    const pending = await prisma.refund.findUniqueOrThrow({
+      where: { id: refund.id },
+    });
+    expect(pending).toMatchObject({
+      state: 'PENDING',
+      providerReference: null,
+      attemptCount: 1,
+    });
+    expect(pending.submissionKey).toBe(`dashchecker-refund-${event.id}`);
+    await expect(
+      prisma.outboxEvent.findUniqueOrThrow({ where: { id: event.id } }),
+    ).resolves.toMatchObject({ state: 'PENDING', claimToken: null });
+
+    await prisma.outboxEvent.update({
+      where: { id: event.id },
+      data: { availableAt: new Date(Date.now() - 1_000) },
+    });
+    const secondClaimToken = randomUUID();
+    const secondClaim = await outbox.claimAvailableForEventTypes(
+      10,
+      secondClaimToken,
+      ['REFUND_SUBMISSION_REQUIRED'],
+    );
+    expect(secondClaim.some((candidate) => candidate.id === event.id)).toBe(
+      true,
+    );
+    paymentGateway.findRefundByTransaction.mockResolvedValueOnce({
+      reference: `paystack-refund-${randomUUID()}`,
+      status: 'processed',
+    });
+
+    await expect(
+      refunds.handleClaimed(event.id, secondClaimToken),
+    ).resolves.toBe(true);
+    await expect(
+      prisma.refund.findUniqueOrThrow({ where: { id: refund.id } }),
+    ).resolves.toMatchObject({
+      state: 'SUCCESS',
+      attemptCount: 1,
+    });
+    expect(paymentGateway.submitRefund).toHaveBeenCalledTimes(1);
+  });
+
+  it('reclaims only an expired outbox lease and clears its claim metadata', async () => {
+    const event = await prisma.outboxEvent.create({
+      data: {
+        eventType: 'REFUND_SUBMISSION_REQUIRED',
+        aggregateType: 'REFUND',
+        aggregateId: randomUUID(),
+        aggregateVersion: 1,
+        payload: {},
+      },
+    });
+    const activeEvent = await prisma.outboxEvent.create({
+      data: {
+        eventType: 'REFUND_SUBMISSION_REQUIRED',
+        aggregateType: 'REFUND',
+        aggregateId: randomUUID(),
+        aggregateVersion: 1,
+        payload: {},
+      },
+    });
+    const claimToken = randomUUID();
+    const claimed = await outbox.claimAvailableForEventTypes(10, claimToken, [
+      'REFUND_SUBMISSION_REQUIRED',
+    ]);
+    expect(claimed.some((candidate) => candidate.id === event.id)).toBe(true);
+    expect(claimed.some((candidate) => candidate.id === activeEvent.id)).toBe(
+      true,
+    );
+    await prisma.outboxEvent.update({
+      where: { id: event.id },
+      data: { leaseUntil: new Date(Date.now() - 1_000) },
+    });
+    const administrator = await prisma.internalUser.create({
+      data: {
+        displayName: `Outbox Recovery Administrator ${randomUUID()}`,
+        role: 'ADMINISTRATOR',
+      },
+    });
+
+    const reclaimed = await outbox.reclaimExpiredClaims({
+      claimedBefore: new Date(Date.now() - 120_000),
+      audit: {
+        actorInternalUserId: administrator.id,
+        actorRole: 'ADMINISTRATOR',
+        authenticationStrength: 'MFA',
+        requestId: randomUUID(),
+        reason: 'Recover expired test claim',
+      },
+    });
+    expect(reclaimed.some((candidate) => candidate.id === event.id)).toBe(true);
+    expect(reclaimed.some((candidate) => candidate.id === activeEvent.id)).toBe(
+      false,
+    );
+    await expect(
+      prisma.outboxEvent.findUniqueOrThrow({ where: { id: event.id } }),
+    ).resolves.toMatchObject({
+      state: 'PENDING',
+      claimedAt: null,
+      leaseUntil: null,
+      claimToken: null,
+    });
+    await expect(
+      prisma.outboxEvent.findUniqueOrThrow({ where: { id: activeEvent.id } }),
+    ).resolves.toMatchObject({ state: 'CLAIMED', claimToken });
+    await expect(
+      prisma.auditEvent.findFirst({
+        where: { action: 'OUTBOX_CLAIM_REQUEUED', entityId: event.id },
+      }),
+    ).resolves.toMatchObject({
+      actorInternalUserId: administrator.id,
+      reason: 'Recover expired test claim',
+    });
   });
 
   it('recovers only a paid order after delivery-phone OTP verification', async () => {
