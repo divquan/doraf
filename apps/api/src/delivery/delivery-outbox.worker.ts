@@ -29,7 +29,6 @@ export class DeliveryOutboxWorker implements OnModuleInit, OnModuleDestroy {
   onModuleInit() {
     if (
       this.config.get('NODE_ENV', { infer: true }) !== 'development' ||
-      this.config.get('QUEUE_PROVIDER', { infer: true }) === 'redis' ||
       !isContinuousWorker(this.config)
     )
       return;

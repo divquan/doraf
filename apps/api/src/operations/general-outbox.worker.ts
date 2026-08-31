@@ -34,11 +34,7 @@ export class GeneralOutboxWorker implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit() {
-    if (
-      this.config.get('QUEUE_PROVIDER', { infer: true }) === 'redis' ||
-      !isContinuousWorker(this.config)
-    )
-      return;
+    if (!isContinuousWorker(this.config)) return;
     void this.runOnce();
     this.timer = setInterval(() => void this.runOnce(), POLL_INTERVAL_MS);
     this.timer.unref();

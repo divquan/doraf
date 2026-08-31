@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import {
@@ -13,6 +14,7 @@ import {
   type AgentProductPrice,
 } from '../generated/prisma/client';
 import type { InternalPrincipal } from '../internal-access/internal-access.types';
+import { CloudTasksOutboxDispatcher } from '../operations/cloud-tasks-outbox.dispatcher';
 import { IdempotencyService } from '../operations/idempotency.service';
 import { OutboxService } from '../operations/outbox.service';
 import { PrismaService } from '../database/prisma.service';
@@ -23,6 +25,7 @@ export class PricingService {
     private readonly prisma: PrismaService,
     private readonly outbox: OutboxService,
     private readonly idempotency: IdempotencyService,
+    @Optional() private readonly outboxDispatcher?: CloudTasksOutboxDispatcher,
   ) {}
 
   async createDefaultPolicy(input: {
@@ -39,7 +42,7 @@ export class PricingService {
       throw new BadRequestException(
         'Maximum retail price must be at least the base price',
       );
-    return this.prisma.$transaction(
+    const __result = await this.prisma.$transaction(
       async (transaction) => {
         const idempotency = await this.idempotency.acquireInTransaction(
           transaction,
@@ -144,6 +147,8 @@ export class PricingService {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+    void this.outboxDispatcher?.trigger().catch(() => {});
+    return __result;
   }
 
   async createOverride(input: {
@@ -170,7 +175,7 @@ export class PricingService {
       throw new BadRequestException(
         'Maximum retail price must be at least the base price',
       );
-    return this.prisma.$transaction(
+    const __result = await this.prisma.$transaction(
       async (transaction) => {
         const idempotency = await this.idempotency.acquireInTransaction(
           transaction,
@@ -318,6 +323,8 @@ export class PricingService {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+    void this.outboxDispatcher?.trigger().catch(() => {});
+    return __result;
   }
 
   async setRetailPrice(input: {
@@ -326,7 +333,7 @@ export class PricingService {
     retailPriceMinor: number;
     idempotencyKey: string;
   }) {
-    return this.prisma.$transaction(
+    const __result = await this.prisma.$transaction(
       async (transaction) => {
         const idempotency = await this.idempotency.acquireInTransaction(
           transaction,
@@ -403,6 +410,8 @@ export class PricingService {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+    void this.outboxDispatcher?.trigger().catch(() => {});
+    return __result;
   }
 
   async effectiveForAgent(
@@ -616,7 +625,7 @@ export class PricingService {
     requestId: string;
     actor: InternalPrincipal;
   }) {
-    return this.prisma.$transaction(
+    const __result = await this.prisma.$transaction(
       async (transaction) => {
         const override = await transaction.agentPricingOverride.findUnique({
           where: { id: input.overrideId },
@@ -685,6 +694,8 @@ export class PricingService {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+    void this.outboxDispatcher?.trigger().catch(() => {});
+    return __result;
   }
 
   async changeProductStatus(input: {
@@ -694,7 +705,7 @@ export class PricingService {
     requestId: string;
     actor: InternalPrincipal;
   }) {
-    return this.prisma.$transaction(
+    const __result = await this.prisma.$transaction(
       async (transaction) => {
         const product = await transaction.product.findUnique({
           where: { id: input.productId },
@@ -736,10 +747,12 @@ export class PricingService {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+    void this.outboxDispatcher?.trigger().catch(() => {});
+    return __result;
   }
 
   async applyScheduledDefaultPolicy(policyId: string): Promise<number> {
-    return this.prisma.$transaction(
+    const __result = await this.prisma.$transaction(
       async (transaction) => {
         const policy = await transaction.productPricingPolicy.findUnique({
           where: { id: policyId },
@@ -780,10 +793,12 @@ export class PricingService {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+    void this.outboxDispatcher?.trigger().catch(() => {});
+    return __result;
   }
 
   async applyScheduledOverride(overrideId: string): Promise<number> {
-    return this.prisma.$transaction(
+    const __result = await this.prisma.$transaction(
       async (transaction) => {
         const override = await transaction.agentPricingOverride.findUnique({
           where: { id: overrideId },
@@ -842,6 +857,8 @@ export class PricingService {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+    void this.outboxDispatcher?.trigger().catch(() => {});
+    return __result;
   }
 
   private async effectiveForAgentInTransaction(

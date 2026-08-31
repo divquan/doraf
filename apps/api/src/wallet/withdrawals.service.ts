@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import {
   Prisma,
@@ -20,6 +21,7 @@ import {
   type ProviderTransferResult,
 } from '../payments/payment-gateway.service';
 import type { InternalPrincipal } from '../internal-access/internal-access.types';
+import { CloudTasksOutboxDispatcher } from '../operations/cloud-tasks-outbox.dispatcher';
 import { OutboxService } from '../operations/outbox.service';
 
 const WITHDRAWAL_FEE_MINOR = 100n;
@@ -36,6 +38,7 @@ export class WithdrawalsService {
     private readonly phones: PhoneProtectionService,
     private readonly payments: PaymentGatewayService,
     private readonly outbox: OutboxService,
+    @Optional() private readonly outboxDispatcher?: CloudTasksOutboxDispatcher,
   ) {}
 
   async request(input: {
@@ -252,7 +255,7 @@ export class WithdrawalsService {
     requestId: string;
   }) {
     const now = new Date();
-    return this.prisma.$transaction(
+    const __decideResult = await this.prisma.$transaction(
       async (tx) => {
         const withdrawal = await tx.withdrawal.findUnique({
           where: { id: input.withdrawalId },
@@ -334,6 +337,8 @@ export class WithdrawalsService {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+    void this.outboxDispatcher?.trigger().catch(() => {});
+    return __decideResult;
   }
 
   async markManualPaid(input: {

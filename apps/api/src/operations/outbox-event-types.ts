@@ -1,4 +1,4 @@
-export const REDIS_OUTBOX_EVENT_TYPES = [
+export const OUTBOX_EVENT_TYPES = [
   'PRODUCT_PRICING_POLICY_CREATED',
   'AGENT_PRICING_OVERRIDE_CREATED',
   'AGENT_PRICING_OVERRIDE_CLOSED',
@@ -12,6 +12,11 @@ export const REDIS_OUTBOX_EVENT_TYPES = [
   'DELIVERY_MESSAGE_REQUESTED',
 ] as const;
 
+export const CLOUD_TASKS_OUTBOX_EVENT_TYPES = OUTBOX_EVENT_TYPES;
+
+// Deprecated alias for until Redis path is removed in Plan 003
+export const REDIS_OUTBOX_EVENT_TYPES = OUTBOX_EVENT_TYPES;
+
 export const INFORMATIONAL_OUTBOX_EVENT_TYPES = [
   'PRODUCT_PRICING_POLICY_CREATED',
   'AGENT_PRICING_OVERRIDE_CREATED',
@@ -21,4 +26,6 @@ export const INFORMATIONAL_OUTBOX_EVENT_TYPES = [
   'RESERVATION_EXPIRY_DUE',
 ] as const;
 
-export type RedisOutboxEventType = (typeof REDIS_OUTBOX_EVENT_TYPES)[number];
+export type OutboxEventType = (typeof OUTBOX_EVENT_TYPES)[number];
+export type CloudTasksOutboxEventType = OutboxEventType;
+export type RedisOutboxEventType = OutboxEventType;

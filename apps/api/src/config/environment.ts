@@ -1,14 +1,17 @@
 export type NodeEnvironment = 'development' | 'production' | 'test';
 export type PaymentProviderMode = 'sandbox' | 'live';
-export type QueueProvider = 'postgres' | 'redis';
 export type WorkerExecution = 'continuous' | 'run-once';
 
 export interface AppEnvironment {
   NODE_ENV: NodeEnvironment;
   WORKER_ENABLED: boolean;
   WORKER_EXECUTION: WorkerExecution;
-  QUEUE_PROVIDER: QueueProvider;
-  REDIS_URL: string | null;
+  CLOUD_TASKS_PROJECT_ID: string;
+  CLOUD_TASKS_LOCATION: string;
+  CLOUD_TASKS_QUEUE: string;
+  CLOUD_TASKS_TARGET_URL: string;
+  CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL: string;
+  CLOUD_TASKS_AUDIENCE: string;
   PORT: number;
   DATABASE_URL: string;
   VOUCHER_MASTER_KEY_BASE64: string;
@@ -65,10 +68,29 @@ export function validateEnvironment(
     throw new Error('DATABASE_URL must be a PostgreSQL connection URL');
   }
 
-  const queueProvider = queueProviderEnvironment(raw.QUEUE_PROVIDER);
-  const redisUrl = redisUrlEnvironment(
-    raw.REDIS_URL,
-    queueProvider,
+  const cloudTasksProjectId = cloudTasksProjectIdEnvironment(
+    raw.CLOUD_TASKS_PROJECT_ID,
+    nodeEnvironment as NodeEnvironment,
+  );
+  const cloudTasksLocation = cloudTasksLocationEnvironment(
+    raw.CLOUD_TASKS_LOCATION,
+    nodeEnvironment as NodeEnvironment,
+  );
+  const cloudTasksQueue = cloudTasksQueueEnvironment(
+    raw.CLOUD_TASKS_QUEUE,
+    nodeEnvironment as NodeEnvironment,
+  );
+  const cloudTasksTargetUrl = cloudTasksTargetUrlEnvironment(
+    raw.CLOUD_TASKS_TARGET_URL,
+    nodeEnvironment as NodeEnvironment,
+  );
+  const cloudTasksServiceAccountEmail =
+    cloudTasksServiceAccountEmailEnvironment(
+      raw.CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL,
+      nodeEnvironment as NodeEnvironment,
+    );
+  const cloudTasksAudience = cloudTasksAudienceEnvironment(
+    raw.CLOUD_TASKS_AUDIENCE,
     nodeEnvironment as NodeEnvironment,
   );
 
@@ -208,8 +230,12 @@ export function validateEnvironment(
     NODE_ENV: nodeEnvironment as NodeEnvironment,
     WORKER_ENABLED: booleanEnvironment(raw.WORKER_ENABLED, false),
     WORKER_EXECUTION: workerExecutionEnvironment(raw.WORKER_EXECUTION),
-    QUEUE_PROVIDER: queueProvider,
-    REDIS_URL: redisUrl,
+    CLOUD_TASKS_PROJECT_ID: cloudTasksProjectId,
+    CLOUD_TASKS_LOCATION: cloudTasksLocation,
+    CLOUD_TASKS_QUEUE: cloudTasksQueue,
+    CLOUD_TASKS_TARGET_URL: cloudTasksTargetUrl,
+    CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL: cloudTasksServiceAccountEmail,
+    CLOUD_TASKS_AUDIENCE: cloudTasksAudience,
     PORT: port,
     DATABASE_URL: databaseUrl,
     VOUCHER_MASTER_KEY_BASE64: voucherMasterKey,
@@ -252,32 +278,127 @@ function workerExecutionEnvironment(value: unknown): WorkerExecution {
   return execution;
 }
 
-function queueProviderEnvironment(value: unknown): QueueProvider {
-  const provider = value ?? 'redis';
-  if (provider !== 'postgres' && provider !== 'redis') {
-    throw new Error('QUEUE_PROVIDER must be postgres or redis');
-  }
-  return provider;
-}
-
-function redisUrlEnvironment(
+function cloudTasksProjectIdEnvironment(
   value: unknown,
-  provider: QueueProvider,
   environment: NodeEnvironment,
-): string | null {
-  if (provider === 'postgres') return null;
-  const redisUrl =
-    value ??
-    (environment === 'production' ? undefined : 'redis://localhost:6379');
-  if (
-    typeof redisUrl !== 'string' ||
-    (!redisUrl.startsWith('redis://') && !redisUrl.startsWith('rediss://'))
-  ) {
+): string {
+  if (value === undefined) {
+    if (environment === 'production')
+      throw new Error('CLOUD_TASKS_PROJECT_ID is required');
+    return 'test-project';
+  }
+  const projectId = requiredString(value, 'CLOUD_TASKS_PROJECT_ID');
+  if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(projectId)) {
     throw new Error(
-      'REDIS_URL must be a redis:// or rediss:// URL when QUEUE_PROVIDER=redis',
+      'CLOUD_TASKS_PROJECT_ID must be 6-30 lowercase letters, digits or hyphens',
     );
   }
-  return redisUrl;
+  return projectId;
+}
+
+function cloudTasksLocationEnvironment(
+  value: unknown,
+  environment: NodeEnvironment,
+): string {
+  if (value === undefined) {
+    if (environment === 'production')
+      throw new Error('CLOUD_TASKS_LOCATION is required');
+    return 'us-central1';
+  }
+  const location = requiredString(value, 'CLOUD_TASKS_LOCATION');
+  if (!/^[a-z0-9-]+$/.test(location)) {
+    throw new Error(
+      'CLOUD_TASKS_LOCATION must contain only lowercase letters, digits or hyphens',
+    );
+  }
+  return location;
+}
+
+function cloudTasksQueueEnvironment(
+  value: unknown,
+  environment: NodeEnvironment,
+): string {
+  if (value === undefined) {
+    if (environment === 'production')
+      throw new Error('CLOUD_TASKS_QUEUE is required');
+    return 'outbox';
+  }
+  const queue = requiredString(value, 'CLOUD_TASKS_QUEUE');
+  if (!/^[A-Za-z][A-Za-z0-9_-]{0,99}$/.test(queue)) {
+    throw new Error(
+      'CLOUD_TASKS_QUEUE must start with a letter and contain only letters, digits, hyphens or underscores',
+    );
+  }
+  return queue;
+}
+
+function cloudTasksTargetUrlEnvironment(
+  value: unknown,
+  environment: NodeEnvironment,
+): string {
+  if (value === undefined) {
+    if (environment === 'production')
+      throw new Error('CLOUD_TASKS_TARGET_URL is required');
+    return 'http://localhost:3000/api/outbox/tasks';
+  }
+  const url = requiredString(value, 'CLOUD_TASKS_TARGET_URL');
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error('CLOUD_TASKS_TARGET_URL must be a valid URL');
+  }
+  if (environment === 'production' && parsed.protocol !== 'https:') {
+    throw new Error('CLOUD_TASKS_TARGET_URL must be an https:// URL in production');
+  }
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    throw new Error('CLOUD_TASKS_TARGET_URL must be an https:// or http:// URL');
+  }
+  return url;
+}
+
+function cloudTasksServiceAccountEmailEnvironment(
+  value: unknown,
+  environment: NodeEnvironment,
+): string {
+  if (value === undefined) {
+    if (environment === 'production')
+      throw new Error('CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL is required');
+    return 'test@test-project.iam.gserviceaccount.com';
+  }
+  const email = requiredString(
+    value,
+    'CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL',
+  );
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error('CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL must be a valid email');
+  }
+  if (!email.endsWith('.iam.gserviceaccount.com')) {
+    throw new Error(
+      'CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL must be a *.iam.gserviceaccount.com address',
+    );
+  }
+  return email;
+}
+
+function cloudTasksAudienceEnvironment(
+  value: unknown,
+  environment: NodeEnvironment,
+): string {
+  if (value === undefined) {
+    if (environment === 'production')
+      throw new Error('CLOUD_TASKS_AUDIENCE is required');
+    return 'http://localhost:3000/api/outbox/tasks';
+  }
+  const audience = requiredString(value, 'CLOUD_TASKS_AUDIENCE');
+  if (audience.includes('://')) {
+    try {
+      new URL(audience);
+    } catch {
+      throw new Error('CLOUD_TASKS_AUDIENCE must be a valid URL when it contains ://');
+    }
+  }
+  return audience;
 }
 
 function paymentProviderMode(

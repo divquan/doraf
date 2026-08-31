@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { createHash, randomBytes } from 'node:crypto';
 import {
@@ -14,6 +15,7 @@ import {
   ProductStatus,
 } from '../generated/prisma/client';
 import { PrismaService } from '../database/prisma.service';
+import { CloudTasksOutboxDispatcher } from '../operations/cloud-tasks-outbox.dispatcher';
 import { IdempotencyService } from '../operations/idempotency.service';
 import { OutboxService } from '../operations/outbox.service';
 import { CheckoutAccessTokenService } from './checkout-access-token.service';
@@ -51,6 +53,7 @@ export class OrdersService {
     private readonly checkoutAccess: CheckoutAccessTokenService,
     private readonly idempotency: IdempotencyService,
     private readonly outbox: OutboxService,
+    @Optional() private readonly outboxDispatcher?: CloudTasksOutboxDispatcher,
   ) {}
 
   async createWebOrder(input: CreateWebOrderInput) {
@@ -95,7 +98,7 @@ export class OrdersService {
       now.getTime() + AUTHORIZATION_WINDOW_MS,
     );
 
-    return this.withSerializableRetry(() =>
+    const __orderResult = await this.withSerializableRetry(() =>
       this.prisma.$transaction(
         async (transaction) => {
           const idempotency = await this.idempotency.acquireInTransaction(
@@ -335,6 +338,8 @@ export class OrdersService {
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
       ),
     );
+    void this.outboxDispatcher?.trigger().catch(() => {});
+    return __orderResult;
   }
 
   async retryWebOrder(input: RetryWebOrderInput) {
@@ -357,7 +362,7 @@ export class OrdersService {
       now.getTime() + AUTHORIZATION_WINDOW_MS,
     );
 
-    return this.withSerializableRetry(() =>
+    const __orderResult = await this.withSerializableRetry(() =>
       this.prisma.$transaction(
         async (transaction) => {
           const idempotency = await this.idempotency.acquireInTransaction(
@@ -545,6 +550,8 @@ export class OrdersService {
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
       ),
     );
+    void this.outboxDispatcher?.trigger().catch(() => {});
+    return __orderResult;
   }
 
   private async getCreatedOrder(

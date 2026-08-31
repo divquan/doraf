@@ -4,11 +4,13 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../database/prisma.service';
+import { CloudTasksOutboxDispatcher } from '../operations/cloud-tasks-outbox.dispatcher';
 import { OutboxService } from '../operations/outbox.service';
 import { CheckoutAccessTokenService } from '../orders/checkout-access-token.service';
 import { OrderContactProtectionService } from '../orders/order-contact-protection.service';
@@ -49,6 +51,7 @@ export class PaymentProcessingService {
     private readonly vouchers: VoucherRevealService,
     private readonly gateway: PaymentGatewayService,
     private readonly outbox: OutboxService,
+    @Optional() private readonly outboxDispatcher?: CloudTasksOutboxDispatcher,
   ) {}
 
   async initializePayment(
@@ -719,11 +722,11 @@ export class PaymentProcessingService {
     });
   }
 
-  private applySuccessfulPayment(
+  private async applySuccessfulPayment(
     providerReference: string,
     result: ProviderPaymentResult,
   ) {
-    return this.prisma.$transaction(
+    const __ppResult = await this.prisma.$transaction(
       async (transaction) => {
         await transaction.$queryRaw`
           SELECT id FROM "payment_attempt"
@@ -983,6 +986,8 @@ export class PaymentProcessingService {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+    void this.outboxDispatcher?.trigger().catch(() => {});
+    return __ppResult;
   }
 
   private applyTerminalFailure(

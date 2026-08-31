@@ -23,10 +23,7 @@ export function isRunOnceWorker(
 export function isQueueWorkerEnabled(
   config: ConfigService<AppEnvironment, true>,
 ): boolean {
-  if (
-    config.get('WORKER_ENABLED', { infer: true }) !== true ||
-    config.get('QUEUE_PROVIDER', { infer: true }) !== 'redis'
-  ) {
+  if (config.get('WORKER_ENABLED', { infer: true }) !== true) {
     return false;
   }
   if (config.get('WORKER_EXECUTION', { infer: true }) === 'continuous') {

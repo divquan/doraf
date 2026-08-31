@@ -2,9 +2,11 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { Prisma, RefundState } from '../generated/prisma/client';
 import type { InternalPrincipal } from '../internal-access/internal-access.types';
+import { CloudTasksOutboxDispatcher } from '../operations/cloud-tasks-outbox.dispatcher';
 import { OutboxService } from '../operations/outbox.service';
 import { PrismaService } from '../database/prisma.service';
 
@@ -13,6 +15,7 @@ export class RefundsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly outbox: OutboxService,
+    @Optional() private readonly outboxDispatcher?: CloudTasksOutboxDispatcher,
   ) {}
 
   listRequested() {
@@ -39,7 +42,7 @@ export class RefundsService {
     actor: InternalPrincipal;
     requestId: string;
   }) {
-    return this.prisma.$transaction(
+    const result = await this.prisma.$transaction(
       async (transaction) => {
         const refund = await transaction.refund.findUnique({
           where: { id: input.refundId },
@@ -89,6 +92,8 @@ export class RefundsService {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+    void this.outboxDispatcher?.trigger().catch(() => {});
+    return result;
   }
 
   async recordProviderOutcome(input: {

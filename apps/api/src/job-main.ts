@@ -2,6 +2,7 @@ import type { INestApplicationContext } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { WorkerAppModule } from './worker-app.module';
+import { CloudTasksOutboxDispatcher } from './operations/cloud-tasks-outbox.dispatcher';
 import { GeneralOutboxWorker } from './operations/general-outbox.worker';
 import { OutboxLeaseRecoveryWorker } from './operations/outbox-lease-recovery.worker';
 import { RedisOutboxConsumer } from './operations/redis-outbox.consumer';
@@ -98,12 +99,22 @@ async function runJob(
 
 async function runOutbox(
   app: INestApplicationContext,
-  config: ConfigService<AppEnvironment, true>,
+  _config: ConfigService<AppEnvironment, true>,
 ): Promise<void> {
-  if (config.get('QUEUE_PROVIDER', { infer: true }) === 'redis') {
+  // Immediate publication repair via Cloud Tasks (bounded, request-safe)
+  try {
+    await app.get(CloudTasksOutboxDispatcher).publishPending();
+  } catch {
+    // Log already handled in dispatcher; continue to legacy workers
+  }
+
+  // Bounded outbox repair: legacy Redis path preserved for Plan 003 removal
+  // while Cloud Tasks handles immediate publication. Keep both operable.
+  try {
     await app.get(RedisOutboxDispatcher).runOnce();
     await app.get(RedisOutboxConsumer).runOnce();
-    return;
+  } catch {
+    // Ignore missing Redis in Cloud Tasks environments; proceed to standard workers
   }
 
   await app.get(GeneralOutboxWorker).runOnce();

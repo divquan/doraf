@@ -27,8 +27,13 @@ describe('validateEnvironment', () => {
       NODE_ENV: 'development',
       WORKER_ENABLED: false,
       WORKER_EXECUTION: 'continuous',
-      QUEUE_PROVIDER: 'redis',
-      REDIS_URL: 'redis://localhost:6379',
+      CLOUD_TASKS_PROJECT_ID: 'test-project',
+      CLOUD_TASKS_LOCATION: 'us-central1',
+      CLOUD_TASKS_QUEUE: 'outbox',
+      CLOUD_TASKS_TARGET_URL: 'http://localhost:3000/api/outbox/tasks',
+      CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL:
+        'test@test-project.iam.gserviceaccount.com',
+      CLOUD_TASKS_AUDIENCE: 'http://localhost:3000/api/outbox/tasks',
       PORT: 3000,
       DATABASE_URL: 'postgresql://localhost:5432/dashchecker',
       ...keyMaterial,
@@ -144,19 +149,61 @@ describe('validateEnvironment', () => {
     ).toThrow('WORKER_EXECUTION must be continuous or run-once');
   });
 
-  it('requires a valid Redis URL when Redis is selected', () => {
+  it('requires Cloud Tasks configuration in production', () => {
+    expect(() =>
+      validateEnvironment({
+        NODE_ENV: 'production',
+        DATABASE_URL: 'postgresql://localhost:5432/dashchecker',
+        ...keyMaterial,
+        PAYSTACK_MODE: 'live',
+        PAYSTACK_SECRET_KEY: 'sk_live_production-cloud-tasks',
+        INTERNAL_AUTH_RP_NAME: 'Dashchecker Administration',
+        INTERNAL_AUTH_RP_ID: 'dashchecker.example',
+        INTERNAL_AUTH_ORIGIN: 'https://dashchecker.example',
+        CLOUD_TASKS_LOCATION: 'us-central1',
+        CLOUD_TASKS_QUEUE: 'outbox',
+        CLOUD_TASKS_TARGET_URL: 'https://api.dashchecker.example/api/outbox/tasks',
+        CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL:
+          'tasks@my-project.iam.gserviceaccount.com',
+        CLOUD_TASKS_AUDIENCE: 'https://api.dashchecker.example/api/outbox/tasks',
+      }),
+    ).toThrow('CLOUD_TASKS_PROJECT_ID is required');
+  });
+
+  it('rejects an invalid Cloud Tasks target URL in production', () => {
+    expect(() =>
+      validateEnvironment({
+        NODE_ENV: 'production',
+        DATABASE_URL: 'postgresql://localhost:5432/dashchecker',
+        ...keyMaterial,
+        PAYSTACK_MODE: 'live',
+        PAYSTACK_SECRET_KEY: 'sk_live_production-cloud-tasks-url',
+        INTERNAL_AUTH_RP_NAME: 'Dashchecker Administration',
+        INTERNAL_AUTH_RP_ID: 'dashchecker.example',
+        INTERNAL_AUTH_ORIGIN: 'https://dashchecker.example',
+        CLOUD_TASKS_PROJECT_ID: 'my-project',
+        CLOUD_TASKS_LOCATION: 'us-central1',
+        CLOUD_TASKS_QUEUE: 'outbox',
+        CLOUD_TASKS_TARGET_URL: 'http://api.dashchecker.example/api/outbox/tasks',
+        CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL:
+          'tasks@my-project.iam.gserviceaccount.com',
+        CLOUD_TASKS_AUDIENCE: 'https://api.dashchecker.example/api/outbox/tasks',
+      }),
+    ).toThrow('CLOUD_TASKS_TARGET_URL must be an https:// URL in production');
+  });
+
+  it('rejects an invalid Cloud Tasks service account email', () => {
     expect(() =>
       validateEnvironment({
         DATABASE_URL: 'postgresql://localhost:5432/dashchecker',
         ...keyMaterial,
-        PAYSTACK_SECRET_KEY: 'sk_test_environment-redis-url',
-        QUEUE_PROVIDER: 'redis',
-        REDIS_URL: 'http://localhost:6379',
+        PAYSTACK_SECRET_KEY: 'sk_test_environment-cloud-tasks-email',
+        CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL: 'not-an-email',
         INTERNAL_AUTH_RP_NAME: 'Dashchecker Administration',
         INTERNAL_AUTH_RP_ID: 'localhost',
         INTERNAL_AUTH_ORIGIN: 'http://localhost:3001',
       }),
-    ).toThrow('REDIS_URL must be');
+    ).toThrow('CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL must be a valid email');
   });
 
   it('rejects a WebAuthn origin with a path', () => {
