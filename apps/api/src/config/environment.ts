@@ -339,7 +339,7 @@ function cloudTasksTargetUrlEnvironment(
   if (value === undefined) {
     if (environment === 'production')
       throw new Error('CLOUD_TASKS_TARGET_URL is required');
-    return 'http://localhost:3000/api/outbox/tasks';
+    return 'http://localhost:3000/internal/tasks/outbox';
   }
   const url = requiredString(value, 'CLOUD_TASKS_TARGET_URL');
   let parsed: URL;
@@ -388,7 +388,7 @@ function cloudTasksAudienceEnvironment(
   if (value === undefined) {
     if (environment === 'production')
       throw new Error('CLOUD_TASKS_AUDIENCE is required');
-    return 'http://localhost:3000/api/outbox/tasks';
+    return 'http://localhost:3000/internal/tasks/outbox';
   }
   const audience = requiredString(value, 'CLOUD_TASKS_AUDIENCE');
   if (audience.includes('://')) {
