@@ -6,8 +6,6 @@ import { AgentAuthService } from './agent-auth.service';
 import { AgentNoStoreInterceptor } from './agent-no-store.interceptor';
 import { AgentSessionGuard } from './agent-session.guard';
 import { LocalSmsOtpSender } from './local-sms-otp.sender';
-import { OtpTokenService } from './otp-token.service';
-import { PhoneProtectionService } from './phone-protection.service';
 import { SMS_OTP_SENDER } from './agent-access.types';
 import { InternalAccessModule } from '../internal-access/internal-access.module';
 import { PricingModule } from '../pricing/pricing.module';
@@ -15,9 +13,15 @@ import { OrdersModule } from '../orders/orders.module';
 import { SalesChannelController } from './sales-channel.controller';
 import { SalesChannelService } from './sales-channel.service';
 import { AgentOnboardingService } from './agent-onboarding.service';
+import { AgentCryptoModule } from './agent-crypto.module';
 
 @Module({
-  imports: [InternalAccessModule, PricingModule, OrdersModule],
+  imports: [
+    InternalAccessModule,
+    PricingModule,
+    OrdersModule,
+    AgentCryptoModule,
+  ],
   controllers: [
     AgentAuthController,
     AgentAdministrationController,
@@ -28,8 +32,6 @@ import { AgentOnboardingService } from './agent-onboarding.service';
     AgentAdministrationService,
     AgentSessionGuard,
     AgentNoStoreInterceptor,
-    PhoneProtectionService,
-    OtpTokenService,
     SalesChannelService,
     AgentOnboardingService,
     LocalSmsOtpSender,
@@ -38,10 +40,9 @@ import { AgentOnboardingService } from './agent-onboarding.service';
   exports: [
     AgentSessionGuard,
     AgentNoStoreInterceptor,
-    OtpTokenService,
-    PhoneProtectionService,
     SMS_OTP_SENDER,
     InternalAccessModule,
+    AgentCryptoModule,
   ],
 })
 export class AgentAccessModule {}

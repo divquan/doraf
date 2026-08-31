@@ -349,10 +349,14 @@ function cloudTasksTargetUrlEnvironment(
     throw new Error('CLOUD_TASKS_TARGET_URL must be a valid URL');
   }
   if (environment === 'production' && parsed.protocol !== 'https:') {
-    throw new Error('CLOUD_TASKS_TARGET_URL must be an https:// URL in production');
+    throw new Error(
+      'CLOUD_TASKS_TARGET_URL must be an https:// URL in production',
+    );
   }
   if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
-    throw new Error('CLOUD_TASKS_TARGET_URL must be an https:// or http:// URL');
+    throw new Error(
+      'CLOUD_TASKS_TARGET_URL must be an https:// or http:// URL',
+    );
   }
   return url;
 }
@@ -366,10 +370,7 @@ function cloudTasksServiceAccountEmailEnvironment(
       throw new Error('CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL is required');
     return 'test@test-project.iam.gserviceaccount.com';
   }
-  const email = requiredString(
-    value,
-    'CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL',
-  );
+  const email = requiredString(value, 'CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL');
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     throw new Error('CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL must be a valid email');
   }
@@ -395,7 +396,9 @@ function cloudTasksAudienceEnvironment(
     try {
       new URL(audience);
     } catch {
-      throw new Error('CLOUD_TASKS_AUDIENCE must be a valid URL when it contains ://');
+      throw new Error(
+        'CLOUD_TASKS_AUDIENCE must be a valid URL when it contains ://',
+      );
     }
   }
   return audience;

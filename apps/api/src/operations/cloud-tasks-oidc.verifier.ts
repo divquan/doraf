@@ -1,4 +1,11 @@
-import { ForbiddenException, Inject, Injectable, Logger, Optional, UnauthorizedException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Inject,
+  Injectable,
+  Logger,
+  Optional,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OAuth2Client } from 'google-auth-library';
 import type { AppEnvironment } from '../config/environment';
@@ -11,10 +18,17 @@ export class CloudTasksOidcVerifier {
 
   constructor(
     private readonly config: ConfigService<AppEnvironment, true>,
-    @Optional() @Inject('GOOGLE_OAUTH2_CLIENT') private readonly oauthClient?: OAuth2Client,
+    @Optional()
+    @Inject('GOOGLE_OAUTH2_CLIENT')
+    private readonly oauthClient?: OAuth2Client,
   ) {
-    this.expectedAudience = this.config.get('CLOUD_TASKS_AUDIENCE', { infer: true });
-    this.expectedServiceAccount = this.config.get('CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL', { infer: true });
+    this.expectedAudience = this.config.get('CLOUD_TASKS_AUDIENCE', {
+      infer: true,
+    });
+    this.expectedServiceAccount = this.config.get(
+      'CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL',
+      { infer: true },
+    );
   }
 
   private get client(): OAuth2Client {
@@ -50,7 +64,7 @@ export class CloudTasksOidcVerifier {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       // Audience mismatch should be 403, other verification failures 401
-      if (message.toLowerCase().includes('audience') || message.toLowerCase().includes('aud')) {
+      if (message.toLowerCase().includes('audience')) {
         this.logger.warn(`OIDC audience mismatch: ${message.slice(0, 200)}`);
         throw new ForbiddenException('Invalid token audience');
       }
@@ -75,7 +89,10 @@ export class CloudTasksOidcVerifier {
       throw new ForbiddenException('Email not verified');
     }
 
-    if (iss !== 'https://accounts.google.com' && iss !== 'accounts.google.com') {
+    if (
+      iss !== 'https://accounts.google.com' &&
+      iss !== 'accounts.google.com'
+    ) {
       this.logger.warn(`OIDC invalid issuer: ${String(iss).slice(0, 200)}`);
       throw new UnauthorizedException('Invalid token issuer');
     }

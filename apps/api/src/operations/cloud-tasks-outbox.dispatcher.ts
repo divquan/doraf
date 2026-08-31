@@ -1,7 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
-import type { AppEnvironment } from '../config/environment';
 import { OUTBOX_EVENT_TYPES } from './outbox-event-types';
 import { OutboxService } from './outbox.service';
 import { CloudTasksOutboxPublisher } from './cloud-tasks-outbox.publisher';
@@ -12,7 +10,6 @@ export class CloudTasksOutboxDispatcher {
   private running = false;
 
   constructor(
-    private readonly config: ConfigService<AppEnvironment, true>,
     private readonly outbox: OutboxService,
     private readonly publisher: CloudTasksOutboxPublisher,
   ) {}
@@ -28,15 +25,10 @@ export class CloudTasksOutboxDispatcher {
     this.running = true;
     try {
       const claimToken = randomUUID();
-      const eventTypes = OUTBOX_EVENT_TYPES.filter(
-        (eventType) =>
-          eventType !== 'DELIVERY_MESSAGE_REQUESTED' ||
-          this.config.get('NODE_ENV', { infer: true }) === 'development',
-      );
       const events = await this.outbox.claimAvailableForEventTypes(
         25,
         claimToken,
-        [...eventTypes],
+        [...OUTBOX_EVENT_TYPES],
       );
       for (const event of events) {
         try {
@@ -99,9 +91,7 @@ export class CloudTasksOutboxDispatcher {
     } catch (rescheduleError) {
       this.logger.error(
         `Could not reschedule Cloud Tasks outbox event id=${eventId}`,
-        rescheduleError instanceof Error
-          ? rescheduleError.stack
-          : undefined,
+        rescheduleError instanceof Error ? rescheduleError.stack : undefined,
       );
     }
   }

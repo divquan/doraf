@@ -117,7 +117,9 @@ export class OrderContactProtectionService {
     const authTag = protectedValue.subarray(12, 28);
     const encrypted = protectedValue.subarray(28);
     const decipher = createDecipheriv('aes-256-gcm', this.encryptionKey, nonce);
-    decipher.setAAD(Buffer.from(`dashchecker:order-contact:${purpose}:v1`, 'utf8'));
+    decipher.setAAD(
+      Buffer.from(`dashchecker:order-contact:${purpose}:v1`, 'utf8'),
+    );
     decipher.setAuthTag(authTag);
     return Buffer.concat([
       decipher.update(encrypted),

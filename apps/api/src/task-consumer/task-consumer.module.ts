@@ -5,9 +5,9 @@ import { DatabaseModule } from '../database/database.module';
 import { HealthModule } from '../health/health.module';
 import { DeliveryModule } from '../delivery/delivery.module';
 import { OperationsModule } from '../operations/operations.module';
-import { PricingModule } from '../pricing/pricing.module';
-import { RefundsModule } from '../refunds/refunds.module';
-import { WalletModule } from '../wallet/wallet.module';
+import { PricingHandlersModule } from '../pricing/pricing-handlers.module';
+import { RefundsHandlersModule } from '../refunds/refunds-handlers.module';
+import { WalletHandlersModule } from '../wallet/wallet-handlers.module';
 import { CloudTasksOidcVerifier } from '../operations/cloud-tasks-oidc.verifier';
 import { OutboxTaskRouter } from '../operations/outbox-task.router';
 import { OutboxTaskController } from '../operations/outbox-task.controller';
@@ -21,9 +21,9 @@ import { OutboxTaskController } from '../operations/outbox-task.controller';
     DatabaseModule,
     HealthModule,
     OperationsModule,
-    PricingModule,
-    RefundsModule,
-    WalletModule,
+    PricingHandlersModule,
+    RefundsHandlersModule,
+    WalletHandlersModule,
     DeliveryModule,
   ],
   controllers: [OutboxTaskController],

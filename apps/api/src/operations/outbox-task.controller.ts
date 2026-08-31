@@ -37,13 +37,14 @@ export class OutboxTaskController {
         eventId: body.eventId,
         claimToken: body.claimToken,
       });
-    } catch (error) {
+    } catch {
       // If the error was already handled durably (state no longer CLAIMED/QUEUED), ack
       try {
         const current = await this.outbox.getState(body.eventId);
         if (
           !current ||
-          (current.state !== OutboxState.CLAIMED && current.state !== OutboxState.QUEUED)
+          (current.state !== OutboxState.CLAIMED &&
+            current.state !== OutboxState.QUEUED)
         ) {
           this.logger.log(
             `Outbox task deferred but already durable eventId=${body.eventId}`,

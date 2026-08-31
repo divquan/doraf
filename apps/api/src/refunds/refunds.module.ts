@@ -1,15 +1,14 @@
 import { Module } from '@nestjs/common';
 import { InternalAccessModule } from '../internal-access/internal-access.module';
 import { OperationsModule } from '../operations/operations.module';
-import { PaymentsModule } from '../payments/payments.module';
+import { RefundsHandlersModule } from './refunds-handlers.module';
 import { RefundsController } from './refunds.controller';
 import { RefundsService } from './refunds.service';
-import { RefundOutboxHandler } from './refund-outbox.handler';
 
 @Module({
-  imports: [InternalAccessModule, OperationsModule, PaymentsModule],
+  imports: [InternalAccessModule, OperationsModule, RefundsHandlersModule],
   controllers: [RefundsController],
-  providers: [RefundsService, RefundOutboxHandler],
-  exports: [RefundOutboxHandler],
+  providers: [RefundsService],
+  exports: [RefundsHandlersModule],
 })
 export class RefundsModule {}

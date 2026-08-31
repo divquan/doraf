@@ -50,17 +50,43 @@ export class RefundOutboxHandler {
       refund.submissionKey ?? `dashchecker-refund-${event.id}`;
     const submissionState = refund.state;
     if (!refund.submissionKey) {
-      await this.prisma.refund.update({
-        where: { id: refund.id },
+      const claimed = await this.prisma.refund.updateMany({
+        where: {
+          id: refund.id,
+          state: RefundState.APPROVED,
+          submissionKey: null,
+        },
         data: {
           submissionKey,
-          state:
-            submissionState === RefundState.APPROVED
-              ? RefundState.SUBMITTING
-              : submissionState,
+          state: RefundState.SUBMITTING,
           attemptCount: { increment: 1 },
         },
       });
+      if (claimed.count === 0) {
+        const current = await this.prisma.refund.findUnique({
+          where: { id: refund.id },
+          include: { paymentAttempt: true },
+        });
+        if (!current) {
+          await this.outbox.markDispatched(event.id, claimToken);
+          return true;
+        }
+        if (current.providerReference) {
+          await this.outbox.markDispatched(event.id, claimToken);
+          return true;
+        }
+        if (current.submissionKey) {
+          // Another task won the race; defer to reconciliation which will find provider refund via deterministic key
+          await this.deferUnknownOutcome(event.id, claimToken, refund.id);
+          return false;
+        }
+        // Still APPROVED but race lost due to concurrent transition; reschedule for retry
+        await this.outbox.reschedule(event.id, claimToken, {
+          availableAt: new Date(Date.now() + 5_000),
+          error: 'refund submission race; retry',
+        });
+        return false;
+      }
     }
 
     try {
@@ -154,10 +180,35 @@ export class RefundOutboxHandler {
     refundId: string,
   ) {
     const nextReconciliationAt = new Date(Date.now() + 30_000);
-    await this.prisma.refund.update({
-      where: { id: refundId },
+    const updated = await this.prisma.refund.updateMany({
+      where: {
+        id: refundId,
+        providerReference: null,
+        state: {
+          in: [
+            RefundState.SUBMITTING,
+            RefundState.PENDING,
+            RefundState.APPROVED,
+          ],
+        },
+      },
       data: { state: RefundState.PENDING, nextReconciliationAt },
     });
+    if (updated.count === 0) {
+      const current = await this.prisma.refund.findUnique({
+        where: { id: refundId },
+        select: { state: true, providerReference: true },
+      });
+      if (
+        current?.providerReference ||
+        current?.state === RefundState.SUCCESS ||
+        current?.state === RefundState.FAILED ||
+        current?.state === RefundState.CANCELLED
+      ) {
+        await this.outbox.markDispatched(eventId, claimToken);
+        return;
+      }
+    }
     await this.outbox.reschedule(eventId, claimToken, {
       availableAt: nextReconciliationAt,
       error: 'refund not visible at provider; reconciliation will retry lookup',

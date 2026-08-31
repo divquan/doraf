@@ -65,7 +65,7 @@ async function runJob(
 ): Promise<void> {
   switch (jobName) {
     case 'outbox':
-      await runOutbox(app, config);
+      await runOutbox(app);
       return;
     case 'payment-initialization':
       await app.get(PaymentInitializationWorker).runOnce();
@@ -86,7 +86,7 @@ async function runJob(
       await app.get(InvariantReconciliationWorker).runOnce();
       return;
     case 'all':
-      await runOutbox(app, config);
+      await runOutbox(app);
       await app.get(PaymentInitializationWorker).runOnce();
       await app.get(PaymentReconciliationWorker).runOnce();
       await app.get(RefundReconciliationWorker).runOnce();
@@ -97,10 +97,7 @@ async function runJob(
   }
 }
 
-async function runOutbox(
-  app: INestApplicationContext,
-  _config: ConfigService<AppEnvironment, true>,
-): Promise<void> {
+async function runOutbox(app: INestApplicationContext): Promise<void> {
   // Immediate publication repair via Cloud Tasks (bounded, request-safe)
   try {
     await app.get(CloudTasksOutboxDispatcher).publishPending();

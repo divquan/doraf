@@ -162,10 +162,12 @@ describe('validateEnvironment', () => {
         INTERNAL_AUTH_ORIGIN: 'https://dashchecker.example',
         CLOUD_TASKS_LOCATION: 'us-central1',
         CLOUD_TASKS_QUEUE: 'outbox',
-        CLOUD_TASKS_TARGET_URL: 'https://api.dashchecker.example/internal/tasks/outbox',
+        CLOUD_TASKS_TARGET_URL:
+          'https://api.dashchecker.example/internal/tasks/outbox',
         CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL:
           'tasks@my-project.iam.gserviceaccount.com',
-        CLOUD_TASKS_AUDIENCE: 'https://api.dashchecker.example/internal/tasks/outbox',
+        CLOUD_TASKS_AUDIENCE:
+          'https://api.dashchecker.example/internal/tasks/outbox',
       }),
     ).toThrow('CLOUD_TASKS_PROJECT_ID is required');
   });
@@ -184,10 +186,12 @@ describe('validateEnvironment', () => {
         CLOUD_TASKS_PROJECT_ID: 'my-project',
         CLOUD_TASKS_LOCATION: 'us-central1',
         CLOUD_TASKS_QUEUE: 'outbox',
-        CLOUD_TASKS_TARGET_URL: 'http://api.dashchecker.example/internal/tasks/outbox',
+        CLOUD_TASKS_TARGET_URL:
+          'http://api.dashchecker.example/internal/tasks/outbox',
         CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL:
           'tasks@my-project.iam.gserviceaccount.com',
-        CLOUD_TASKS_AUDIENCE: 'https://api.dashchecker.example/internal/tasks/outbox',
+        CLOUD_TASKS_AUDIENCE:
+          'https://api.dashchecker.example/internal/tasks/outbox',
       }),
     ).toThrow('CLOUD_TASKS_TARGET_URL must be an https:// URL in production');
   });

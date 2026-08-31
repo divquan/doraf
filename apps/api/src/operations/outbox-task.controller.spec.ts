@@ -1,6 +1,11 @@
-// @ts-nocheck
+/* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/require-await -- test mocks use any and jest.fn without await */
 import { Test } from '@nestjs/testing';
-import { ForbiddenException, INestApplication, UnauthorizedException, ValidationPipe } from '@nestjs/common';
+import {
+  ForbiddenException,
+  INestApplication,
+  UnauthorizedException,
+  ValidationPipe,
+} from '@nestjs/common';
 import request from 'supertest';
 import { OutboxTaskController } from './outbox-task.controller';
 import { CloudTasksOidcVerifier } from './cloud-tasks-oidc.verifier';
@@ -89,7 +94,11 @@ describe('OutboxTaskController (task-consumer)', () => {
     await request(app.getHttpServer())
       .post('/internal/tasks/outbox')
       .set('Authorization', 'Bearer valid')
-      .send({ eventId: 'not-uuid', claimToken: validBody.claimToken, eventType: validBody.eventType })
+      .send({
+        eventId: 'not-uuid',
+        claimToken: validBody.claimToken,
+        eventType: validBody.eventType,
+      })
       .expect(400);
     expect(router.handle).not.toHaveBeenCalled();
   });
@@ -136,7 +145,9 @@ describe('OutboxTaskController (task-consumer)', () => {
   });
 
   it('does not leak stack traces or provider payloads', async () => {
-    router.handle.mockRejectedValueOnce(new Error('provider payload: {"secret":"voucher"}'));
+    router.handle.mockRejectedValueOnce(
+      new Error('provider payload: {"secret":"voucher"}'),
+    );
     outbox.getState.mockResolvedValueOnce({ state: 'CLAIMED' });
 
     const res = await request(app.getHttpServer())

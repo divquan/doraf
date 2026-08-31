@@ -1,14 +1,11 @@
 import { Module } from '@nestjs/common';
 import { PricingController } from './pricing.controller';
-import { OperationsModule } from '../operations/operations.module';
-import { PricingService } from './pricing.service';
-import { PricingOutboxHandler } from './pricing-outbox.handler';
 import { InternalAccessModule } from '../internal-access/internal-access.module';
+import { PricingHandlersModule } from './pricing-handlers.module';
 
 @Module({
-  imports: [InternalAccessModule, OperationsModule],
+  imports: [InternalAccessModule, PricingHandlersModule],
   controllers: [PricingController],
-  providers: [PricingService, PricingOutboxHandler],
-  exports: [PricingService, PricingOutboxHandler],
+  exports: [PricingHandlersModule],
 })
 export class PricingModule {}

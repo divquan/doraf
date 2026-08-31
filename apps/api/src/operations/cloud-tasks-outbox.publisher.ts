@@ -61,7 +61,7 @@ export class CloudTasksOutboxPublisher {
     };
 
     try {
-      await this.client.createTask({ parent: this.queuePath, task } as never);
+      await this.client.createTask({ parent: this.queuePath, task });
     } catch (error) {
       if (this.isAlreadyExistsForTask(error, taskName)) {
         this.logger.log(
@@ -112,12 +112,9 @@ function isAlreadyExistsError(error: unknown): boolean {
   const anyErr = error as Record<string, unknown>;
   const code = anyErr.code;
   if (code === 6 || code === 'ALREADY_EXISTS' || code === 409) return true;
-  const message =
-    typeof anyErr.message === 'string' ? anyErr.message : '';
+  const message = typeof anyErr.message === 'string' ? anyErr.message : '';
   const details =
-    typeof (anyErr as Record<string, unknown>).details === 'string'
-      ? String((anyErr as Record<string, unknown>).details)
-      : '';
+    typeof anyErr.details === 'string' ? String(anyErr.details) : '';
   const combined = `${message} ${details}`;
   if (
     combined.includes('ALREADY_EXISTS') ||
@@ -125,10 +122,7 @@ function isAlreadyExistsError(error: unknown): boolean {
   )
     return true;
   // gRPC status object may have details array
-  if (
-    Array.isArray((anyErr as Record<string, unknown>).details) ||
-    typeof anyErr.details === 'object'
-  ) {
+  if (Array.isArray(anyErr.details) || typeof anyErr.details === 'object') {
     const str = JSON.stringify(anyErr.details);
     if (str.includes('ALREADY_EXISTS')) return true;
   }

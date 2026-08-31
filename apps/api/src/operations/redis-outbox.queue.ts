@@ -31,7 +31,12 @@ export class RedisOutboxQueue implements OnModuleInit, OnModuleDestroy {
 
   constructor(private readonly config: ConfigService<AppEnvironment, true>) {
     this.client = createClient({
-      url: (config as unknown as { get: (key: string) => string | null }).get('REDIS_URL') ?? process.env.REDIS_URL ?? undefined,
+      url:
+        (config as unknown as { get: (key: string) => string | null }).get(
+          'REDIS_URL',
+        ) ??
+        process.env.REDIS_URL ??
+        undefined,
     });
     this.client.on('error', (error) => {
       this.logger.error(

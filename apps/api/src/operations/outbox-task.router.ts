@@ -22,16 +22,25 @@ export class OutboxTaskRouter {
   ) {}
 
   async handle(input: { eventId: string; claimToken: string }): Promise<void> {
-    const event = await this.outbox.getClaimedEvent(input.eventId, input.claimToken);
+    const event = await this.outbox.getClaimedEvent(
+      input.eventId,
+      input.claimToken,
+    );
     if (!event) {
-      this.logger.log(`Stale or already dispatched task eventId=${input.eventId} claimToken=${input.claimToken}`);
+      this.logger.log(
+        `Stale or already dispatched task eventId=${input.eventId} claimToken=${input.claimToken}`,
+      );
       return;
     }
 
     // Never trust body eventType, use DB value
     const eventType = event.eventType;
 
-    if ((INFORMATIONAL_OUTBOX_EVENT_TYPES as readonly string[]).includes(eventType)) {
+    if (
+      (INFORMATIONAL_OUTBOX_EVENT_TYPES as readonly string[]).includes(
+        eventType,
+      )
+    ) {
       await this.outbox.markDispatched(input.eventId, input.claimToken);
       return;
     }

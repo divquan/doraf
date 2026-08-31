@@ -1,17 +1,15 @@
 import { Module } from '@nestjs/common';
 import { AgentAccessModule } from '../agent-access/agent-access.module';
-import { PaymentsModule } from '../payments/payments.module';
 import { OperationsModule } from '../operations/operations.module';
 import { WalletController } from './wallet.controller';
 import { WalletService } from './wallet.service';
-import { WithdrawalsService } from './withdrawals.service';
 import { WithdrawalsAdminController } from './withdrawals-admin.controller';
-import { WithdrawalOutboxHandler } from './withdrawal-outbox.handler';
+import { WalletHandlersModule } from './wallet-handlers.module';
 
 @Module({
-  imports: [AgentAccessModule, OperationsModule, PaymentsModule],
+  imports: [AgentAccessModule, OperationsModule, WalletHandlersModule],
   controllers: [WalletController, WithdrawalsAdminController],
-  providers: [WalletService, WithdrawalsService, WithdrawalOutboxHandler],
-  exports: [WalletService, WithdrawalsService, WithdrawalOutboxHandler],
+  providers: [WalletService],
+  exports: [WalletService, WalletHandlersModule],
 })
 export class WalletModule {}
