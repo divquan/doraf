@@ -2,7 +2,6 @@ import type { Metadata } from "next"
 import { Geist_Mono, DM_Sans, Noto_Serif } from "next/font/google"
 
 import "@workspace/ui/globals.css"
-import { ThemeProvider } from "@/components/theme-provider"
 import { cn } from "@workspace/ui/lib/utils"
 
 const notoSerifHeading = Noto_Serif({
@@ -41,7 +40,9 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
+      style={{ colorScheme: "light" }}
       className={cn(
+        "light",
         "antialiased",
         fontMono.variable,
         "font-sans",
@@ -49,16 +50,7 @@ export default function RootLayout({
         notoSerifHeading.variable
       )}
     >
-      <body>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          {children}
-        </ThemeProvider>
-      </body>
+      <body>{children}</body>
     </html>
   )
 }

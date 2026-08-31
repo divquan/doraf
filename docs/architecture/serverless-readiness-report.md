@@ -90,7 +90,7 @@ The API and worker can initially use the same container image with different ent
 **Fix risk:** High — changing dispatch timing can expose duplicate processing and ordering assumptions.  
 **Confidence:** High.
 
-**Evidence:** `apps/api/src/operations/redis-outbox.dispatcher.ts` claims eligible Postgres rows and publishes to Redis Streams; `redis-outbox.consumer.ts` uses a consumer group and `XAUTOCLAIM`; `outbox.service.ts` records `QUEUED`/`DISPATCHED`; migration `20260830220000_redis_outbox_queue` adds the queue state; `compose.yml` enables Redis AOF.
+**Evidence:** `apps/api/src/operations/redis-outbox.dispatcher.ts` claims eligible Postgres rows and publishes to Redis Streams; `redis-outbox.consumer.ts` uses a consumer group and `XAUTOCLAIM`; `redis-outbox.queue.ts` recreates the stream/group after `NOGROUP`; `outbox.service.ts` records `QUEUED`/`DISPATCHED`; migration `20260830220000_redis_outbox_queue` adds the queue state; `compose.yml` enables Redis AOF.
 
 **Current implementation:** Keep the transactional outbox as the source of truth:
 

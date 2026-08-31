@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import Image from "next/image"
 import Link from "next/link"
 import {
   ArrowRight01Icon,
@@ -28,11 +29,11 @@ export default function Page() {
       <MarketingHeader />
 
       <main>
-        <section className="mx-auto max-w-4xl px-5 py-20 text-center sm:px-8 sm:py-28 lg:py-36">
+        <section className="mx-auto max-w-4xl px-5 py-14 text-center sm:px-8 sm:py-20 lg:py-24">
           <p className="text-xs font-semibold tracking-[0.2em] text-primary uppercase">
             Sell online with Dashchecker
           </p>
-          <h1 className="mx-auto mt-6 max-w-3xl font-heading text-5xl leading-[0.98] font-semibold tracking-[-0.055em] text-balance sm:text-7xl lg:text-[5.9rem]">
+          <h1 className="mx-auto mt-6 max-w-3xl font-heading text-4xl leading-[1] font-semibold tracking-[-0.05em] text-balance sm:text-6xl lg:text-[5rem]">
             Sell WAEC checkers. Keep the profit.
           </h1>
           <p className="mx-auto mt-7 max-w-2xl text-lg leading-8 text-pretty text-muted-foreground sm:text-xl">
@@ -68,6 +69,17 @@ export default function Page() {
             <HeroPoint text="Automatic delivery" />
             <HeroPoint text="Mobile Money payouts" />
           </div>
+
+          <figure className="mx-auto mt-14 max-w-4xl overflow-hidden rounded-[2rem] bg-muted shadow-[0_24px_70px_-28px_rgba(77,49,23,0.45)] outline outline-1 outline-black/10">
+            <Image
+              alt="A Ghanaian shop owner using Dashchecker at a storefront counter"
+              className="h-auto w-full object-cover"
+              height={848}
+              priority
+              src="/ghanaian-storefront-product-shot.jpg"
+              width={1264}
+            />
+          </figure>
         </section>
 
         <section className="border-y border-border/70 bg-muted/25">

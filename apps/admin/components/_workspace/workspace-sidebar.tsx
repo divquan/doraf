@@ -7,6 +7,7 @@ import {
   Cancel01Icon,
   DashboardSquare01Icon,
   MoneyReceiveCircleIcon,
+  ShoppingBag01Icon,
   Settings02Icon,
   UserAdd02Icon,
   UserGroupIcon,
@@ -35,6 +36,12 @@ const navItems: NavItem[] = [
     href: "/inventory",
     label: "Inventory",
     icon: BoxIcon,
+    roles: ["ADMINISTRATOR", "SUPPORT"],
+  },
+  {
+    href: "/orders",
+    label: "Orders",
+    icon: ShoppingBag01Icon,
     roles: ["ADMINISTRATOR", "SUPPORT"],
   },
   {
@@ -98,7 +105,9 @@ export function WorkspaceSidebar({
             alt="Dashchecker Logo"
             className="hidden h-7 w-auto object-contain dark:block"
           />
-          <span className="font-heading text-lg font-semibold">Dashchecker</span>
+          <span className="font-heading text-lg font-semibold">
+            Dashchecker
+          </span>
           <span className="rounded border border-border/50 bg-muted/60 px-1.5 py-0.5 text-[0.65rem] font-bold tracking-[0.18em] text-muted-foreground uppercase">
             Administration
           </span>

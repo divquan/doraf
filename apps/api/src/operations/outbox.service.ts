@@ -40,7 +40,20 @@ export class OutboxService {
           claim_token = ${claimToken}::uuid, attempt_count = attempt_count + 1
       FROM candidates
       WHERE event.id = candidates.id
-      RETURNING event.*
+      RETURNING event.id,
+                event.event_type AS "eventType",
+                event.aggregate_type AS "aggregateType",
+                event.aggregate_id AS "aggregateId",
+                event.aggregate_version AS "aggregateVersion",
+                event.payload,
+                event.state,
+                event.attempt_count AS "attemptCount",
+                event.available_at AS "availableAt",
+                event.claimed_at AS "claimedAt",
+                event.claim_token AS "claimToken",
+                event.dispatched_at AS "dispatchedAt",
+                event.last_error AS "lastError",
+                event.created_at AS "createdAt"
     `,
     );
   }
@@ -67,7 +80,20 @@ export class OutboxService {
           claim_token = ${claimToken}::uuid, attempt_count = attempt_count + 1
       FROM candidates
       WHERE event.id = candidates.id
-      RETURNING event.*
+      RETURNING event.id,
+                event.event_type AS "eventType",
+                event.aggregate_type AS "aggregateType",
+                event.aggregate_id AS "aggregateId",
+                event.aggregate_version AS "aggregateVersion",
+                event.payload,
+                event.state,
+                event.attempt_count AS "attemptCount",
+                event.available_at AS "availableAt",
+                event.claimed_at AS "claimedAt",
+                event.claim_token AS "claimToken",
+                event.dispatched_at AS "dispatchedAt",
+                event.last_error AS "lastError",
+                event.created_at AS "createdAt"
     `,
     );
   }

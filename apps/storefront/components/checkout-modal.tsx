@@ -337,7 +337,6 @@ export function CheckoutModal({
     }
   }
 
-
   function openPaystackCheckout() {
     if (order?.payment.accessCode && window.PaystackPop) {
       const popup = new window.PaystackPop()
@@ -679,7 +678,7 @@ export function CheckoutModal({
                     className={`space-y-2 rounded-2xl border p-4 ${paymentFailed ? "border-destructive/30 bg-destructive/10" : paymentReconciling ? "border-amber-500/30 bg-amber-500/10" : "border-emerald-500/30 bg-emerald-500/10"}`}
                   >
                     <div
-                      className={`flex items-center gap-2 text-xs font-bold tracking-wider uppercase ${paymentFailed ? "text-destructive" : paymentReconciling ? "text-amber-700 dark:text-amber-400" : "text-emerald-700 dark:text-emerald-400"}`}
+                      className={`flex items-center gap-2 text-xs font-bold tracking-wider uppercase ${paymentFailed ? "text-destructive" : paymentReconciling ? "text-amber-700" : "text-emerald-700"}`}
                     >
                       <span className="relative flex size-2">
                         <span
@@ -698,7 +697,7 @@ export function CheckoutModal({
                             : "Payment window active"}
                     </div>
                     <p
-                      className={`text-xs leading-relaxed text-pretty ${paymentFailed ? "text-destructive/90" : paymentReconciling ? "text-amber-900/90 dark:text-amber-300/90" : "text-emerald-900/90 dark:text-emerald-300/90"}`}
+                      className={`text-xs leading-relaxed text-pretty ${paymentFailed ? "text-destructive/90" : paymentReconciling ? "text-amber-900/90" : "text-emerald-900/90"}`}
                     >
                       {paymentFailed
                         ? "This payment attempt was not completed. You can try again using the same order and price."
@@ -875,7 +874,7 @@ export function CheckoutModal({
               <div>
                 <Badge
                   variant="secondary"
-                  className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                  className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700"
                 >
                   Payment confirmed
                 </Badge>
@@ -956,10 +955,10 @@ export function CheckoutModal({
                 </div>
               ) : status?.fulfillmentState === "EXCEPTION" ? (
                 <div className="space-y-2 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5 text-left">
-                  <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                  <p className="text-sm font-semibold text-amber-800">
                     Payment received; delivery needs attention
                   </p>
-                  <p className="text-xs leading-relaxed text-pretty text-amber-900/90 dark:text-amber-200/90">
+                  <p className="text-xs leading-relaxed text-pretty text-amber-900/90">
                     Please keep your order reference. If your checker does not
                     arrive, use the secure recovery page below.
                   </p>

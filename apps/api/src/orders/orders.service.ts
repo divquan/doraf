@@ -6,7 +6,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { createHash, randomBytes } from 'node:crypto';
-import { AgentStatus, Prisma, ProductStatus } from '../generated/prisma/client';
+import {
+  AgentStatus,
+  DeliveryChannel,
+  DeliveryMessageState,
+  Prisma,
+  ProductStatus,
+} from '../generated/prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { IdempotencyService } from '../operations/idempotency.service';
 import { OutboxService } from '../operations/outbox.service';
@@ -664,17 +670,29 @@ export class OrdersService {
     page: number = 1,
     limit: number = 10,
   ) {
+    return this.listOrders({ agentId }, page, limit);
+  }
+
+  async listOrdersForAdmin(page: number = 1, limit: number = 10) {
+    return this.listOrders({}, page, limit);
+  }
+
+  private async listOrders(
+    where: Prisma.OrderWhereInput,
+    page: number,
+    limit: number,
+  ) {
     const safePage = Math.max(1, page);
     const safeLimit = Math.min(Math.max(1, limit), 50);
 
     const totalItems = await this.prisma.order.count({
-      where: { agentId },
+      where,
     });
     const totalPages = Math.ceil(totalItems / safeLimit);
     const currentPage = totalPages > 0 ? Math.min(safePage, totalPages) : 1;
 
     const orders = await this.prisma.order.findMany({
-      where: { agentId },
+      where,
       orderBy: { createdAt: 'desc' },
       skip: (currentPage - 1) * safeLimit,
       take: safeLimit,
@@ -688,6 +706,13 @@ export class OrdersService {
         paymentState: true,
         fulfillmentState: true,
         createdAt: true,
+        deliveryMessages: {
+          select: { channel: true, state: true },
+          orderBy: { createdAt: 'asc' },
+        },
+        agent: {
+          select: { name: true },
+        },
         product: {
           select: {
             name: true,
@@ -697,18 +722,24 @@ export class OrdersService {
     });
 
     return {
-      items: orders.map((order) => ({
-        id: order.id,
-        publicReference: order.publicReference,
-        productName: order.product.name,
-        quantity: order.quantity,
-        retailTotalMinor: order.retailTotalMinor.toString(),
-        agentProfitTotalMinor: order.agentProfitTotalMinor.toString(),
-        deliveryPhoneMask: order.deliveryPhoneMask,
-        paymentState: order.paymentState,
-        fulfillmentState: order.fulfillmentState,
-        createdAt: order.createdAt.toISOString(),
-      })),
+      items: orders.map((order) => {
+        const delivery = summarizeOrderDelivery(order.deliveryMessages);
+        return {
+          id: order.id,
+          publicReference: order.publicReference,
+          productName: order.product.name,
+          quantity: order.quantity,
+          retailTotalMinor: order.retailTotalMinor.toString(),
+          agentProfitTotalMinor: order.agentProfitTotalMinor.toString(),
+          deliveryPhoneMask: order.deliveryPhoneMask,
+          paymentState: order.paymentState,
+          fulfillmentState: order.fulfillmentState,
+          deliveryStatus: delivery.status,
+          deliveryChannels: delivery.channels,
+          agentName: order.agent.name,
+          createdAt: order.createdAt.toISOString(),
+        };
+      }),
       pagination: {
         totalItems,
         totalPages,
@@ -789,6 +820,50 @@ export class OrdersService {
     }
     throw new ConflictException('Checkout could not be completed');
   }
+}
+
+export type OrderDeliveryStatus =
+  | 'NOT_STARTED'
+  | DeliveryMessageState
+  | 'PARTIAL';
+
+function summarizeOrderDelivery(
+  messages: Array<{ channel: DeliveryChannel; state: DeliveryMessageState }>,
+): {
+  status: OrderDeliveryStatus;
+  channels: Array<{
+    channel: DeliveryChannel;
+    status: Exclude<OrderDeliveryStatus, 'NOT_STARTED'>;
+  }>;
+} {
+  if (messages.length === 0) return { status: 'NOT_STARTED', channels: [] };
+
+  const states = messages.map((message) => message.state);
+  const byChannel = new Map<DeliveryChannel, DeliveryMessageState[]>();
+  for (const message of messages) {
+    const channelStates = byChannel.get(message.channel) ?? [];
+    channelStates.push(message.state);
+    byChannel.set(message.channel, channelStates);
+  }
+
+  return {
+    status: summarizeDeliveryStates(states),
+    channels: Array.from(byChannel, ([channel, channelStates]) => ({
+      channel,
+      status: summarizeDeliveryStates(channelStates),
+    })),
+  };
+}
+
+function summarizeDeliveryStates(
+  states: DeliveryMessageState[],
+): Exclude<OrderDeliveryStatus, 'NOT_STARTED'> {
+  const uniqueStates = new Set(states);
+  if (uniqueStates.size === 1) return states[0];
+  if (uniqueStates.has(DeliveryMessageState.UNKNOWN)) {
+    return DeliveryMessageState.UNKNOWN;
+  }
+  return 'PARTIAL';
 }
 
 type SalesAggregate = {

@@ -25,6 +25,8 @@ type RedisClient = ReturnType<typeof createClient>;
 export class RedisOutboxQueue implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RedisOutboxQueue.name);
   private readonly client: RedisClient;
+  private groupReady = false;
+  private groupSetup?: Promise<void>;
 
   constructor(private readonly config: ConfigService<AppEnvironment, true>) {
     this.client = createClient({
@@ -40,18 +42,7 @@ export class RedisOutboxQueue implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit(): Promise<void> {
     if (!this.enabled()) return;
-    await this.connect();
-    try {
-      await this.client.xGroupCreate(
-        REDIS_OUTBOX_STREAM,
-        REDIS_OUTBOX_GROUP,
-        '0',
-        { MKSTREAM: true },
-      );
-    } catch (error) {
-      if (!(error instanceof Error) || !error.message.includes('BUSYGROUP'))
-        throw error;
-    }
+    await this.ensureGroup();
   }
 
   async onModuleDestroy(): Promise<void> {
@@ -72,32 +63,35 @@ export class RedisOutboxQueue implements OnModuleInit, OnModuleDestroy {
   }
 
   async readNew(consumerName: string): Promise<RedisOutboxMessage[]> {
-    await this.ensureConnected();
-    const streams = await this.client.xReadGroup(
-      REDIS_OUTBOX_GROUP,
-      consumerName,
-      [{ key: REDIS_OUTBOX_STREAM, id: '>' }],
-      { COUNT: 10, BLOCK: 1_000 },
+    const streams = await this.withGroup(async () =>
+      this.client.xReadGroup(
+        REDIS_OUTBOX_GROUP,
+        consumerName,
+        [{ key: REDIS_OUTBOX_STREAM, id: '>' }],
+        { COUNT: 10, BLOCK: 1_000 },
+      ),
     );
     return parseStreams(streams);
   }
 
   async claimPending(consumerName: string): Promise<RedisOutboxMessage[]> {
-    await this.ensureConnected();
-    const result = await this.client.xAutoClaim(
-      REDIS_OUTBOX_STREAM,
-      REDIS_OUTBOX_GROUP,
-      consumerName,
-      REDIS_OUTBOX_PENDING_IDLE_MS,
-      '0-0',
-      { COUNT: 10 },
+    const result = await this.withGroup(async () =>
+      this.client.xAutoClaim(
+        REDIS_OUTBOX_STREAM,
+        REDIS_OUTBOX_GROUP,
+        consumerName,
+        REDIS_OUTBOX_PENDING_IDLE_MS,
+        '0-0',
+        { COUNT: 10 },
+      ),
     );
     return parseStreamMessages(result.messages);
   }
 
   async acknowledge(streamId: string): Promise<void> {
-    await this.ensureConnected();
-    await this.client.xAck(REDIS_OUTBOX_STREAM, REDIS_OUTBOX_GROUP, streamId);
+    await this.withGroup(async () => {
+      await this.client.xAck(REDIS_OUTBOX_STREAM, REDIS_OUTBOX_GROUP, streamId);
+    });
   }
 
   createConsumerName(): string {
@@ -115,9 +109,54 @@ export class RedisOutboxQueue implements OnModuleInit, OnModuleDestroy {
     if (!this.client.isOpen) await this.connect();
   }
 
+  private async ensureGroup(): Promise<void> {
+    if (this.groupReady) return;
+    if (!this.groupSetup) {
+      this.groupSetup = this.createGroup().finally(() => {
+        this.groupSetup = undefined;
+      });
+    }
+    await this.groupSetup;
+  }
+
+  private async createGroup(): Promise<void> {
+    await this.ensureConnected();
+    try {
+      await this.client.xGroupCreate(
+        REDIS_OUTBOX_STREAM,
+        REDIS_OUTBOX_GROUP,
+        '0',
+        { MKSTREAM: true },
+      );
+    } catch (error) {
+      if (!isBusyGroupError(error)) throw error;
+    }
+    this.groupReady = true;
+  }
+
+  private async withGroup<T>(operation: () => Promise<T>): Promise<T> {
+    await this.ensureGroup();
+    try {
+      return await operation();
+    } catch (error) {
+      if (!isNoGroupError(error)) throw error;
+      this.groupReady = false;
+      await this.ensureGroup();
+      return operation();
+    }
+  }
+
   private async connect(): Promise<void> {
     if (!this.client.isOpen) await this.client.connect();
   }
+}
+
+function isBusyGroupError(error: unknown): boolean {
+  return error instanceof Error && error.message.includes('BUSYGROUP');
+}
+
+function isNoGroupError(error: unknown): boolean {
+  return error instanceof Error && error.message.includes('NOGROUP');
 }
 
 function parseStreams(value: unknown): RedisOutboxMessage[] {

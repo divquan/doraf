@@ -46,6 +46,22 @@ export type OrderFulfillmentState =
   | "REFUNDED"
   | "PARTIALLY_REPLACED"
 
+export type OrderDeliveryStatus =
+  | "NOT_STARTED"
+  | "PENDING"
+  | "SUBMITTED"
+  | "DELIVERED"
+  | "FAILED"
+  | "UNKNOWN"
+  | "PARTIAL"
+
+export type OrderDeliveryChannel = "SMS" | "EMAIL"
+
+export interface OrderDeliveryChannelStatus {
+  channel: OrderDeliveryChannel
+  status: Exclude<OrderDeliveryStatus, "NOT_STARTED">
+}
+
 export interface AgentOrderItem {
   id: string
   publicReference: string
@@ -56,6 +72,9 @@ export interface AgentOrderItem {
   deliveryPhoneMask: string
   paymentState: OrderPaymentState
   fulfillmentState: OrderFulfillmentState
+  deliveryStatus: OrderDeliveryStatus
+  deliveryChannels: OrderDeliveryChannelStatus[]
+  agentName?: string
   createdAt: string
 }
 
@@ -68,15 +87,21 @@ export interface OrderPagination {
 }
 
 interface AgentOrdersTableProps {
-  agentId: string
+  agentId?: string
   items: AgentOrderItem[]
   pagination: OrderPagination
+  title?: string
+  description?: string
+  showAgent?: boolean
 }
 
 export function AgentOrdersTable({
   agentId,
   items,
   pagination,
+  title = "Orders",
+  description = "Every recorded order, with payment, delivery, and fulfilment state.",
+  showAgent = false,
 }: AgentOrdersTableProps) {
   const { currentPage, totalPages, totalItems, hasNextPage } = pagination
   const hasPreviousPage = currentPage > 1
@@ -86,11 +111,8 @@ export function AgentOrdersTable({
       <CardHeader>
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <CardTitle>Orders</CardTitle>
-            <CardDescription>
-              Every recorded order placed through this agent&apos;s sales
-              channel.
-            </CardDescription>
+            <CardTitle>{title}</CardTitle>
+            <CardDescription>{description}</CardDescription>
           </div>
           {totalItems > 0 ? (
             <Badge variant="outline">
@@ -121,17 +143,23 @@ export function AgentOrdersTable({
                   <TableRow>
                     <TableHead className="w-[180px]">Date & Time</TableHead>
                     <TableHead>Reference</TableHead>
+                    {showAgent ? <TableHead>Agent</TableHead> : null}
                     <TableHead>Product</TableHead>
                     <TableHead className="text-right">Qty</TableHead>
                     <TableHead className="text-right">To agent</TableHead>
                     <TableHead className="text-right">Platform share</TableHead>
                     <TableHead>Payment</TableHead>
+                    <TableHead>Delivery</TableHead>
                     <TableHead>Fulfilment</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {items.map((order) => (
-                    <OrderRow key={order.id} order={order} />
+                    <OrderRow
+                      key={order.id}
+                      order={order}
+                      showAgent={showAgent}
+                    />
                   ))}
                 </TableBody>
               </Table>
@@ -145,9 +173,7 @@ export function AgentOrdersTable({
                   {hasPreviousPage ? (
                     <Button
                       render={
-                        <Link
-                          href={`/agents/${agentId}?page=${currentPage - 1}`}
-                        />
+                        <Link href={ordersPageHref(agentId, currentPage - 1)} />
                       }
                       size="sm"
                       type="button"
@@ -171,9 +197,7 @@ export function AgentOrdersTable({
                   {hasNextPage ? (
                     <Button
                       render={
-                        <Link
-                          href={`/agents/${agentId}?page=${currentPage + 1}`}
-                        />
+                        <Link href={ordersPageHref(agentId, currentPage + 1)} />
                       }
                       size="sm"
                       type="button"
@@ -204,7 +228,13 @@ export function AgentOrdersTable({
   )
 }
 
-function OrderRow({ order }: { order: AgentOrderItem }) {
+function OrderRow({
+  order,
+  showAgent,
+}: {
+  order: AgentOrderItem
+  showAgent: boolean
+}) {
   const platformShareMinor = (
     BigInt(order.retailTotalMinor) - BigInt(order.agentProfitTotalMinor)
   ).toString()
@@ -217,6 +247,11 @@ function OrderRow({ order }: { order: AgentOrderItem }) {
       <TableCell className="font-mono text-xs">
         {order.publicReference}
       </TableCell>
+      {showAgent ? (
+        <TableCell className="text-sm">
+          {order.agentName ?? "Unknown agent"}
+        </TableCell>
+      ) : null}
       <TableCell className="text-sm font-medium">{order.productName}</TableCell>
       <TableCell className="text-right tabular-nums">
         {order.quantity}
@@ -229,6 +264,12 @@ function OrderRow({ order }: { order: AgentOrderItem }) {
       </TableCell>
       <TableCell>
         <PaymentBadge state={order.paymentState} />
+      </TableCell>
+      <TableCell>
+        <DeliveryBadge
+          channels={order.deliveryChannels}
+          state={order.deliveryStatus}
+        />
       </TableCell>
       <TableCell>
         <FulfilmentBadge state={order.fulfillmentState} />
@@ -282,6 +323,59 @@ function FulfilmentBadge({ state }: { state: OrderFulfillmentState }) {
   )
 }
 
+function DeliveryBadge({
+  state,
+  channels,
+}: {
+  state: OrderDeliveryStatus
+  channels: OrderDeliveryChannelStatus[]
+}) {
+  return (
+    <div className="flex min-w-28 flex-col items-start gap-1">
+      <Badge
+        variant={
+          state === "DELIVERED"
+            ? "secondary"
+            : state === "FAILED" || state === "UNKNOWN" || state === "PARTIAL"
+              ? "destructive"
+              : "outline"
+        }
+      >
+        {deliveryLabel(state)}
+      </Badge>
+      {channels.length > 0 ? (
+        <span className="text-[0.65rem] text-muted-foreground">
+          {channels
+            .map(
+              ({ channel, status }) =>
+                `${channel === "SMS" ? "SMS" : "Email"}: ${deliveryLabel(status)}`
+            )
+            .join(" · ")}
+        </span>
+      ) : null}
+    </div>
+  )
+}
+
+function deliveryLabel(state: OrderDeliveryStatus) {
+  switch (state) {
+    case "NOT_STARTED":
+      return "Not started"
+    case "PENDING":
+      return "Pending"
+    case "SUBMITTED":
+      return "Submitted"
+    case "DELIVERED":
+      return "Delivered"
+    case "FAILED":
+      return "Failed"
+    case "UNKNOWN":
+      return "Unknown"
+    case "PARTIAL":
+      return "Partial"
+  }
+}
+
 function fulfilmentLabel(state: OrderFulfillmentState) {
   switch (state) {
     case "COMPLETE":
@@ -295,4 +389,8 @@ function fulfilmentLabel(state: OrderFulfillmentState) {
     case "PARTIALLY_REPLACED":
       return "Partially replaced"
   }
+}
+
+function ordersPageHref(agentId: string | undefined, page: number) {
+  return agentId ? `/agents/${agentId}?page=${page}` : `/orders?page=${page}`
 }
