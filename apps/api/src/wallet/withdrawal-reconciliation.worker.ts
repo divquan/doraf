@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import type { AppEnvironment } from '../config/environment';
 import { PrismaService } from '../database/prisma.service';
 import { WithdrawalsService } from './withdrawals.service';
+import { isContinuousWorker, isRunOnceWorker } from '../worker-runtime';
 
 @Injectable()
 export class WithdrawalReconciliationWorker
@@ -24,11 +25,7 @@ export class WithdrawalReconciliationWorker
   ) {}
 
   onModuleInit() {
-    if (
-      this.config.get('NODE_ENV', { infer: true }) === 'test' ||
-      !this.config.get('WORKER_ENABLED', { infer: true })
-    )
-      return;
+    if (!isContinuousWorker(this.config)) return;
     void this.runOnce();
     this.timer = setInterval(() => void this.runOnce(), 30_000);
     this.timer.unref();
@@ -59,12 +56,14 @@ export class WithdrawalReconciliationWorker
           this.logger.warn(
             `Transfer reconciliation deferred reference=${attempt.providerReference} reason=${error instanceof Error ? error.message.slice(0, 300) : 'unknown'}`,
           );
+          if (isRunOnceWorker(this.config)) throw error;
         }
       }
     } catch (error) {
       this.logger.error(
         `Transfer reconciliation scan failed reason=${error instanceof Error ? error.message.slice(0, 300) : 'unknown'}`,
       );
+      if (isRunOnceWorker(this.config)) throw error;
     } finally {
       this.running = false;
     }

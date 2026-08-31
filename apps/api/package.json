@@ -19,6 +19,7 @@
     "dev": "pnpm db:generate && nest start --watch",
     "start": "nest start",
     "start:worker": "WORKER_ENABLED=true node dist/worker-main",
+    "start:job": "WORKER_ENABLED=true WORKER_EXECUTION=run-once node dist/job-main",
     "start:dev": "pnpm db:generate && nest start --watch",
     "start:debug": "pnpm db:generate && nest start --debug --watch",
     "start:prod": "node dist/main",

@@ -33,6 +33,7 @@ marked **Assumption** must be validated before they become requirements.
 - [Domain state machines](architecture/state-machines.md)
 - [Transaction integrity](architecture/transaction-integrity.md)
 - [Infrastructure, observability, and recovery](architecture/infrastructure-and-recovery.md)
+- [Deployment TODO](planning/deployment-todo.md)
 - [Lean Supabase and Google Cloud infrastructure](architecture/lean-infrastructure-and-costs.md)
 - [Physical database schema plan](architecture/database-schema-plan.md)
 - [Database constraints and indexes](architecture/database-constraints-and-indexes.md)

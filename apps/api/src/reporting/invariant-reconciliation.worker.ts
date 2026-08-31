@@ -7,6 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import type { AppEnvironment } from '../config/environment';
 import { InvariantAuditorService } from './invariant-auditor.service';
+import { isContinuousWorker, isRunOnceWorker } from '../worker-runtime';
 
 const AUDIT_INTERVAL_MS = 60_000;
 
@@ -24,11 +25,7 @@ export class InvariantReconciliationWorker
   ) {}
 
   onModuleInit() {
-    if (
-      this.config.get('NODE_ENV', { infer: true }) === 'test' ||
-      !this.config.get('WORKER_ENABLED', { infer: true })
-    )
-      return;
+    if (!isContinuousWorker(this.config)) return;
     void this.runOnce();
     this.timer = setInterval(() => void this.runOnce(), AUDIT_INTERVAL_MS);
     this.timer.unref();
@@ -60,6 +57,7 @@ export class InvariantReconciliationWorker
         'Invariant reconciliation worker audit pass failed',
         error instanceof Error ? error.stack : undefined,
       );
+      if (isRunOnceWorker(this.config)) throw error;
     } finally {
       this.running = false;
     }

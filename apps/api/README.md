@@ -22,6 +22,34 @@ pnpm --filter @dashchecker/api db:seed
 pnpm --filter @dashchecker/api start:dev
 ```
 
+## Scheduled jobs
+
+The HTTP API never starts background polling. Long-running local development
+uses the separate worker process:
+
+```bash
+pnpm --filter @dashchecker/api start:worker
+```
+
+Cloud Run Jobs (or another authenticated scheduler) should invoke the bounded
+job entrypoint instead. Each invocation opens the application context, runs
+one bounded pass, and exits with a non-zero status if the pass cannot complete:
+
+```bash
+JOB_NAME=outbox pnpm --filter @dashchecker/api start:job
+JOB_NAME=payment-initialization pnpm --filter @dashchecker/api start:job
+JOB_NAME=payment-reconciliation pnpm --filter @dashchecker/api start:job
+JOB_NAME=refund-reconciliation pnpm --filter @dashchecker/api start:job
+JOB_NAME=withdrawal-reconciliation pnpm --filter @dashchecker/api start:job
+JOB_NAME=lease-recovery pnpm --filter @dashchecker/api start:job
+JOB_NAME=invariant-audit pnpm --filter @dashchecker/api start:job
+```
+
+The job names are allowlisted in `src/job-main.ts`. Configure Cloud Scheduler
+to trigger Cloud Run Jobs with the platform's authenticated identity; do not
+expose the job command as a public HTTP mutation route. The existing
+`start:worker` process remains the local and deliberately operated fallback.
+
 The current HTTP surface is:
 
 - `GET /health/live`

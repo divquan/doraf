@@ -17,6 +17,11 @@ import {
 import { PricingOutboxHandler } from '../pricing/pricing-outbox.handler';
 import { RefundOutboxHandler } from '../refunds/refund-outbox.handler';
 import { WithdrawalOutboxHandler } from '../wallet/withdrawal-outbox.handler';
+import {
+  isContinuousWorker,
+  isQueueWorkerEnabled,
+  isRunOnceWorker,
+} from '../worker-runtime';
 
 @Injectable()
 export class RedisOutboxConsumer implements OnModuleInit, OnModuleDestroy {
@@ -38,7 +43,7 @@ export class RedisOutboxConsumer implements OnModuleInit, OnModuleDestroy {
   }
 
   onModuleInit() {
-    if (!this.enabled()) return;
+    if (!this.enabled() || !isContinuousWorker(this.config)) return;
     this.consumeTask = this.consume();
     this.logger.log(`Redis outbox consumer started name=${this.consumerName}`);
   }
@@ -51,11 +56,7 @@ export class RedisOutboxConsumer implements OnModuleInit, OnModuleDestroy {
   private async consume(): Promise<void> {
     while (!this.stopping) {
       try {
-        const pending = await this.queue.claimPending(this.consumerName);
-        await this.processAll(pending);
-        if (this.stopping) break;
-        const fresh = await this.queue.readNew(this.consumerName);
-        await this.processAll(fresh);
+        await this.runOnce();
       } catch (error) {
         this.logger.error(
           'Redis outbox consume pass failed',
@@ -64,6 +65,15 @@ export class RedisOutboxConsumer implements OnModuleInit, OnModuleDestroy {
         await new Promise((resolve) => setTimeout(resolve, 1_000));
       }
     }
+  }
+
+  async runOnce(): Promise<void> {
+    if (!this.enabled()) return;
+    const pending = await this.queue.claimPending(this.consumerName);
+    await this.processAll(pending);
+    if (this.stopping) return;
+    const fresh = await this.queue.readNew(this.consumerName);
+    await this.processAll(fresh);
   }
 
   private async processAll(messages: RedisOutboxMessage[]): Promise<void> {
@@ -96,6 +106,7 @@ export class RedisOutboxConsumer implements OnModuleInit, OnModuleDestroy {
         `Redis outbox event deferred id=${message.eventId}`,
         error instanceof Error ? error.stack : undefined,
       );
+      if (isRunOnceWorker(this.config)) throw error;
     }
   }
 
@@ -146,9 +157,6 @@ export class RedisOutboxConsumer implements OnModuleInit, OnModuleDestroy {
   }
 
   private enabled(): boolean {
-    return (
-      this.config.get('WORKER_ENABLED', { infer: true }) === true &&
-      this.config.get('QUEUE_PROVIDER', { infer: true }) === 'redis'
-    );
+    return isQueueWorkerEnabled(this.config);
   }
 }

@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { createClient } from 'redis';
 import { randomUUID } from 'node:crypto';
 import type { AppEnvironment } from '../config/environment';
+import { isQueueWorkerEnabled } from '../worker-runtime';
 
 export const REDIS_OUTBOX_STREAM = 'dashchecker:outbox';
 export const REDIS_OUTBOX_GROUP = 'dashchecker:outbox-workers';
@@ -99,10 +100,7 @@ export class RedisOutboxQueue implements OnModuleInit, OnModuleDestroy {
   }
 
   private enabled(): boolean {
-    return (
-      this.config.get('WORKER_ENABLED', { infer: true }) === true &&
-      this.config.get('QUEUE_PROVIDER', { infer: true }) === 'redis'
-    );
+    return isQueueWorkerEnabled(this.config);
   }
 
   private async ensureConnected(): Promise<void> {

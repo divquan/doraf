@@ -26,6 +26,7 @@ describe('validateEnvironment', () => {
     ).toEqual({
       NODE_ENV: 'development',
       WORKER_ENABLED: false,
+      WORKER_EXECUTION: 'continuous',
       QUEUE_PROVIDER: 'redis',
       REDIS_URL: 'redis://localhost:6379',
       PORT: 3000,
@@ -127,6 +128,20 @@ describe('validateEnvironment', () => {
         INTERNAL_AUTH_ORIGIN: 'http://localhost:3001',
       }),
     ).toThrow('WORKER_ENABLED must be true or false');
+  });
+
+  it('rejects an invalid worker execution mode', () => {
+    expect(() =>
+      validateEnvironment({
+        DATABASE_URL: 'postgresql://localhost:5432/dashchecker',
+        ...keyMaterial,
+        PAYSTACK_SECRET_KEY: 'sk_test_environment-worker-mode',
+        WORKER_EXECUTION: 'scheduled',
+        INTERNAL_AUTH_RP_NAME: 'Dashchecker Administration',
+        INTERNAL_AUTH_RP_ID: 'localhost',
+        INTERNAL_AUTH_ORIGIN: 'http://localhost:3001',
+      }),
+    ).toThrow('WORKER_EXECUTION must be continuous or run-once');
   });
 
   it('requires a valid Redis URL when Redis is selected', () => {

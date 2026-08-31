@@ -16,6 +16,7 @@ import {
   PaymentProviderRequestException,
 } from '../src/payments/payment-gateway.service';
 import { PaymentProcessingService } from '../src/payments/payment-processing.service';
+import { PaymentInitializationWorker } from '../src/payments/payment-initialization.worker';
 import { SMS_OTP_SENDER } from '../src/agent-access/agent-access.types';
 import { BuyerRecoveryService } from '../src/recovery/buyer-recovery.service';
 import { BuyerRecoveryTokenService } from '../src/recovery/buyer-recovery-token.service';
@@ -30,6 +31,7 @@ describe('order creation and inventory reservation', () => {
   let prisma: PrismaService;
   let orders: OrdersService;
   let payments: PaymentProcessingService;
+  let paymentInitialization: PaymentInitializationWorker;
   let delivery: DeliveryOutboxHandler;
   let recovery: BuyerRecoveryService;
   let recoverySms: { send: jest.Mock };
@@ -52,6 +54,8 @@ describe('order creation and inventory reservation', () => {
       PAYSTACK_MODE: 'sandbox',
       PAYSTACK_SECRET_KEY: 'sk_test_database-payment-secret',
       NODE_ENV: 'test',
+      WORKER_ENABLED: true,
+      WORKER_EXECUTION: 'run-once',
       OTP_FINGERPRINT_KEY_BASE64: Buffer.alloc(32, 33).toString('base64'),
       SESSION_FINGERPRINT_KEY_BASE64: Buffer.alloc(32, 34).toString('base64'),
       AGENT_AUTH_OTP_TTL_SECONDS: 300,
@@ -135,6 +139,7 @@ describe('order creation and inventory reservation', () => {
         OrdersService,
         { provide: PaymentGatewayService, useValue: paymentGateway },
         PaymentProcessingService,
+        PaymentInitializationWorker,
         BuyerRecoveryTokenService,
         BuyerRecoveryService,
         { provide: SMS_OTP_SENDER, useValue: recoverySms },
@@ -144,6 +149,7 @@ describe('order creation and inventory reservation', () => {
     prisma = module.get(PrismaService);
     orders = module.get(OrdersService);
     payments = module.get(PaymentProcessingService);
+    paymentInitialization = module.get(PaymentInitializationWorker);
     delivery = module.get(DeliveryOutboxHandler);
     recovery = module.get(BuyerRecoveryService);
   });
@@ -425,6 +431,81 @@ describe('order creation and inventory reservation', () => {
     await expect(
       prisma.voucher.count({
         where: { id: fixture.voucherIds[0], availability: 'AVAILABLE' },
+      }),
+    ).resolves.toBe(1);
+  });
+
+  it('recovers an ambiguous initialization on the same payment attempt', async () => {
+    const fixture = await createCheckoutFixture(prisma, 1);
+    const created = await orders.createWebOrder(
+      checkoutCommand(fixture, randomUUID(), 1),
+    );
+    const original = await prisma.paymentAttempt.findUniqueOrThrow({
+      where: { providerReference: created.payment.reference },
+      include: { reservation: { include: { items: true } } },
+    });
+
+    paymentGateway.initialize.mockImplementationOnce(() => {
+      throw new PaymentProviderRequestException(
+        'ambiguous',
+        null,
+        'Request timed out after Paystack accepted the prompt',
+      );
+    });
+    await expect(
+      payments.initializePayment(created.payment.reference),
+    ).rejects.toThrow('checkout could not be confirmed');
+
+    await prisma.paymentAttempt.update({
+      where: { id: original.id },
+      data: { nextReconciliationAt: new Date(Date.now() - 1_000) },
+    });
+    const ambiguous = await prisma.paymentAttempt.findUniqueOrThrow({
+      where: { id: original.id },
+    });
+    expect(ambiguous).toMatchObject({
+      state: 'RECONCILING',
+      providerStatus: 'INITIATION_UNCONFIRMED',
+      providerReference: created.payment.reference,
+    });
+
+    paymentGateway.initialize.mockImplementationOnce(() => ({
+      reference: created.payment.reference,
+      status: 'ongoing',
+      amountMinor: ambiguous.expectedAmountMinor,
+      currency: ambiguous.currency,
+      transactionId: 'recovered-initialization-transaction',
+      accessCode: 'recovered-access-code',
+      displayText: 'Approve the recovered payment prompt.',
+      message: 'Recovered payment initialization',
+    }));
+    await paymentInitialization.runOnce();
+
+    const recovered = await prisma.paymentAttempt.findUniqueOrThrow({
+      where: { id: original.id },
+      include: { reservation: { include: { items: true } } },
+    });
+    expect(recovered).toMatchObject({
+      id: original.id,
+      attemptNumber: original.attemptNumber,
+      providerReference: original.providerReference,
+      state: 'PENDING_AUTHORIZATION',
+      providerStatus: 'ongoing',
+      providerTransactionId: 'recovered-initialization-transaction',
+      providerAccessCode: 'recovered-access-code',
+    });
+    expect(recovered.reservation).toMatchObject({
+      id: original.reservation?.id,
+      state: 'ACTIVE',
+    });
+    await expect(
+      prisma.paymentAttempt.count({
+        where: { orderId: original.orderId },
+      }),
+    ).resolves.toBe(1);
+    await expect(
+      prisma.voucher.count({
+        where: { id: fixture.voucherIds[0], availability: 'RESERVED' },
       }),
     ).resolves.toBe(1);
   });

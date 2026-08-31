@@ -1,6 +1,6 @@
 # Serverless Readiness Report — Dashchecker API
 
-**Date:** 2026-08-30  
+**Date:** 2026-08-31
 **Scope:** `apps/api` implementation, configuration, Prisma schema/migrations, dependencies, and executable verification commands.  
 **Method:** The findings below are based on source and runtime inspection. Project Markdown was compared for consistency, but it was not used as evidence for the findings.  
 **Verdict:** **Do not deploy the current API as scale-to-zero serverless.** The HTTP request path can be adapted to serverless, but the current process contains background workers and has unresolved financial recovery, production integration, authorization, and rate-limit problems.  
@@ -10,7 +10,7 @@
 
 The application is a NestJS API backed by Prisma/PostgreSQL. Its durable-data design is a useful foundation: business mutations use database transactions, the schema contains important uniqueness and foreign-key constraints, payment webhooks use the raw request body for signature verification, and outbox rows use database claims with `FOR UPDATE SKIP LOCKED`.
 
-That foundation does not make the application serverless-ready. The fallback worker process still contains polling workers that depend on `onModuleInit()` and `setInterval()`, while Redis mode has a long-running Streams consumer plus separate reconciliation scans. Neither model is a scale-to-zero scheduler by itself. The application also has financial state-machine bugs that would remain bugs on a VM.
+That foundation does not make the application serverless-ready. The deliberately operated fallback worker process still contains polling workers that depend on `onModuleInit()` and `setInterval()`, while the bounded Cloud Run Job entrypoint runs one scheduled pass and exits. Redis mode still has a long-running Streams consumer unless a platform-native queue trigger replaces it. The application also has financial state-machine bugs that would remain bugs on a VM.
 
 The correct conclusion is therefore:
 
@@ -26,17 +26,17 @@ This is not only a deployment-wiring change. Payment recovery, refund recovery, 
 
 The first implementation slice for F-01 through F-03 is now in the working tree:
 
-- F-01: `AppModule` no longer registers worker providers. `WorkerAppModule` and `start:worker` provide a separate worker process. Worker `runOnce()` methods are callable and timers are opt-in through `WORKER_ENABLED`.
+- F-01: `AppModule` no longer registers worker providers. `WorkerAppModule` and `start:worker` provide a separate continuous worker process. `job-main.ts` and `start:job` provide allowlisted bounded job entrypoints with `WORKER_EXECUTION=run-once`; timers are enabled only for continuous workers.
 - F-02: Redis Streams dispatch is implemented behind `QUEUE_PROVIDER=redis`. The Postgres outbox remains the source of truth; a worker claims rows, publishes `{eventId, claimToken, eventType}`, marks them `QUEUED`, and a consumer acknowledges the Redis message only after the database handler finishes. Local Compose enables Redis AOF. Managed Redis operation, alerting, and failure-path verification remain.
-- F-03: the contradictory payment initialization claim predicate is corrected so `RECONCILING / INITIATION_UNCONFIRMED` attempts can be reclaimed without changing their payment reference.
+- F-03: the contradictory payment initialization claim predicate is corrected and covered by a database outcome test proving `RECONCILING / INITIATION_UNCONFIRMED` attempts can be reclaimed without changing their payment reference or reservation.
 
-The implementation slice is not a serverless approval. Redis still requires an explicitly operated worker or a platform-native queue-triggered job, reconciliation work is still timer-based, and F-03 still needs database-backed crash/retry verification.
+The implementation slice is not a serverless approval. Redis still requires an explicitly operated worker or a platform-native queue-triggered job, and production scheduler resources and authenticated invocation still need to be configured. F-03's identified predicate defect is now verified against the database; the maximum payment-retry policy remains a separate open product decision.
 
 ## 2. Current runtime facts
 
 ### 2.1 HTTP process
 
-`apps/api/src/main.ts` starts a normal NestJS listener with `app.listen()`. There is no serverless handler export or managed queue-consumer entrypoint in `apps/api`. The separate `apps/api/src/worker-main.ts` starts `WorkerAppModule` as an application-context worker process.
+`apps/api/src/main.ts` starts a normal NestJS listener with `app.listen()`. `apps/api/src/job-main.ts` is the bounded scheduled-job entrypoint: it accepts only an allowlisted `JOB_NAME`, runs one pass, closes the application context, and exits non-zero when a run-once worker reports failure. The separate `apps/api/src/worker-main.ts` remains the long-running application-context worker process.
 
 `apps/api/src/configure-application.ts` configures URI versioning, strict validation, request logging, shutdown hooks, and proxy trust. Webhook handling depends on `rawBody: true` in `main.ts`; any serverless adapter must preserve the exact request bytes before parsing JSON.
 
@@ -69,17 +69,17 @@ The following work runs only when the dedicated worker process is launched with 
 ### F-01 — Background work must be isolated from the HTTP process
 
 **Category:** Architecture / serverless suitability  
-**Status:** HTTP/worker split and Redis outbox dispatch implemented; scheduled-job extraction remains.  
-**Impact:** A polling worker can still miss work when the worker runtime scales to zero, but the HTTP process no longer starts those timers.  
+**Status:** Application HTTP/worker split and bounded scheduled-job extraction complete; platform scheduling and queue-trigger deployment remain.
+**Impact:** The HTTP process no longer starts polling timers. Scheduled work can run as bounded Cloud Run Jobs, while Redis consumption still requires a queue trigger or continuously operated worker.
 **Effort:** L  
 **Fix risk:** Medium — deployment and module-boundary changes affect every asynchronous workflow.  
 **Confidence:** High.
 
-**Evidence:** `apps/api/src/worker-app.module.ts` registers worker-only providers separately from `apps/api/src/app.module.ts`; worker timers are guarded by `WORKER_ENABLED`; Redis dispatch and consumption are registered only in the worker composition root.
+**Evidence:** `apps/api/src/worker-app.module.ts` registers worker-only providers separately from `apps/api/src/app.module.ts`; `apps/api/src/job-main.ts` runs an allowlisted job once; `WORKER_EXECUTION=run-once` prevents timer startup; Redis dispatch and consumption are registered only in the worker composition root.
 
-**Remaining fix:** Replace the remaining timer-based attempt/reconciliation scans with bounded scheduled jobs or platform-native triggers. Keep the separate worker process as a non-serverless fallback for local development or a deliberately operated deployment.
+**Remaining fix:** Configure Cloud Scheduler and Cloud Run Jobs for the bounded job names, authenticate invocation with Cloud IAM, and configure a Cloud Tasks/Pub/Sub trigger for immediate outbox work. The concrete deployment checklist is tracked in [`docs/planning/deployment-todo.md`](../planning/deployment-todo.md). Keep the separate worker process as a non-serverless fallback for local development or a deliberately operated deployment.
 
-The API and worker can initially use the same container image with different entrypoints or configuration, but they must be separate processes. A queue handler must authenticate internal requests and be safe to execute more than once.
+The API, continuous worker, and scheduled jobs can use the same container image with different entrypoints or configuration, but they must be separate processes. Cloud Run IAM must protect job invocation, and every queue/job handler must be safe to execute more than once.
 
 ### F-02 — The durable outbox needs production operation and failure verification
 
@@ -109,13 +109,13 @@ Do not mark an event dispatched merely because a handler started. Do not rely on
 ### F-03 — Payment initialization recovery had an impossible condition
 
 **Category:** Financial correctness  
-**Status:** Predicate fix implemented; database-backed failure-path verification remains.  
-**Impact:** Before the fix, an ambiguous provider initialization could remain in `RECONCILING` indefinitely. The buyer may have been charged or the provider may have created a payment while the local order remains incomplete.  
+**Status:** Complete for the identified predicate defect and recovery path; maximum payment-retry policy remains a separate open product decision.
+**Impact:** Before the fix, an ambiguous provider initialization was excluded from the recovery claim query and could remain in `RECONCILING` indefinitely. The buyer may have been charged or the provider may have created a payment while the local order remained incomplete.
 **Effort:** M  
 **Fix risk:** High — payment states and provider retries must remain idempotent.  
 **Confidence:** High.
 
-**Evidence:** `apps/api/src/payments/payment-processing.service.ts` previously built a recovery query with an outer `state = CREATED` condition while its `OR` list included `state = RECONCILING` and `providerStatus = INITIATION_UNCONFIRMED`. The outer condition has now been removed; the reconciliation worker separately selects those `RECONCILING` attempts.
+**Evidence:** `apps/api/src/payments/payment-processing.service.ts` now uses explicit `CREATED` and `RECONCILING / INITIATION_UNCONFIRMED` branches. `apps/api/test/database-orders.e2e-spec.ts` creates an ambiguous attempt, makes it due, runs the real initialization worker, and asserts the original attempt, provider reference, reservation, and reserved voucher are preserved while the attempt reaches `PENDING_AUTHORIZATION`.
 
 **Fix:** Replace the contradictory predicate with explicit state-specific branches:
 
@@ -125,7 +125,7 @@ or
 (state = RECONCILING and providerStatus = INITIATION_UNCONFIRMED)
 ```
 
-When the second branch is reclaimed, preserve the same payment attempt, merchant reference, order, and inventory reservation. Transition it through a valid retry state rather than creating a new payment attempt. Add a bounded retry policy and operator-visible terminal failure state.
+When the second branch is reclaimed, preserve the same payment attempt, merchant reference, order, and inventory reservation. Transition it through a valid retry state rather than creating a new payment attempt. The maximum number of payment retries is not silently chosen here; it remains an open product decision recorded in the checkout flow documentation.
 
 ### F-04 — Refund submission is not crash- or ambiguity-safe
 
@@ -328,7 +328,7 @@ Use scheduled jobs for:
 
 Scheduled jobs must be bounded, acquire the same database leases as queue handlers, and exit with a failure status when work cannot be safely completed.
 
-Redis Streams handles immediate outbox delivery; it does not replace scheduling. The current worker still owns payment/refund/withdrawal reconciliation, lease repair, and invariant scans. Those jobs need a platform scheduler or a deliberately operated worker before claiming scale-to-zero readiness.
+Redis Streams handles immediate outbox delivery; it does not replace scheduling. The bounded job entrypoint now owns payment/refund/withdrawal reconciliation, lease repair, and invariant scans when invoked by a platform scheduler. Those scheduler resources and their authenticated Cloud Run Job invocations still need to be provisioned and exercised before claiming scale-to-zero readiness.
 
 ### 4.4 Database connections
 
@@ -396,7 +396,7 @@ Implement F-11. Persist the webhook event and processing intent before acknowled
 
 ### Step 7 — Extract workers from the API and dispatch durable outbox work
 
-The current slice implements the first part of F-01/F-02: callable worker methods, a separate worker composition root, Redis Streams dispatch/consumer, `QUEUED` state, and stale-claim repair. Complete the remaining work by adding managed Redis operations, queue/consumer metrics, failure-injection integration tests, authenticated platform job entrypoints or a native queue trigger, and scheduled repair/reconciliation jobs. Disable all polling timers in the API deployment and run the worker deployment independently.
+The current slice implements F-01's application boundary: callable worker methods, a separate worker composition root, an allowlisted bounded `start:job` entrypoint, run-once timer suppression, and independent continuous-worker startup. F-03's database outcome verification is also complete. F-02 still requires managed Redis operations, queue/consumer metrics, failure-injection integration tests, and an authenticated native queue trigger or minimum-capacity worker. Provision Cloud Run Jobs for the named scheduled passes, disable all polling timers in the API deployment, and run the continuous worker independently only where a platform-native trigger is not used.
 
 The deployment must prove that terminating the API process does not stop queued payment, refund, withdrawal, delivery, or repair work.
 

@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 import type { AppEnvironment } from '../config/environment';
 import { OutboxService } from '../operations/outbox.service';
+import { isContinuousWorker, isRunOnceWorker } from '../worker-runtime';
 import { DeliveryOutboxHandler } from './delivery-outbox.handler';
 
 const POLL_INTERVAL_MS = 1_000;
@@ -29,7 +30,7 @@ export class DeliveryOutboxWorker implements OnModuleInit, OnModuleDestroy {
     if (
       this.config.get('NODE_ENV', { infer: true }) !== 'development' ||
       this.config.get('QUEUE_PROVIDER', { infer: true }) === 'redis' ||
-      !this.config.get('WORKER_ENABLED', { infer: true })
+      !isContinuousWorker(this.config)
     )
       return;
     void this.runOnce();
@@ -60,6 +61,7 @@ export class DeliveryOutboxWorker implements OnModuleInit, OnModuleDestroy {
       }
     } catch (error) {
       this.logger.error('Delivery outbox dispatch pass failed', error);
+      if (isRunOnceWorker(this.config)) throw error;
     } finally {
       this.running = false;
     }

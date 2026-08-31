@@ -9,6 +9,7 @@ import { RefundState } from '../generated/prisma/client';
 import type { AppEnvironment } from '../config/environment';
 import { PrismaService } from '../database/prisma.service';
 import { PaymentGatewayService } from '../payments/payment-gateway.service';
+import { isContinuousWorker, isRunOnceWorker } from '../worker-runtime';
 
 @Injectable()
 export class RefundReconciliationWorker
@@ -25,11 +26,7 @@ export class RefundReconciliationWorker
   ) {}
 
   onModuleInit() {
-    if (
-      this.config.get('NODE_ENV', { infer: true }) === 'test' ||
-      !this.config.get('WORKER_ENABLED', { infer: true })
-    )
-      return;
+    if (!isContinuousWorker(this.config)) return;
     void this.runOnce();
     this.timer = setInterval(() => void this.runOnce(), 30_000);
     this.timer.unref();
@@ -61,8 +58,16 @@ export class RefundReconciliationWorker
           this.logger.warn(
             `Refund reconciliation deferred refundId=${refund.id}`,
           );
+          if (isRunOnceWorker(this.config)) {
+            throw new Error(
+              `Refund reconciliation failed refundId=${refund.id}`,
+            );
+          }
         }
       }
+    } catch (error) {
+      this.logger.error('Refund reconciliation pass failed', error);
+      if (isRunOnceWorker(this.config)) throw error;
     } finally {
       this.running = false;
     }

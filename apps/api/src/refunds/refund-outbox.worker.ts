@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 import type { AppEnvironment } from '../config/environment';
 import { OutboxService } from '../operations/outbox.service';
+import { isContinuousWorker, isRunOnceWorker } from '../worker-runtime';
 import { RefundOutboxHandler } from './refund-outbox.handler';
 
 @Injectable()
@@ -24,9 +25,8 @@ export class RefundOutboxWorker implements OnModuleInit, OnModuleDestroy {
 
   onModuleInit() {
     if (
-      this.config.get('NODE_ENV', { infer: true }) === 'test' ||
       this.config.get('QUEUE_PROVIDER', { infer: true }) === 'redis' ||
-      !this.config.get('WORKER_ENABLED', { infer: true })
+      !isContinuousWorker(this.config)
     )
       return;
     void this.runOnce();
@@ -52,6 +52,7 @@ export class RefundOutboxWorker implements OnModuleInit, OnModuleDestroy {
         await this.handler.handleClaimed(event.id, claimToken);
     } catch (error) {
       this.logger.error('Refund submission dispatch failed', error);
+      if (isRunOnceWorker(this.config)) throw error;
     } finally {
       this.running = false;
     }

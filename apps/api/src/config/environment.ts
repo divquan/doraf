@@ -1,10 +1,12 @@
 export type NodeEnvironment = 'development' | 'production' | 'test';
 export type PaymentProviderMode = 'sandbox' | 'live';
 export type QueueProvider = 'postgres' | 'redis';
+export type WorkerExecution = 'continuous' | 'run-once';
 
 export interface AppEnvironment {
   NODE_ENV: NodeEnvironment;
   WORKER_ENABLED: boolean;
+  WORKER_EXECUTION: WorkerExecution;
   QUEUE_PROVIDER: QueueProvider;
   REDIS_URL: string | null;
   PORT: number;
@@ -205,6 +207,7 @@ export function validateEnvironment(
   return {
     NODE_ENV: nodeEnvironment as NodeEnvironment,
     WORKER_ENABLED: booleanEnvironment(raw.WORKER_ENABLED, false),
+    WORKER_EXECUTION: workerExecutionEnvironment(raw.WORKER_EXECUTION),
     QUEUE_PROVIDER: queueProvider,
     REDIS_URL: redisUrl,
     PORT: port,
@@ -239,6 +242,14 @@ function booleanEnvironment(value: unknown, defaultValue: boolean): boolean {
   if (value === true || value === 'true') return true;
   if (value === false || value === 'false') return false;
   throw new Error('WORKER_ENABLED must be true or false');
+}
+
+function workerExecutionEnvironment(value: unknown): WorkerExecution {
+  const execution = value ?? 'continuous';
+  if (execution !== 'continuous' && execution !== 'run-once') {
+    throw new Error('WORKER_EXECUTION must be continuous or run-once');
+  }
+  return execution;
 }
 
 function queueProviderEnvironment(value: unknown): QueueProvider {

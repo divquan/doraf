@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import type { AppEnvironment } from '../config/environment';
 import { PaymentProviderRequestException } from './payment-gateway.service';
 import { PaymentProcessingService } from './payment-processing.service';
+import { isContinuousWorker, isRunOnceWorker } from '../worker-runtime';
 
 const POLL_INTERVAL_MS = 5_000;
 
@@ -30,11 +31,7 @@ export class PaymentReconciliationWorker
   ) {}
 
   onModuleInit() {
-    if (
-      this.config.get('NODE_ENV', { infer: true }) === 'test' ||
-      !this.config.get('WORKER_ENABLED', { infer: true })
-    )
-      return;
+    if (!isContinuousWorker(this.config)) return;
     void this.runOnce();
     this.timer = setInterval(() => void this.runOnce(), POLL_INTERVAL_MS);
     this.timer.unref();
@@ -59,6 +56,7 @@ export class PaymentReconciliationWorker
             `Payment reconciliation failed reference=${reference}`,
             error instanceof Error ? error.stack : undefined,
           );
+          if (isRunOnceWorker(this.config)) throw error;
         }
       }
     } catch (error) {
@@ -66,6 +64,7 @@ export class PaymentReconciliationWorker
         'Payment reconciliation dispatch pass failed',
         error instanceof Error ? error.stack : undefined,
       );
+      if (isRunOnceWorker(this.config)) throw error;
     } finally {
       this.running = false;
     }

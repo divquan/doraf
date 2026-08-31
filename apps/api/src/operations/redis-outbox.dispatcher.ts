@@ -10,6 +10,11 @@ import type { AppEnvironment } from '../config/environment';
 import { REDIS_OUTBOX_EVENT_TYPES } from './outbox-event-types';
 import { OutboxService } from './outbox.service';
 import { RedisOutboxQueue } from './redis-outbox.queue';
+import {
+  isContinuousWorker,
+  isQueueWorkerEnabled,
+  isRunOnceWorker,
+} from '../worker-runtime';
 
 const DISPATCH_INTERVAL_MS = 1_000;
 
@@ -26,7 +31,7 @@ export class RedisOutboxDispatcher implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit() {
-    if (!this.enabled()) return;
+    if (!this.enabled() || !isContinuousWorker(this.config)) return;
     void this.runOnce();
     this.timer = setInterval(() => void this.runOnce(), DISPATCH_INTERVAL_MS);
     this.timer.unref();
@@ -68,6 +73,7 @@ export class RedisOutboxDispatcher implements OnModuleInit, OnModuleDestroy {
         'Redis outbox dispatch pass failed',
         error instanceof Error ? error.stack : undefined,
       );
+      if (isRunOnceWorker(this.config)) throw error;
     } finally {
       this.running = false;
     }
@@ -95,9 +101,6 @@ export class RedisOutboxDispatcher implements OnModuleInit, OnModuleDestroy {
   }
 
   private enabled(): boolean {
-    return (
-      this.config.get('WORKER_ENABLED', { infer: true }) === true &&
-      this.config.get('QUEUE_PROVIDER', { infer: true }) === 'redis'
-    );
+    return isQueueWorkerEnabled(this.config);
   }
 }

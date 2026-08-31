@@ -7,6 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import type { AppEnvironment } from '../config/environment';
 import { OUTBOX_CLAIM_LEASE_MS, OutboxService } from './outbox.service';
+import { isContinuousWorker } from '../worker-runtime';
 
 const REPAIR_INTERVAL_MS = 30_000;
 
@@ -28,11 +29,7 @@ export class OutboxLeaseRecoveryWorker
   ) {}
 
   onModuleInit() {
-    if (
-      this.config.get('NODE_ENV', { infer: true }) === 'test' ||
-      !this.config.get('WORKER_ENABLED', { infer: true })
-    )
-      return;
+    if (!isContinuousWorker(this.config)) return;
     void this.runOnce();
     this.timer = setInterval(() => void this.runOnce(), REPAIR_INTERVAL_MS);
     this.timer.unref();
