@@ -31,9 +31,13 @@ export class PaymentInitializationWorker
   ) {}
 
   onModuleInit() {
-    if (this.config.get('NODE_ENV', { infer: true }) === 'test') return;
-    void this.dispatch();
-    this.timer = setInterval(() => void this.dispatch(), POLL_INTERVAL_MS);
+    if (
+      this.config.get('NODE_ENV', { infer: true }) === 'test' ||
+      !this.config.get('WORKER_ENABLED', { infer: true })
+    )
+      return;
+    void this.runOnce();
+    this.timer = setInterval(() => void this.runOnce(), POLL_INTERVAL_MS);
     this.timer.unref();
     this.logger.log('Payment initialization worker started');
   }
@@ -42,7 +46,7 @@ export class PaymentInitializationWorker
     if (this.timer) clearInterval(this.timer);
   }
 
-  private async dispatch() {
+  async runOnce() {
     if (this.running) return;
     this.running = true;
     try {

@@ -25,6 +25,9 @@ describe('validateEnvironment', () => {
       }),
     ).toEqual({
       NODE_ENV: 'development',
+      WORKER_ENABLED: false,
+      QUEUE_PROVIDER: 'redis',
+      REDIS_URL: 'redis://localhost:6379',
       PORT: 3000,
       DATABASE_URL: 'postgresql://localhost:5432/dashchecker',
       ...keyMaterial,
@@ -110,6 +113,35 @@ describe('validateEnvironment', () => {
         INTERNAL_AUTH_ORIGIN: 'http://localhost:3001',
       }),
     ).toThrow('DATABASE_URL must be a PostgreSQL connection URL');
+  });
+
+  it('rejects an invalid worker runtime flag', () => {
+    expect(() =>
+      validateEnvironment({
+        DATABASE_URL: 'postgresql://localhost:5432/dashchecker',
+        ...keyMaterial,
+        PAYSTACK_SECRET_KEY: 'sk_test_environment-worker-flag',
+        WORKER_ENABLED: 'yes',
+        INTERNAL_AUTH_RP_NAME: 'Dashchecker Administration',
+        INTERNAL_AUTH_RP_ID: 'localhost',
+        INTERNAL_AUTH_ORIGIN: 'http://localhost:3001',
+      }),
+    ).toThrow('WORKER_ENABLED must be true or false');
+  });
+
+  it('requires a valid Redis URL when Redis is selected', () => {
+    expect(() =>
+      validateEnvironment({
+        DATABASE_URL: 'postgresql://localhost:5432/dashchecker',
+        ...keyMaterial,
+        PAYSTACK_SECRET_KEY: 'sk_test_environment-redis-url',
+        QUEUE_PROVIDER: 'redis',
+        REDIS_URL: 'http://localhost:6379',
+        INTERNAL_AUTH_RP_NAME: 'Dashchecker Administration',
+        INTERNAL_AUTH_RP_ID: 'localhost',
+        INTERNAL_AUTH_ORIGIN: 'http://localhost:3001',
+      }),
+    ).toThrow('REDIS_URL must be');
   });
 
   it('rejects a WebAuthn origin with a path', () => {

@@ -15,7 +15,11 @@ export class PricingOutboxHandler {
 
   async handleClaimed(eventId: string, claimToken: string): Promise<boolean> {
     const event = await this.prisma.outboxEvent.findFirst({
-      where: { id: eventId, claimToken, state: 'CLAIMED' },
+      where: {
+        id: eventId,
+        claimToken,
+        state: { in: ['CLAIMED', 'QUEUED'] },
+      },
     });
     if (!event) return false;
 

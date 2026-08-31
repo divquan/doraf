@@ -25,8 +25,13 @@ export class RefundReconciliationWorker
   ) {}
 
   onModuleInit() {
-    if (this.config.get('NODE_ENV', { infer: true }) === 'test') return;
-    this.timer = setInterval(() => void this.reconcile(), 30_000);
+    if (
+      this.config.get('NODE_ENV', { infer: true }) === 'test' ||
+      !this.config.get('WORKER_ENABLED', { infer: true })
+    )
+      return;
+    void this.runOnce();
+    this.timer = setInterval(() => void this.runOnce(), 30_000);
     this.timer.unref();
   }
 
@@ -34,7 +39,7 @@ export class RefundReconciliationWorker
     if (this.timer) clearInterval(this.timer);
   }
 
-  private async reconcile() {
+  async runOnce() {
     if (this.running) return;
     this.running = true;
     try {

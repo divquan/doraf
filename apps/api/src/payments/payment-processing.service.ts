@@ -72,7 +72,6 @@ export class PaymentProcessingService {
     const claimWhere: Prisma.PaymentAttemptWhereInput = allowLeaseRecovery
       ? {
           id: attempt.id,
-          state: 'CREATED' as const,
           OR: [
             {
               state: 'CREATED',

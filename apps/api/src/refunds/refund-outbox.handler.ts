@@ -22,7 +22,7 @@ export class RefundOutboxHandler {
       where: {
         id: eventId,
         claimToken,
-        state: OutboxState.CLAIMED,
+        state: { in: [OutboxState.CLAIMED, OutboxState.QUEUED] },
         eventType: 'REFUND_SUBMISSION_REQUIRED',
       },
     });

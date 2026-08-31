@@ -238,6 +238,7 @@ enum DeliveryAttemptState {
 enum OutboxState {
   PENDING
   CLAIMED
+  QUEUED
   DISPATCHED
   FAILED
 

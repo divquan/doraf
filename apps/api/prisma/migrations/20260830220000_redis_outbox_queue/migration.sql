@@ -1,0 +1,1 @@
+ALTER TYPE "outbox_state" ADD VALUE 'QUEUED' AFTER 'CLAIMED';

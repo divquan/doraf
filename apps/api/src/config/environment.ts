@@ -1,8 +1,12 @@
 export type NodeEnvironment = 'development' | 'production' | 'test';
 export type PaymentProviderMode = 'sandbox' | 'live';
+export type QueueProvider = 'postgres' | 'redis';
 
 export interface AppEnvironment {
   NODE_ENV: NodeEnvironment;
+  WORKER_ENABLED: boolean;
+  QUEUE_PROVIDER: QueueProvider;
+  REDIS_URL: string | null;
   PORT: number;
   DATABASE_URL: string;
   VOUCHER_MASTER_KEY_BASE64: string;
@@ -58,6 +62,13 @@ export function validateEnvironment(
   ) {
     throw new Error('DATABASE_URL must be a PostgreSQL connection URL');
   }
+
+  const queueProvider = queueProviderEnvironment(raw.QUEUE_PROVIDER);
+  const redisUrl = redisUrlEnvironment(
+    raw.REDIS_URL,
+    queueProvider,
+    nodeEnvironment as NodeEnvironment,
+  );
 
   const voucherMasterKey = requiredBase64Key(
     raw.VOUCHER_MASTER_KEY_BASE64,
@@ -193,6 +204,9 @@ export function validateEnvironment(
 
   return {
     NODE_ENV: nodeEnvironment as NodeEnvironment,
+    WORKER_ENABLED: booleanEnvironment(raw.WORKER_ENABLED, false),
+    QUEUE_PROVIDER: queueProvider,
+    REDIS_URL: redisUrl,
     PORT: port,
     DATABASE_URL: databaseUrl,
     VOUCHER_MASTER_KEY_BASE64: voucherMasterKey,
@@ -218,6 +232,41 @@ export function validateEnvironment(
     INTERNAL_AUTH_SESSION_TTL_SECONDS: sessionTtlSeconds,
     INTERNAL_ENROLLMENT_TTL_SECONDS: enrollmentTtlSeconds,
   };
+}
+
+function booleanEnvironment(value: unknown, defaultValue: boolean): boolean {
+  if (value === undefined) return defaultValue;
+  if (value === true || value === 'true') return true;
+  if (value === false || value === 'false') return false;
+  throw new Error('WORKER_ENABLED must be true or false');
+}
+
+function queueProviderEnvironment(value: unknown): QueueProvider {
+  const provider = value ?? 'redis';
+  if (provider !== 'postgres' && provider !== 'redis') {
+    throw new Error('QUEUE_PROVIDER must be postgres or redis');
+  }
+  return provider;
+}
+
+function redisUrlEnvironment(
+  value: unknown,
+  provider: QueueProvider,
+  environment: NodeEnvironment,
+): string | null {
+  if (provider === 'postgres') return null;
+  const redisUrl =
+    value ??
+    (environment === 'production' ? undefined : 'redis://localhost:6379');
+  if (
+    typeof redisUrl !== 'string' ||
+    (!redisUrl.startsWith('redis://') && !redisUrl.startsWith('rediss://'))
+  ) {
+    throw new Error(
+      'REDIS_URL must be a redis:// or rediss:// URL when QUEUE_PROVIDER=redis',
+    );
+  }
+  return redisUrl;
 }
 
 function paymentProviderMode(

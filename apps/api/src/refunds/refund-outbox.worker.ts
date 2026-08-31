@@ -23,8 +23,14 @@ export class RefundOutboxWorker implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit() {
-    if (this.config.get('NODE_ENV', { infer: true }) === 'test') return;
-    this.timer = setInterval(() => void this.dispatch(), 5_000);
+    if (
+      this.config.get('NODE_ENV', { infer: true }) === 'test' ||
+      this.config.get('QUEUE_PROVIDER', { infer: true }) === 'redis' ||
+      !this.config.get('WORKER_ENABLED', { infer: true })
+    )
+      return;
+    void this.runOnce();
+    this.timer = setInterval(() => void this.runOnce(), 5_000);
     this.timer.unref();
   }
 
@@ -32,7 +38,7 @@ export class RefundOutboxWorker implements OnModuleInit, OnModuleDestroy {
     if (this.timer) clearInterval(this.timer);
   }
 
-  private async dispatch() {
+  async runOnce() {
     if (this.running) return;
     this.running = true;
     try {
