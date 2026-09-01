@@ -88,11 +88,12 @@ Do not run them without the operator's project/region/authorization.
 
 1. `gcloud/00-prerequisites.sh` – enable APIs, create Artifact Registry.
 2. `gcloud/01-service-accounts.sh` – create API, task-invoker, scheduler SAs and IAM least-privilege bindings.
-3. `gcloud/02-queue.sh` – create `dashchecker-outbox` queue with retry/rate policy.
-4. `gcloud/03-deploy-api.sh` – deploy public API (`WORKER_ENABLED=false`).
-5. `gcloud/04-deploy-task-consumer.sh` – deploy private task consumer.
-6. `gcloud/05-jobs.sh` – create/update 7 Cloud Run Jobs.
-7. `gcloud/06-schedulers.sh` – create Cloud Scheduler triggers for each Job.
+3. `gcloud/create-crypto-secret.sh` – create the nine-key crypto bundle; run with `GRANT_ACCESS=true` after step 2.
+4. `gcloud/02-queue.sh` – create `dashchecker-outbox` queue with retry/rate policy.
+5. `gcloud/03-deploy-api.sh` – deploy public API (`WORKER_ENABLED=false`).
+6. `gcloud/04-deploy-task-consumer.sh` – deploy private task consumer.
+7. `gcloud/05-jobs.sh` – create/update 7 Cloud Run Jobs.
+8. `gcloud/06-schedulers.sh` – create Cloud Scheduler triggers for each Job.
 
 Each script prints the `gcloud` command it will run and exits 1 if required
 env vars are absent. Provide `PROJECT_ID`, `REGION`, `IMAGE_URI` (with digest),
