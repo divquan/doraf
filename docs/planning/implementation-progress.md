@@ -55,6 +55,24 @@ removed; reconciliation and outbox repair run through bounded jobs. The API,
 API unit suite, honest lint, build, and monorepo typecheck pass. PostgreSQL
 integration evidence remains blocked until `TEST_DATABASE_URL` is supplied.
 
+**Packaging update (Plan 004):** The private task-consumer entrypoint
+(`apps/api/src/task-main.ts` → `dist/task-main.js`, `TaskConsumerModule`,
+`OutboxTaskController` at `POST /internal/tasks/outbox`) is reconciled and
+exposes `start:task-consumer`. One immutable image (`Dockerfile` pinned
+Node 20, non-root, frozen lockfile, `prisma generate` + `build`, no `.env` or
+build-arg secrets; `cloudbuild.yaml` records digest) contains
+`dist/main.js`, `dist/task-main.js`, and `dist/job-main.js`. Deployment
+packaging for Cloud Tasks queue (`dashchecker-outbox` bounded
+retry/backoff/rate, OIDC audience pinned), private task-consumer service
+(`ingress=internal`, `run.invoker` only for the task-invoker SA), public API
+(`WORKER_ENABLED=false`), 7 bounded Cloud Run Jobs, and Cloud Scheduler is
+checked into `deploy/README.md` + `deploy/gcloud/*` (least-privilege IAM,
+Secret Manager bindings, `maxInstances=10` example bound for the Supabase
+pooler). `apps/api/README.md` now documents `start:task-consumer` and the
+three entrypoint commands. Live provisioning is blocked until the operator
+supplies project/region/credentials/authorization; artifacts are locally
+verified (`typecheck`, `build`, unit tests pass).
+
 ## Capability status
 
 | Capability                                  | Status   | Implemented evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Remaining before completion                                                                                                                    |
@@ -72,8 +90,8 @@ integration evidence remains blocked until `TEST_DATABASE_URL` is supplied.
 | Exceptions, recovery, disputes, and refunds | Partial  | Generic real/decoy buyer recovery challenges, immutable delivery-phone OTP verification, attempt-limited ten-minute scoped recovery sessions, audited voucher reveal with envelope decryption, public recovery UI, Administrator-only excess-payment refund queue listing and approval, reasoned audit records, durable submission work, and verified six-check manual recovery evidence on 2026-08-01                                                                                                                                                                                                                  | Paid-order exception resolution, disputes and replacements; Paystack refund submission/reconciliation is deferred to the later exception slate |
 | Agent wallet and withdrawals                | Complete | Signed balance and paginated history; database-enforced immutable withdrawal and hold snapshots; fresh principal-bound OTP requests; serializable concurrent-spend protection; Administrator approval/rejection with audit; durable Paystack recipient/transfer submission; merchant OTP; one signed webhook routed across payments, refunds, and transfers; provider verification before idempotent success/failure/reversal settlement; background reconciliation; agent/admin shadcn interfaces; unit, HTTP, and PostgreSQL integration coverage; and product-owner manual acceptance on 2026-08-01                  | Withdrawal status notifications and privacy-safe agent exports remain for later operational enhancement                                        |
 | USSD purchase channel                       | Deferred | Removed from MVP by product-owner decision on 2026-08-01                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Reassess after MVP launch evidence                                                                                                             |
-| Reporting and operations                    | Partial  | Admin Operations & Finance Dashboard; bounded invariant audit and outbox lease/repair jobs; Stuck Outbox Work Inspector with re-queue controls; Admin reporting endpoints. Privacy-safe data exports deferred by product-owner decision on 2026-08-02. | PostgreSQL verification and deployment evidence                                                                                                 |
-| Production readiness                        | Partial  | Security and Paystack provider checks remain covered; HTTP/API isolation, Cloud Tasks dispatch, bounded jobs, honest lint, build, and monorepo typecheck pass.                                                                                                                                                                                                                                                                                                                                                                                                    | Production SMS/email delivery gateway; authenticated Cloud Tasks/Cloud Run deployment; PostgreSQL verification; CORS origin whitelist (if multi-domain); helmet security headers (recommended) |
+| Reporting and operations                    | Partial  | Admin Operations & Finance Dashboard; bounded invariant audit and outbox lease/repair jobs; Stuck Outbox Work Inspector with re-queue controls; Admin reporting endpoints. Deployment packaging for private task-consumer, queue, Jobs, and Scheduler is checked into `deploy/`. Privacy-safe data exports deferred by product-owner decision on 2026-08-02. | PostgreSQL verification and live deployment execution (blocked: no project/region/credentials)                                                    |
+| Production readiness                        | Partial  | Security and Paystack provider checks remain covered; HTTP/API isolation, Cloud Tasks OIDC dispatch, private task-consumer (`POST /internal/tasks/outbox`), bounded jobs, honest lint, build, and monorepo typecheck pass. One immutable image and `deploy/gcloud/*` (queue, IAM, Run services, Jobs, Scheduler, Secret Manager) are packaged and locally verified.                                                                                                                                                           | Production SMS/email delivery gateway; live authenticated Cloud Tasks/Cloud Run deployment and staging black-box verification; PostgreSQL verification; CORS origin whitelist (if multi-domain); helmet security headers (recommended) |
 
 ## Delivery-phase status
 
@@ -86,8 +104,8 @@ integration evidence remains blocked until `TEST_DATABASE_URL` is supplied.
 | Phase 4 — Recovery and exception handling          | Partial               | Buyer recovery has database and HTTP coverage; the remaining confirmed exception flows must pass integration tests                                                          |
 | Phase 5 — Agent finance and portal                 | Complete              | Automated withdrawal concurrency, idempotent settlement, reversal, portal, reconciliation checks, and product-owner manual acceptance passed                                |
 | Phase 6 — USSD channel                             | Deferred post-MVP     | Reassess after MVP launch evidence                                                                                                                                          |
-| Phase 7 — Reporting and operations                 | Partial               | Admin dashboards, bounded invariant checks, outbox repair, and lease recovery are implemented; PostgreSQL/deployment evidence remains. Privacy-safe exports deferred. |
-| Phase 8 — Production readiness and launch          | Partial               | API isolation, Cloud Tasks dispatch, lint, typecheck, build, and unit tests pass. Production delivery adapter, authenticated deployment, PostgreSQL verification, and CORS configuration remain. |
+| Phase 7 — Reporting and operations                 | Partial               | Admin dashboards, bounded invariant checks, outbox repair, and lease recovery are implemented. Deployment packaging is in `deploy/`; PostgreSQL and live execution evidence remain blocked. Privacy-safe exports deferred. |
+| Phase 8 — Production readiness and launch          | Partial               | API isolation, Cloud Tasks OIDC dispatch, private task-consumer, immutable image, bounded jobs, lint, typecheck, build, and unit tests pass. Production delivery adapter, live authenticated deployment, staging black-box verification, PostgreSQL verification, and CORS configuration remain blocked. |
 
 ## External work that must run in parallel
 
@@ -105,15 +123,16 @@ external credentials and approvals.
 
 ## Latest verification evidence
 
-As of 2026-08-08, the implemented API unit slices pass (21 test suites, 59
-tests), and the changed API/storefront code passes TypeScript checking and
-Prisma schema validation. Checkout now also handles Paystack success callbacks,
-ambiguous initialization recovery, popup cancellation/error state, exact
-attempt verification, and post-release reconciliation backoff. PostgreSQL
-checkout integration tests remain
-environment-dependent because `TEST_DATABASE_URL` is not configured in this
-workspace; the storefront production build is likewise pending a networked
-font fetch.
+As of 2026-09-01 (Plan 004 packaging):
+
+- `pnpm --filter @dashchecker/api typecheck`: pass
+- `pnpm --filter @dashchecker/api build` (`prebuild` `prisma generate` + `nest build`): pass, emits `dist/main.js`, `dist/task-main.js`, `dist/job-main.js`
+- `pnpm --filter @dashchecker/api test -- --runInBand`: 29 suites, 105 tests pass (task-consumer composition, OIDC verifier, router, dispatcher/publisher, handlers)
+- `pnpm typecheck` (monorepo): pass
+- `pnpm lint` (honest, no inline suppressions): pass
+- `docker build -f Dockerfile .` shape locally verified via `node --check` for all three entrypoints; invalid `JOB_NAME` exits non-zero; health wiring present (`GET /health/live` / `ready`)
+- PostgreSQL integration / staging black-box verification: blocked (`TEST_DATABASE_URL` unavailable, no GCP project/region/credentials supplied – see `deploy/README.md` Blocker and `docs/planning/deployment-todo.md` Blocked section)
+- Live deployment (queue, Run services, Jobs, Scheduler, image digest): blocked – same authorization gate; packaging in `deploy/gcloud/*` is checked-in and shell-checked only
 
 ## Maintenance rule
 

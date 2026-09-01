@@ -22,20 +22,52 @@ pnpm --filter @dashchecker/api db:seed
 pnpm --filter @dashchecker/api start:dev
 ```
 
-## Background jobs
+## Deployment topology (Plan 004)
 
-The HTTP API never starts background polling. Immediate outbox work is
-published to Cloud Tasks, and scheduled recovery runs through the bounded job
-entrypoint:
+One immutable image (`Dockerfile` pinned Node 20, `cloudbuild.yaml`) contains
+all three entrypoints — `dist/main.js`, `dist/task-main.js`, `dist/job-main.js` —
+with no `.env` files or build-arg secrets (frozen lockfile, `prisma generate` at
+build, non-root runtime). Production secrets are injected via Secret Manager.
+
+- Public API: `dashchecker-api` Cloud Run service, `node dist/main.js`,
+  `WORKER_ENABLED=false`, scale-to-zero, `maxInstances=10` / `concurrency=80`
+  bounded for the Supabase pooler. `GET /health/live` and `/health/ready`.
+- Private task consumer: `dashchecker-task-consumer` Cloud Run service,
+  `node dist/task-main.js`, `ingress=internal`, `allow-unauthenticated=false`,
+  scales to zero, `POST /internal/tasks/outbox` only. Invokable solely by the
+  Cloud Tasks OIDC service account
+  (`CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL` / `CLOUD_TASKS_AUDIENCE` pinned to the
+  consumer URL). Unauthenticated requests return `401/403`.
+- Cloud Tasks queue: `dashchecker-outbox` (region `us-central1`) with bounded
+  `maxAttempts=10`, `minBackoff=10s` / `maxBackoff=600s`, `maxDoublings=4`,
+  `maxConcurrentDispatches=50`, `maxDispatchesPerSecond=100`, pilot dead-letter
+  posture.
+- Cloud Run Jobs + Cloud Scheduler: 7 bounded jobs (`outbox-repair`,
+  `payment-initialization`, `payment-reconciliation`, `refund-reconciliation`,
+  `withdrawal-reconciliation`, `lease-recovery`, `invariant-audit`) via
+  `node dist/job-main.js <JOB_NAME>` with `WORKER_ENABLED=true`
+  `WORKER_EXECUTION=run-once`. Scheduler uses a dedicated `dashchecker-scheduler`
+  SA; see `deploy/README.md` and `deploy/gcloud/*`.
+
+Cloud Tasks is the sole immediate outbox path. No Redis/continuous worker is
+deployed. OTP delivery remains direct synchronous SMS and is never an outbox
+task. Do not treat Cloud Tasks acceptance (`QUEUED`) as `DISPATCHED`/`DELIVERED`;
+provider submission and final status are separate durable states.
+
+## Background jobs (local)
+
+The HTTP API never starts background polling. Immediate work is dispatched via
+Cloud Tasks; scheduled recovery is bounded. For local use without Cloud Tasks:
 
 ```bash
+pnpm --filter @dashchecker/api start:task-consumer   # private consumer: node dist/task-main.js
 JOB_NAME=outbox-repair pnpm --filter @dashchecker/api start:job
 JOB_NAME=all pnpm --filter @dashchecker/api start:job
 ```
 
-Cloud Run Jobs (or another authenticated scheduler) should invoke the bounded
-job entrypoint instead. Each invocation opens the application context, runs
-one bounded pass, and exits with a non-zero status if the pass cannot complete:
+For production, Cloud Run Jobs (or another authenticated scheduler) must invoke
+the bounded entrypoint — each run opens the app context, runs one bounded pass,
+and exits non-zero on failure:
 
 ```bash
 JOB_NAME=payment-initialization pnpm --filter @dashchecker/api start:job
@@ -49,7 +81,10 @@ JOB_NAME=invariant-audit pnpm --filter @dashchecker/api start:job
 The job names are allowlisted in `src/job-main.ts`. Configure Cloud Scheduler
 to trigger Cloud Run Jobs with the platform's authenticated identity; do not
 expose the job command as a public HTTP mutation route. Configure Cloud Tasks
-to call the authenticated outbox task-consumer route for immediate work.
+to call the authenticated private task-consumer route for immediate work
+(`CLOUD_TASKS_TARGET_URL == CLOUD_TASKS_AUDIENCE == https://dashchecker-task-consumer-*/internal/tasks/outbox`).
+See `deploy/README.md` and `deploy/gcloud/*` for IAM least-privilege and
+verification gates.
 
 The current HTTP surface is:
 

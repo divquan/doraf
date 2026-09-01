@@ -1,0 +1,65 @@
+steps:
+  # Build immutable image with frozen lockfile; no --build-arg secrets.
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/dashchecker-api:${COMMIT_SHA}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/dashchecker-api:latest'
+      - '-f'
+      - 'Dockerfile'
+      - '.'
+    id: 'build'
+
+  # Verify API and task-consumer entrypoints compile and health wiring exists.
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'run'
+      - '--rm'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/dashchecker-api:${COMMIT_SHA}'
+      - 'node'
+      - '--check'
+      - 'dist/main.js'
+    id: 'verify-main'
+    waitFor: ['build']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'run'
+      - '--rm'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/dashchecker-api:${COMMIT_SHA}'
+      - 'node'
+      - '--check'
+      - 'dist/task-main.js'
+    id: 'verify-task'
+    waitFor: ['build']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'run'
+      - '--rm'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/dashchecker-api:${COMMIT_SHA}'
+      - 'node'
+      - '--check'
+      - 'dist/job-main.js'
+    id: 'verify-job'
+    waitFor: ['build']
+
+images:
+  - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/dashchecker-api:${COMMIT_SHA}'
+  - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/dashchecker-api:latest'
+
+# Record image digest after push via `gcloud artifacts docker images describe`
+# or `docker inspect --format='{{index .RepoDigests 0}}'`.
+# Example post-build:
+#   gcloud artifacts docker images describe ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/dashchecker-api:${COMMIT_SHA} --format='value(image_summary.digest)'
+
+timeout: 1200s
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+substitutions:
+  _PROJECT_ID: 'REPLACE_WITH_PROJECT_ID'
+  _REGION: 'us-central1'
+  _REPOSITORY: 'dashchecker'

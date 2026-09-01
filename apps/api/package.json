@@ -18,6 +18,7 @@
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "dev": "pnpm db:generate && nest start --watch",
     "start": "nest start",
+    "start:task-consumer": "node dist/task-main",
     "start:job": "WORKER_ENABLED=true WORKER_EXECUTION=run-once node dist/job-main",
     "start:dev": "pnpm db:generate && nest start --watch",
     "start:debug": "pnpm db:generate && nest start --debug --watch",

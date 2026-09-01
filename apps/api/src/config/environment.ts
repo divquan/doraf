@@ -94,62 +94,23 @@ export function validateEnvironment(
     nodeEnvironment as NodeEnvironment,
   );
 
-  const voucherMasterKey = requiredBase64Key(
-    raw.VOUCHER_MASTER_KEY_BASE64,
-    'VOUCHER_MASTER_KEY_BASE64',
-    32,
-    true,
-  );
-  const voucherFingerprintKey = requiredBase64Key(
-    raw.VOUCHER_FINGERPRINT_KEY_BASE64,
-    'VOUCHER_FINGERPRINT_KEY_BASE64',
-    32,
-    false,
-  );
-  const sessionFingerprintKey = requiredBase64Key(
-    raw.SESSION_FINGERPRINT_KEY_BASE64,
-    'SESSION_FINGERPRINT_KEY_BASE64',
-    32,
-    false,
-  );
-  const enrollmentFingerprintKey = requiredBase64Key(
-    raw.INTERNAL_ENROLLMENT_FINGERPRINT_KEY_BASE64,
-    'INTERNAL_ENROLLMENT_FINGERPRINT_KEY_BASE64',
-    32,
-    false,
-  );
-  const agentPhoneEncryptionKey = requiredBase64Key(
-    raw.AGENT_PHONE_ENCRYPTION_KEY_BASE64,
-    'AGENT_PHONE_ENCRYPTION_KEY_BASE64',
-    32,
-    true,
-  );
-  const agentPhoneFingerprintKey = requiredBase64Key(
-    raw.AGENT_PHONE_FINGERPRINT_KEY_BASE64,
-    'AGENT_PHONE_FINGERPRINT_KEY_BASE64',
-    32,
-    false,
-  );
-  const otpFingerprintKey = requiredBase64Key(
-    raw.OTP_FINGERPRINT_KEY_BASE64,
-    'OTP_FINGERPRINT_KEY_BASE64',
-    32,
-    false,
-  );
-  const orderContactEncryptionKey = optionalDevelopmentKey(
-    raw.ORDER_CONTACT_ENCRYPTION_KEY_BASE64,
-    agentPhoneEncryptionKey,
-    'ORDER_CONTACT_ENCRYPTION_KEY_BASE64',
+  const cryptoKeys = cryptoKeysEnvironment(
+    raw,
     nodeEnvironment as NodeEnvironment,
-    true,
   );
-  const orderContactFingerprintKey = optionalDevelopmentKey(
-    raw.ORDER_CONTACT_FINGERPRINT_KEY_BASE64,
-    agentPhoneFingerprintKey,
-    'ORDER_CONTACT_FINGERPRINT_KEY_BASE64',
-    nodeEnvironment as NodeEnvironment,
-    false,
-  );
+  const voucherMasterKey = cryptoKeys.VOUCHER_MASTER_KEY_BASE64;
+  const voucherFingerprintKey = cryptoKeys.VOUCHER_FINGERPRINT_KEY_BASE64;
+  const sessionFingerprintKey = cryptoKeys.SESSION_FINGERPRINT_KEY_BASE64;
+  const enrollmentFingerprintKey =
+    cryptoKeys.INTERNAL_ENROLLMENT_FINGERPRINT_KEY_BASE64;
+  const agentPhoneEncryptionKey = cryptoKeys.AGENT_PHONE_ENCRYPTION_KEY_BASE64;
+  const agentPhoneFingerprintKey =
+    cryptoKeys.AGENT_PHONE_FINGERPRINT_KEY_BASE64;
+  const otpFingerprintKey = cryptoKeys.OTP_FINGERPRINT_KEY_BASE64;
+  const orderContactEncryptionKey =
+    cryptoKeys.ORDER_CONTACT_ENCRYPTION_KEY_BASE64;
+  const orderContactFingerprintKey =
+    cryptoKeys.ORDER_CONTACT_FINGERPRINT_KEY_BASE64;
   const guestEmailDomain = optionalDevelopmentString(
     raw.PAYSTACK_GUEST_EMAIL_DOMAIN,
     'example.com',
@@ -462,6 +423,146 @@ function optionalDevelopmentString(
     return developmentFallback;
   }
   return requiredString(value, name);
+}
+
+function cryptoKeysEnvironment(
+  raw: Record<string, unknown>,
+  environment: NodeEnvironment,
+): {
+  VOUCHER_MASTER_KEY_BASE64: string;
+  VOUCHER_FINGERPRINT_KEY_BASE64: string;
+  SESSION_FINGERPRINT_KEY_BASE64: string;
+  INTERNAL_ENROLLMENT_FINGERPRINT_KEY_BASE64: string;
+  AGENT_PHONE_ENCRYPTION_KEY_BASE64: string;
+  AGENT_PHONE_FINGERPRINT_KEY_BASE64: string;
+  OTP_FINGERPRINT_KEY_BASE64: string;
+  ORDER_CONTACT_ENCRYPTION_KEY_BASE64: string;
+  ORDER_CONTACT_FINGERPRINT_KEY_BASE64: string;
+} {
+  const jsonRaw = raw.DASHCHECKER_CRYPTO_KEYS_JSON;
+  const hasJson = typeof jsonRaw === 'string' && jsonRaw.trim().length > 0;
+  if (hasJson) {
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(jsonRaw) as Record<string, unknown>;
+    } catch {
+      throw new Error('DASHCHECKER_CRYPTO_KEYS_JSON must be valid JSON');
+    }
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      Array.isArray(parsed)
+    ) {
+      throw new Error('DASHCHECKER_CRYPTO_KEYS_JSON must be a JSON object');
+    }
+    const keys: Record<string, string> = {};
+    const specs: Array<[string, boolean]> = [
+      ['VOUCHER_MASTER_KEY_BASE64', true],
+      ['VOUCHER_FINGERPRINT_KEY_BASE64', false],
+      ['SESSION_FINGERPRINT_KEY_BASE64', false],
+      ['INTERNAL_ENROLLMENT_FINGERPRINT_KEY_BASE64', false],
+      ['AGENT_PHONE_ENCRYPTION_KEY_BASE64', true],
+      ['AGENT_PHONE_FINGERPRINT_KEY_BASE64', false],
+      ['OTP_FINGERPRINT_KEY_BASE64', false],
+      ['ORDER_CONTACT_ENCRYPTION_KEY_BASE64', true],
+      ['ORDER_CONTACT_FINGERPRINT_KEY_BASE64', false],
+    ];
+    for (const [name, exact] of specs) {
+      keys[name] = requiredBase64Key(
+        parsed[name],
+        `DASHCHECKER_CRYPTO_KEYS_JSON.${name}`,
+        32,
+        exact,
+      );
+    }
+    const values = Object.values(keys);
+    if (new Set(values).size !== values.length) {
+      throw new Error(
+        'DASHCHECKER_CRYPTO_KEYS_JSON keys must be distinct; reuse across purposes is not allowed',
+      );
+    }
+    return keys as {
+      VOUCHER_MASTER_KEY_BASE64: string;
+      VOUCHER_FINGERPRINT_KEY_BASE64: string;
+      SESSION_FINGERPRINT_KEY_BASE64: string;
+      INTERNAL_ENROLLMENT_FINGERPRINT_KEY_BASE64: string;
+      AGENT_PHONE_ENCRYPTION_KEY_BASE64: string;
+      AGENT_PHONE_FINGERPRINT_KEY_BASE64: string;
+      OTP_FINGERPRINT_KEY_BASE64: string;
+      ORDER_CONTACT_ENCRYPTION_KEY_BASE64: string;
+      ORDER_CONTACT_FINGERPRINT_KEY_BASE64: string;
+    };
+  }
+  if (environment === 'production') {
+    throw new Error('DASHCHECKER_CRYPTO_KEYS_JSON is required in production');
+  }
+  const voucherMasterKey = requiredBase64Key(
+    raw.VOUCHER_MASTER_KEY_BASE64,
+    'VOUCHER_MASTER_KEY_BASE64',
+    32,
+    true,
+  );
+  const voucherFingerprintKey = requiredBase64Key(
+    raw.VOUCHER_FINGERPRINT_KEY_BASE64,
+    'VOUCHER_FINGERPRINT_KEY_BASE64',
+    32,
+    false,
+  );
+  const sessionFingerprintKey = requiredBase64Key(
+    raw.SESSION_FINGERPRINT_KEY_BASE64,
+    'SESSION_FINGERPRINT_KEY_BASE64',
+    32,
+    false,
+  );
+  const enrollmentFingerprintKey = requiredBase64Key(
+    raw.INTERNAL_ENROLLMENT_FINGERPRINT_KEY_BASE64,
+    'INTERNAL_ENROLLMENT_FINGERPRINT_KEY_BASE64',
+    32,
+    false,
+  );
+  const agentPhoneEncryptionKey = requiredBase64Key(
+    raw.AGENT_PHONE_ENCRYPTION_KEY_BASE64,
+    'AGENT_PHONE_ENCRYPTION_KEY_BASE64',
+    32,
+    true,
+  );
+  const agentPhoneFingerprintKey = requiredBase64Key(
+    raw.AGENT_PHONE_FINGERPRINT_KEY_BASE64,
+    'AGENT_PHONE_FINGERPRINT_KEY_BASE64',
+    32,
+    false,
+  );
+  const otpFingerprintKey = requiredBase64Key(
+    raw.OTP_FINGERPRINT_KEY_BASE64,
+    'OTP_FINGERPRINT_KEY_BASE64',
+    32,
+    false,
+  );
+  const orderContactEncryptionKey = optionalDevelopmentKey(
+    raw.ORDER_CONTACT_ENCRYPTION_KEY_BASE64,
+    agentPhoneEncryptionKey,
+    'ORDER_CONTACT_ENCRYPTION_KEY_BASE64',
+    environment,
+    true,
+  );
+  const orderContactFingerprintKey = optionalDevelopmentKey(
+    raw.ORDER_CONTACT_FINGERPRINT_KEY_BASE64,
+    agentPhoneFingerprintKey,
+    'ORDER_CONTACT_FINGERPRINT_KEY_BASE64',
+    environment,
+    false,
+  );
+  return {
+    VOUCHER_MASTER_KEY_BASE64: voucherMasterKey,
+    VOUCHER_FINGERPRINT_KEY_BASE64: voucherFingerprintKey,
+    SESSION_FINGERPRINT_KEY_BASE64: sessionFingerprintKey,
+    INTERNAL_ENROLLMENT_FINGERPRINT_KEY_BASE64: enrollmentFingerprintKey,
+    AGENT_PHONE_ENCRYPTION_KEY_BASE64: agentPhoneEncryptionKey,
+    AGENT_PHONE_FINGERPRINT_KEY_BASE64: agentPhoneFingerprintKey,
+    OTP_FINGERPRINT_KEY_BASE64: otpFingerprintKey,
+    ORDER_CONTACT_ENCRYPTION_KEY_BASE64: orderContactEncryptionKey,
+    ORDER_CONTACT_FINGERPRINT_KEY_BASE64: orderContactFingerprintKey,
+  };
 }
 
 function requiredBase64Key(
