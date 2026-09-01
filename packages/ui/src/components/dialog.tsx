@@ -29,7 +29,7 @@ function DialogBackdrop({
   return (
     <DialogPrimitive.Backdrop
       className={cn(
-        "fixed inset-0 z-50 bg-black/60 backdrop-blur-xs transition-all data-[ending-style]:opacity-0 data-[starting-style]:opacity-0",
+        "fixed inset-0 z-50 bg-black/45 backdrop-blur-[1.5px] transition-all data-[ending-style]:opacity-0 data-[starting-style]:opacity-0",
         className
       )}
       {...props}
@@ -49,14 +49,14 @@ function DialogPopup({
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
         <DialogPrimitive.Popup
           className={cn(
-            "relative w-full max-w-lg rounded-2xl border bg-background p-6 shadow-2xl transition-all duration-200 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0",
+            "relative w-full max-w-xl rounded-2xl border border-border/70 bg-background p-6 shadow-[0_30px_80px_-30px_rgba(15,23,42,0.5)] transition-all duration-200 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0",
             className
           )}
           {...props}
         >
           {children}
           {showClose && (
-            <DialogPrimitive.Close className="absolute right-4 top-4 flex size-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none">
+            <DialogPrimitive.Close className="absolute right-4 top-4 flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               <HugeiconsIcon icon={Cancel01Icon} className="size-4" />
               <span className="sr-only">Close</span>
             </DialogPrimitive.Close>
@@ -94,7 +94,7 @@ function DialogTitle({
 }: React.ComponentProps<typeof DialogPrimitive.Title>) {
   return (
     <DialogPrimitive.Title
-      className={cn("text-lg font-semibold tracking-tight text-foreground", className)}
+      className={cn("font-heading text-xl font-semibold tracking-tight text-foreground", className)}
       {...props}
     />
   )
@@ -106,7 +106,7 @@ function DialogDescription({
 }: React.ComponentProps<typeof DialogPrimitive.Description>) {
   return (
     <DialogPrimitive.Description
-      className={cn("text-sm text-muted-foreground", className)}
+      className={cn("text-sm leading-6 text-muted-foreground", className)}
       {...props}
     />
   )

@@ -92,8 +92,8 @@ export function WorkspaceSidebar({
   const visible = navItems.filter((item) => item.roles.includes(role))
 
   const sidebarContent = (
-    <div className="flex h-full flex-col justify-between bg-card text-card-foreground">
-      <div className="flex h-16 items-center justify-between border-b border-border px-5">
+    <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
+      <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-5">
         <div className="flex items-center gap-2 select-none">
           <img
             src="/logo-mark.svg"
@@ -108,8 +108,8 @@ export function WorkspaceSidebar({
           <span className="font-heading text-lg font-semibold">
             Dashchecker
           </span>
-          <span className="rounded border border-border/50 bg-muted/60 px-1.5 py-0.5 text-[0.65rem] font-bold tracking-[0.18em] text-muted-foreground uppercase">
-            Administration
+          <span className="rounded-sm border border-sidebar-border bg-sidebar-accent px-1.5 py-0.5 text-[0.62rem] font-semibold tracking-[0.14em] text-sidebar-accent-foreground uppercase">
+            Admin
           </span>
         </div>
         <Button
@@ -124,9 +124,9 @@ export function WorkspaceSidebar({
         </Button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3 py-4">
+      <div className="flex-1 overflow-y-auto px-3 py-5">
         <nav aria-label="Main Navigation">
-          <ul className="flex flex-col gap-1">
+          <ul className="flex flex-col gap-1.5">
             {visible.map((item) => {
               const active = isActive(pathname, item.href)
 
@@ -135,12 +135,12 @@ export function WorkspaceSidebar({
                   <Link
                     aria-current={active ? "page" : undefined}
                     className={cn(
-                      "group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                      "hover:bg-accent hover:text-accent-foreground",
-                      "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                      "group flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                      "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                      "focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-none",
                       active
-                        ? "bg-accent font-semibold text-accent-foreground shadow-sm"
-                        : "text-muted-foreground"
+                        ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                        : "text-sidebar-foreground/70"
                     )}
                     href={item.href}
                     onClick={onCloseMobile}
@@ -149,8 +149,8 @@ export function WorkspaceSidebar({
                       className={cn(
                         "transition-colors",
                         active
-                          ? "text-primary"
-                          : "text-muted-foreground group-hover:text-foreground"
+                          ? "text-sidebar-primary"
+                          : "text-sidebar-foreground/60 group-hover:text-sidebar-foreground"
                       )}
                       icon={item.icon}
                     />
@@ -167,7 +167,7 @@ export function WorkspaceSidebar({
 
   return (
     <>
-      <aside className="hidden w-64 shrink-0 border-r border-border lg:block">
+      <aside className="hidden w-64 shrink-0 border-r border-sidebar-border lg:block">
         <div className="sticky top-0 h-svh">{sidebarContent}</div>
       </aside>
 
@@ -177,7 +177,7 @@ export function WorkspaceSidebar({
             className="fixed inset-0 bg-background/80 backdrop-blur-sm transition-opacity"
             onClick={onCloseMobile}
           />
-          <aside className="relative z-10 w-72 max-w-[80vw] border-r border-border shadow-xl">
+          <aside className="relative z-10 w-72 max-w-[80vw] border-r border-sidebar-border shadow-xl">
             {sidebarContent}
           </aside>
         </div>
