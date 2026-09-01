@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/require-await, @typescript-eslint/unbound-method -- test mocks use any and jest.fn without await */
 import { CloudTasksOutboxDispatcher } from './cloud-tasks-outbox.dispatcher';
 import type { CloudTasksOutboxPublisher } from './cloud-tasks-outbox.publisher';
 import type { OutboxService } from './outbox.service';
@@ -11,17 +10,31 @@ describe('CloudTasksOutboxDispatcher', () => {
       { id: 'event-3', eventType: 'PRODUCT_PRICING_POLICY_CREATED' },
     ];
 
-    const markQueued = jest.fn(async () => true);
-    const reschedule = jest.fn(async () => {});
-    const claimAvailableForEventTypes = jest.fn(async () => events as never);
+    const markQueued = jest.fn(() => Promise.resolve(true));
+    const reschedule = jest.fn(
+      (eventId: string, claimToken: string, input: unknown) => {
+        void eventId;
+        void claimToken;
+        void input;
+        return Promise.resolve();
+      },
+    );
+    const claimAvailableForEventTypes = jest.fn(
+      (limit: number, claimToken: string, eventTypes: readonly string[]) => {
+        void limit;
+        void claimToken;
+        void eventTypes;
+        return Promise.resolve(events);
+      },
+    );
     const outbox = {
       claimAvailableForEventTypes,
       markQueued,
       reschedule,
     } as unknown as OutboxService;
 
-    const publisher = {
-      publish: jest.fn(async (input: { eventId: string }) => {
+    const publish = jest.fn(
+      (input: { eventId: string; claimToken: string; eventType: string }) => {
         if (input.eventId === 'event-2') {
           throw new Error('Cloud Tasks publish failed - unavailable');
         }
@@ -29,14 +42,15 @@ describe('CloudTasksOutboxDispatcher', () => {
         // The dispatcher delegates to publisher, body checked in publisher; here we just ensure publish called with correct shape
         expect(input).toEqual(
           expect.objectContaining({
-            eventId: expect.any(String),
-            claimToken: expect.any(String),
-            eventType: expect.any(String),
+            eventId: expect.any(String) as unknown,
+            claimToken: expect.any(String) as unknown,
+            eventType: expect.any(String) as unknown,
           }),
         );
         expect(input).not.toHaveProperty('payload');
-      }),
-    } as unknown as CloudTasksOutboxPublisher;
+      },
+    );
+    const publisher = { publish } as unknown as CloudTasksOutboxPublisher;
 
     const dispatcher = new CloudTasksOutboxDispatcher(outbox, publisher);
 
@@ -45,12 +59,13 @@ describe('CloudTasksOutboxDispatcher', () => {
     expect(count).toBe(3);
     expect(claimAvailableForEventTypes).toHaveBeenCalledTimes(1);
     // Check batch size param is 25 and event types includes informational
-    const claimArgs = (claimAvailableForEventTypes as any).mock.calls[0];
+    const claimArgs = claimAvailableForEventTypes.mock.calls[0];
     expect(claimArgs[0]).toBe(25);
     expect(typeof claimArgs[1]).toBe('string'); // claimToken
     expect(Array.isArray(claimArgs[2])).toBe(true);
+    expect(claimArgs[2]).toContain('DELIVERY_MESSAGE_REQUESTED');
 
-    expect(publisher.publish).toHaveBeenCalledTimes(3);
+    expect(publish).toHaveBeenCalledTimes(3);
     expect(markQueued).toHaveBeenCalledTimes(2);
     expect(markQueued).toHaveBeenCalledWith('event-1', expect.any(String));
     expect(markQueued).toHaveBeenCalledWith('event-3', expect.any(String));
@@ -61,12 +76,15 @@ describe('CloudTasksOutboxDispatcher', () => {
       'event-2',
       expect.any(String),
       expect.objectContaining({
-        error: expect.stringContaining('Cloud Tasks publish failed'),
+        error: expect.stringContaining('Cloud Tasks publish failed') as unknown,
       }),
     );
-    const rescheduleError = (
-      (reschedule as any).mock.calls[0][2] as { error: string }
-    ).error;
+    const rescheduleCall = reschedule.mock.calls[0] as [
+      string,
+      string,
+      { error: string },
+    ];
+    const rescheduleError = rescheduleCall[2].error;
     expect(rescheduleError.length).toBeLessThanOrEqual(500);
   });
 
@@ -75,30 +93,25 @@ describe('CloudTasksOutboxDispatcher', () => {
       { id: 'event-secret', eventType: 'PAYMENT_INITIALIZATION_REQUESTED' },
     ];
     const outbox = {
-      claimAvailableForEventTypes: jest.fn(async () => events as never),
-      markQueued: jest.fn(async () => true),
-      reschedule: jest.fn(async () => {}),
+      claimAvailableForEventTypes: jest.fn(() => Promise.resolve(events)),
+      markQueued: jest.fn(() => Promise.resolve(true)),
+      reschedule: jest.fn(() => Promise.resolve()),
     } as unknown as OutboxService;
 
     let capturedBody: Record<string, unknown> | null = null;
-    const publisher = {
-      publish: jest.fn(
-        async (input: {
-          eventId: string;
-          claimToken: string;
-          eventType: string;
-        }) => {
-          capturedBody = {
-            eventId: input.eventId,
-            claimToken: input.claimToken,
-            eventType: input.eventType,
-          };
-          expect(input).not.toHaveProperty('payload');
-          expect(input).not.toHaveProperty('phone');
-          expect(input).not.toHaveProperty('email');
-        },
-      ),
-    } as unknown as CloudTasksOutboxPublisher;
+    const publish = jest.fn(
+      (input: { eventId: string; claimToken: string; eventType: string }) => {
+        capturedBody = {
+          eventId: input.eventId,
+          claimToken: input.claimToken,
+          eventType: input.eventType,
+        };
+        expect(input).not.toHaveProperty('payload');
+        expect(input).not.toHaveProperty('phone');
+        expect(input).not.toHaveProperty('email');
+      },
+    );
+    const publisher = { publish } as unknown as CloudTasksOutboxPublisher;
 
     const dispatcher = new CloudTasksOutboxDispatcher(outbox, publisher);
     await dispatcher.publishPending();
@@ -112,19 +125,21 @@ describe('CloudTasksOutboxDispatcher', () => {
   });
 
   it('includes DELIVERY_MESSAGE_REQUESTED for all environments (router handles production guard)', async () => {
-    const claimAvailableForEventTypes = jest.fn(async () => [] as never);
+    const claimAvailableForEventTypes = jest.fn(
+      (_limit: number, _claimToken: string, eventTypes: readonly string[]) =>
+        Promise.resolve(eventTypes),
+    );
     const outbox = {
       claimAvailableForEventTypes,
       markQueued: jest.fn(),
       reschedule: jest.fn(),
     } as unknown as OutboxService;
     const publisher = {
-      publish: jest.fn(),
+      publish: jest.fn(() => Promise.resolve()),
     } as unknown as CloudTasksOutboxPublisher;
     const dispatcher = new CloudTasksOutboxDispatcher(outbox, publisher);
     await dispatcher.publishPending();
-    const eventTypes = (claimAvailableForEventTypes as unknown as jest.Mock)
-      .mock.calls[0][2] as string[];
+    const eventTypes = claimAvailableForEventTypes.mock.calls[0][2];
     expect(eventTypes).toContain('DELIVERY_MESSAGE_REQUESTED');
   });
 });

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/unbound-method */
 import { WalletController } from './wallet.controller';
 import type { WalletService } from './wallet.service';
 import type { WithdrawalsService } from './withdrawals.service';
@@ -6,8 +5,11 @@ import type { AgentPrincipal } from '../agent-access/agent-access.types';
 
 describe('WalletController', () => {
   let controller: WalletController;
-  let service: jest.Mocked<WalletService>;
-  let withdrawals: jest.Mocked<WithdrawalsService>;
+  let service: {
+    getSummary: jest.Mock;
+    getTransactions: jest.Mock;
+  };
+  let withdrawals: { listForAgent: jest.Mock; request: jest.Mock };
 
   const mockPrincipal: AgentPrincipal = {
     agentId: 'agent-uuid-1234',
@@ -23,13 +25,16 @@ describe('WalletController', () => {
     service = {
       getSummary: jest.fn(),
       getTransactions: jest.fn(),
-    } as unknown as jest.Mocked<WalletService>;
+    };
     withdrawals = {
       listForAgent: jest.fn(),
       request: jest.fn(),
-    } as unknown as jest.Mocked<WithdrawalsService>;
+    };
 
-    controller = new WalletController(service, withdrawals);
+    controller = new WalletController(
+      service as unknown as WalletService,
+      withdrawals as unknown as WithdrawalsService,
+    );
   });
 
   it('passes the authenticated principal agentId to getSummary', async () => {

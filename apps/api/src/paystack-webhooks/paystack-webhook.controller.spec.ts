@@ -1,26 +1,29 @@
-/* eslint-disable @typescript-eslint/unbound-method */
 import { PaystackWebhookController } from './paystack-webhook.controller';
 import type { PaymentGatewayService } from '../payments/payment-gateway.service';
 import type { PaymentProcessingService } from '../payments/payment-processing.service';
 import type { WithdrawalsService } from '../wallet/withdrawals.service';
 
 describe('PaystackWebhookController', () => {
-  let gateway: jest.Mocked<PaymentGatewayService>;
-  let payments: jest.Mocked<PaymentProcessingService>;
-  let withdrawals: jest.Mocked<WithdrawalsService>;
+  let gateway: { assertWebhookSignature: jest.Mock };
+  let payments: {
+    processPaystackWebhook: jest.Mock;
+  };
+  let withdrawals: { reconcileReference: jest.Mock };
   let controller: PaystackWebhookController;
 
   beforeEach(() => {
-    gateway = {
-      assertWebhookSignature: jest.fn(),
-    } as unknown as jest.Mocked<PaymentGatewayService>;
+    gateway = { assertWebhookSignature: jest.fn() };
     payments = {
       processPaystackWebhook: jest.fn(),
-    } as unknown as jest.Mocked<PaymentProcessingService>;
+    };
     withdrawals = {
       reconcileReference: jest.fn(),
-    } as unknown as jest.Mocked<WithdrawalsService>;
-    controller = new PaystackWebhookController(gateway, payments, withdrawals);
+    };
+    controller = new PaystackWebhookController(
+      gateway as unknown as PaymentGatewayService,
+      payments as unknown as PaymentProcessingService,
+      withdrawals as unknown as WithdrawalsService,
+    );
   });
 
   it('routes a signed transfer event through provider reconciliation', async () => {

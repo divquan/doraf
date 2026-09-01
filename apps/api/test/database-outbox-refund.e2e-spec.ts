@@ -1,5 +1,4 @@
-/* eslint-disable @typescript-eslint/require-await, @typescript-eslint/no-unused-vars -- test mocks use any and jest.fn without await */
-import { randomUUID, randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../src/database/prisma.service';
 import { OutboxService } from '../src/operations/outbox.service';
@@ -16,18 +15,25 @@ describeIfDb('Refund outbox duplicate safety (e2e with PostgreSQL)', () => {
   let moduleRef: TestingModule;
   let prisma: PrismaService;
   let handler: RefundOutboxHandler;
-  let outbox: OutboxService;
   let gatewaySubmitCalls = 0;
 
   const mockGateway = {
-    findRefundByTransaction: jest.fn(async () => null),
-    submitRefund: jest.fn(async () => {
+    findRefundByTransaction: jest.fn().mockResolvedValue(null),
+    submitRefund: jest.fn().mockImplementation(() => {
       gatewaySubmitCalls += 1;
-      return { reference: `refund_${randomUUID()}`, status: 'pending' };
+      return Promise.resolve({
+        reference: `refund_${randomUUID()}`,
+        status: 'pending',
+      });
     }),
     fetchRefund: jest.fn(),
     // other methods not needed
-  } as unknown as PaymentGatewayService;
+  } as unknown as jest.Mocked<
+    Pick<
+      PaymentGatewayService,
+      'findRefundByTransaction' | 'submitRefund' | 'fetchRefund'
+    >
+  >;
 
   beforeAll(async () => {
     const config = {
@@ -37,7 +43,7 @@ describeIfDb('Refund outbox duplicate safety (e2e with PostgreSQL)', () => {
         if (key === 'PAYSTACK_SECRET_KEY') return 'sk_test_jest';
         return 'test';
       }),
-      getOrThrow: jest.fn((key: string) => 'test'),
+      getOrThrow: jest.fn(() => 'test'),
     } as unknown as ConfigService<AppEnvironment, true>;
 
     moduleRef = await Test.createTestingModule({
@@ -51,7 +57,6 @@ describeIfDb('Refund outbox duplicate safety (e2e with PostgreSQL)', () => {
 
     prisma = moduleRef.get(PrismaService);
     handler = moduleRef.get(RefundOutboxHandler);
-    outbox = moduleRef.get(OutboxService);
   });
 
   afterAll(async () => {
@@ -61,10 +66,13 @@ describeIfDb('Refund outbox duplicate safety (e2e with PostgreSQL)', () => {
   beforeEach(() => {
     gatewaySubmitCalls = 0;
     jest.clearAllMocks();
-    mockGateway.findRefundByTransaction = jest.fn(async () => null);
-    (mockGateway.submitRefund as any) = jest.fn(async () => {
+    mockGateway.findRefundByTransaction.mockResolvedValue(null);
+    mockGateway.submitRefund.mockImplementation(() => {
       gatewaySubmitCalls += 1;
-      return { reference: `refund_${randomUUID()}`, status: 'pending' };
+      return Promise.resolve({
+        reference: `refund_${randomUUID()}`,
+        status: 'pending',
+      });
     });
   });
 
@@ -173,11 +181,11 @@ describeIfDb('Refund outbox duplicate safety (e2e with PostgreSQL)', () => {
       },
     });
 
-    mockGateway.findRefundByTransaction = jest.fn(async () => null);
-    (mockGateway.submitRefund as any) = jest.fn(async () => ({
+    mockGateway.findRefundByTransaction.mockResolvedValue(null);
+    mockGateway.submitRefund.mockResolvedValue({
       reference: `prov_${randomUUID()}`,
       status: 'success',
-    }));
+    });
 
     await handler.handleClaimed(event1.id, claimToken1);
     const afterWinner = await prisma.refund.findUniqueOrThrow({
@@ -202,7 +210,7 @@ describeIfDb('Refund outbox duplicate safety (e2e with PostgreSQL)', () => {
       },
     });
 
-    mockGateway.findRefundByTransaction = jest.fn(async () => null);
+    mockGateway.findRefundByTransaction.mockResolvedValue(null);
     await handler.handleClaimed(event2.id, claimToken2);
 
     const final = await prisma.refund.findUniqueOrThrow({
@@ -251,21 +259,24 @@ describeIfDb('Refund outbox duplicate safety (e2e with PostgreSQL)', () => {
       },
     });
 
-    let resolveWinnerSubmit: (value: any) => void;
-    const winnerSubmitPromise = new Promise<any>((resolve) => {
-      resolveWinnerSubmit = resolve;
-    });
+    const submissionStarted = createDeferred<void>();
+    const winnerSubmit = createDeferred<{
+      reference: string;
+      status: string;
+    }>();
 
-    mockGateway.findRefundByTransaction = jest.fn(async () => null);
-    (mockGateway.submitRefund as any) = jest.fn(() => winnerSubmitPromise);
+    mockGateway.findRefundByTransaction.mockResolvedValue(null);
+    mockGateway.submitRefund.mockImplementation(() => {
+      submissionStarted.resolve();
+      return winnerSubmit.promise;
+    });
 
     const winnerHandlePromise = handler.handleClaimed(
       eventWinner.id,
       claimTokenWinner,
     );
 
-    // Give winner time to acquire atomic claim and reach submitRefund
-    await new Promise((r) => setTimeout(r, 100));
+    await submissionStarted.promise;
 
     // Loser tries to handle same refund concurrently while winner is paused
     const loserHandlePromise = handler.handleClaimed(
@@ -273,19 +284,15 @@ describeIfDb('Refund outbox duplicate safety (e2e with PostgreSQL)', () => {
       claimTokenLoser,
     );
 
-    // Loser should enter deferUnknownOutcome path and attempt conditional update (which should not overwrite)
-    await new Promise((r) => setTimeout(r, 100));
-
-    // Now let winner complete
-    resolveWinnerSubmit!({
+    winnerSubmit.resolve({
       reference: `prov_${randomUUID()}`,
       status: 'success',
     });
-    const winnerResult = await winnerHandlePromise;
+    const [winnerResult, loserResult] = await Promise.all([
+      winnerHandlePromise,
+      loserHandlePromise,
+    ]);
     expect(winnerResult).toBe(true);
-
-    const loserResult = await loserHandlePromise;
-    // Loser should have been deferred (false) but not thrown, and not overwritten winner
     expect([true, false]).toContain(loserResult);
 
     const finalRefund = await prisma.refund.findUniqueOrThrow({
@@ -312,30 +319,55 @@ describeIfDb('Refund outbox duplicate safety (e2e with PostgreSQL)', () => {
     expect(finalAgain.state).toBe('SUCCESS');
   });
 
-  it('deferUnknownOutcome conditional update does not overwrite already SUCCESS refund', async () => {
+  it('defers an in-flight submission without overwriting a concurrent SUCCESS', async () => {
     const refund = await createRefundFixture(prisma, 'APPROVED');
-    // Simulate winner already completed to SUCCESS
     const submissionKey = `dashchecker-refund-${randomUUID()}`;
     await prisma.refund.update({
       where: { id: refund.id },
       data: {
-        state: 'SUCCESS',
-        providerReference: `prov_${randomUUID()}`,
+        state: 'SUBMITTING',
         submissionKey,
         attemptCount: 1,
       },
     });
 
-    // Directly test the conditional update used in deferUnknownOutcome
-    const updated = await prisma.refund.updateMany({
-      where: {
-        id: refund.id,
-        providerReference: null,
-        state: { in: ['SUBMITTING', 'PENDING', 'APPROVED'] },
+    const event = await prisma.outboxEvent.create({
+      data: {
+        eventType: 'REFUND_SUBMISSION_REQUIRED',
+        aggregateType: 'REFUND',
+        aggregateId: refund.id,
+        aggregateVersion: 2,
+        payload: { refundId: refund.id },
+        state: 'CLAIMED',
+        claimToken: randomUUID(),
+        claimedAt: new Date(),
+        leaseUntil: new Date(Date.now() + 60_000),
+        attemptCount: 1,
+        availableAt: new Date(),
       },
-      data: { state: 'PENDING', nextReconciliationAt: new Date() },
     });
-    expect(updated.count).toBe(0);
+
+    const providerLookup = createDeferred<null>();
+    const lookupStarted = createDeferred<void>();
+    mockGateway.findRefundByTransaction.mockImplementation(() => {
+      lookupStarted.resolve();
+      return providerLookup.promise;
+    });
+    const handlerPromise = handler.handleClaimed(
+      event.id,
+      event.claimToken as string,
+    );
+
+    await lookupStarted.promise;
+    await prisma.refund.update({
+      where: { id: refund.id },
+      data: {
+        state: 'SUCCESS',
+        providerReference: `prov_${randomUUID()}`,
+      },
+    });
+    providerLookup.resolve(null);
+    await expect(handlerPromise).resolves.toBe(false);
 
     const final = await prisma.refund.findUniqueOrThrow({
       where: { id: refund.id },
@@ -343,44 +375,15 @@ describeIfDb('Refund outbox duplicate safety (e2e with PostgreSQL)', () => {
     expect(final.state).toBe('SUCCESS');
     expect(final.providerReference).toBeTruthy();
   });
-
-  it('loser that already read SUBMITTING before winner SUCCESS cannot overwrite via defer', async () => {
-    const refund = await createRefundFixture(prisma, 'APPROVED');
-    const submissionKey = `dashchecker-refund-${randomUUID()}`;
-    // Winner claims and sets to SUBMITTING
-    await prisma.refund.update({
-      where: { id: refund.id },
-      data: { state: 'SUBMITTING', submissionKey, attemptCount: 1 },
-    });
-
-    // Loser reads SUBMITTING (before winner completes) – simulate by not re-reading
-
-    // Winner completes to SUCCESS
-    const winnerProviderRef = `prov_${randomUUID()}`;
-    await prisma.refund.update({
-      where: { id: refund.id },
-      data: { state: 'SUCCESS', providerReference: winnerProviderRef },
-    });
-
-    // Now loser tries to defer (as it would after failing atomic claim and seeing submissionKey exists)
-    // It calls deferUnknownOutcome which does conditional updateMany
-    const updated = await prisma.refund.updateMany({
-      where: {
-        id: refund.id,
-        providerReference: null,
-        state: { in: ['SUBMITTING', 'PENDING', 'APPROVED'] },
-      },
-      data: { state: 'PENDING', nextReconciliationAt: new Date() },
-    });
-    expect(updated.count).toBe(0);
-
-    const final = await prisma.refund.findUniqueOrThrow({
-      where: { id: refund.id },
-    });
-    expect(final.state).toBe('SUCCESS');
-    expect(final.providerReference).toBe(winnerProviderRef);
-  });
 });
+
+function createDeferred<T>() {
+  let resolvePromise!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((resolve) => {
+    resolvePromise = resolve;
+  });
+  return { promise, resolve: resolvePromise };
+}
 
 async function createRefundFixture(
   prisma: PrismaService,

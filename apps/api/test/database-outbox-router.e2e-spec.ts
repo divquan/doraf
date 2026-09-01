@@ -1,5 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unused-vars -- test mocks use any and jest.fn without await */
-import { randomUUID, randomBytes } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../src/database/prisma.service';
 import { OutboxService } from '../src/operations/outbox.service';
@@ -10,7 +9,6 @@ import { WithdrawalOutboxHandler } from '../src/wallet/withdrawal-outbox.handler
 import { DeliveryOutboxHandler } from '../src/delivery/delivery-outbox.handler';
 import { ConfigService } from '@nestjs/config';
 import type { AppEnvironment } from '../src/config/environment';
-import { PaymentGatewayService } from '../src/payments/payment-gateway.service';
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
 const describeIfDb = databaseUrl ? describe : describe.skip;
@@ -22,13 +20,13 @@ describeIfDb(
     let moduleRef: TestingModule;
     let prisma: PrismaService;
     let router: OutboxTaskRouter;
-    let outbox: OutboxService;
+    let nodeEnvironment = 'test';
 
     beforeAll(async () => {
       const config = {
         get: jest.fn((key: string) => {
           if (key === 'DATABASE_URL') return databaseUrl;
-          if (key === 'NODE_ENV') return 'test';
+          if (key === 'NODE_ENV') return nodeEnvironment;
           if (key === 'CLOUD_TASKS_AUDIENCE')
             return 'http://localhost:3000/internal/tasks/outbox';
           if (key === 'CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL')
@@ -47,26 +45,25 @@ describeIfDb(
           OutboxService,
           {
             provide: PricingOutboxHandler,
-            useValue: { handleClaimed: jest.fn(async () => {}) },
+            useValue: { handleClaimed: jest.fn(() => Promise.resolve()) },
           },
           {
             provide: RefundOutboxHandler,
-            useValue: { handleClaimed: jest.fn(async () => {}) },
+            useValue: { handleClaimed: jest.fn(() => Promise.resolve()) },
           },
           {
             provide: WithdrawalOutboxHandler,
-            useValue: { handleClaimed: jest.fn(async () => {}) },
+            useValue: { handleClaimed: jest.fn(() => Promise.resolve()) },
           },
           {
             provide: DeliveryOutboxHandler,
-            useValue: { handleClaimed: jest.fn(async () => {}) },
+            useValue: { handleClaimed: jest.fn(() => Promise.resolve()) },
           },
           OutboxTaskRouter,
         ],
       }).compile();
 
       prisma = moduleRef.get(PrismaService);
-      outbox = moduleRef.get(OutboxService);
       router = moduleRef.get(OutboxTaskRouter);
     });
 
@@ -205,16 +202,11 @@ describeIfDb(
         },
       });
 
-      // Temporarily set NODE_ENV to production for this test
-      const originalGet = (router as any).config.get;
-      (router as any).config.get = jest.fn((key: string) =>
-        key === 'NODE_ENV' ? 'production' : 'test',
-      );
+      nodeEnvironment = 'production';
 
       await router.handle({ eventId, claimToken });
 
-      // Restore
-      (router as any).config.get = originalGet;
+      nodeEnvironment = 'test';
 
       const final = await prisma.outboxEvent.findUniqueOrThrow({
         where: { id: eventId },

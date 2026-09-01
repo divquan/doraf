@@ -1,5 +1,5 @@
-/* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/require-await, @typescript-eslint/no-unused-vars -- test mocks use any and jest.fn without await */
 import { ConfigService } from '@nestjs/config';
+import type { AppEnvironment } from '../config/environment';
 import { CloudTasksOidcVerifier } from './cloud-tasks-oidc.verifier';
 import { OAuth2Client } from 'google-auth-library';
 
@@ -12,18 +12,16 @@ function createConfig(values: Record<string, string> = {}) {
   };
   return {
     get: (key: string) => store[key],
-  } as unknown as ConfigService<any, true>;
+  } as unknown as ConfigService<AppEnvironment, true>;
 }
 
 function createMockClient(payloadOrError: Record<string, unknown> | Error) {
-  const verifyIdToken = jest.fn(
-    async ({ idToken, audience }: { idToken: string; audience: string }) => {
-      if (payloadOrError instanceof Error) throw payloadOrError;
-      return {
-        getPayload: () => payloadOrError,
-      } as any;
-    },
-  );
+  const verifyIdToken = jest.fn(() => {
+    if (payloadOrError instanceof Error) throw payloadOrError;
+    return {
+      getPayload: () => payloadOrError,
+    } as unknown as Awaited<ReturnType<OAuth2Client['verifyIdToken']>>;
+  });
   const client = { verifyIdToken } as unknown as OAuth2Client;
   return { client, verifyIdToken };
 }

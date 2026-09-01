@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/require-await -- test mocks use any and jest.fn without await */
 import { Test } from '@nestjs/testing';
 import {
   ForbiddenException,
@@ -12,6 +11,12 @@ import { CloudTasksOidcVerifier } from './cloud-tasks-oidc.verifier';
 import { OutboxTaskRouter } from './outbox-task.router';
 import { OutboxService } from './outbox.service';
 
+type HttpServer = Parameters<typeof request>[0];
+
+function getServer(app: INestApplication): HttpServer {
+  return app.getHttpAdapter().getInstance() as HttpServer;
+}
+
 describe('OutboxTaskController (task-consumer)', () => {
   let app: INestApplication;
   let router: { handle: jest.Mock };
@@ -19,9 +24,11 @@ describe('OutboxTaskController (task-consumer)', () => {
   let outbox: { getState: jest.Mock };
 
   beforeEach(async () => {
-    router = { handle: jest.fn(async () => {}) };
-    verifier = { verifyAuthorizationHeader: jest.fn(async () => {}) };
-    outbox = { getState: jest.fn(async () => ({ state: 'CLAIMED' })) };
+    router = { handle: jest.fn(() => Promise.resolve()) };
+    verifier = { verifyAuthorizationHeader: jest.fn(() => Promise.resolve()) };
+    outbox = {
+      getState: jest.fn(() => Promise.resolve({ state: 'CLAIMED' })),
+    };
 
     const moduleRef = await Test.createTestingModule({
       controllers: [OutboxTaskController],
@@ -54,7 +61,7 @@ describe('OutboxTaskController (task-consumer)', () => {
   };
 
   it('returns 204 for valid authenticated request', async () => {
-    await request(app.getHttpServer())
+    await request(getServer(app))
       .post('/internal/tasks/outbox')
       .set('Authorization', 'Bearer valid')
       .send(validBody)
@@ -66,11 +73,11 @@ describe('OutboxTaskController (task-consumer)', () => {
   });
 
   it('returns 401 for missing bearer token and does not call router', async () => {
-    verifier.verifyAuthorizationHeader.mockImplementation(async () => {
+    verifier.verifyAuthorizationHeader.mockImplementation(() => {
       throw new UnauthorizedException('Missing bearer token');
     });
 
-    await request(app.getHttpServer())
+    await request(getServer(app))
       .post('/internal/tasks/outbox')
       .send(validBody)
       .expect(401);
@@ -78,11 +85,11 @@ describe('OutboxTaskController (task-consumer)', () => {
   });
 
   it('returns 403 for wrong principal and does not call router', async () => {
-    verifier.verifyAuthorizationHeader.mockImplementation(async () => {
+    verifier.verifyAuthorizationHeader.mockImplementation(() => {
       throw new ForbiddenException('Invalid token principal');
     });
 
-    await request(app.getHttpServer())
+    await request(getServer(app))
       .post('/internal/tasks/outbox')
       .set('Authorization', 'Bearer bad-principal')
       .send(validBody)
@@ -91,7 +98,7 @@ describe('OutboxTaskController (task-consumer)', () => {
   });
 
   it('returns 400 for malformed body and does not call router', async () => {
-    await request(app.getHttpServer())
+    await request(getServer(app))
       .post('/internal/tasks/outbox')
       .set('Authorization', 'Bearer valid')
       .send({
@@ -104,7 +111,7 @@ describe('OutboxTaskController (task-consumer)', () => {
   });
 
   it('returns 400 for unknown fields (whitelist + forbidNonWhitelisted)', async () => {
-    await request(app.getHttpServer())
+    await request(getServer(app))
       .post('/internal/tasks/outbox')
       .set('Authorization', 'Bearer valid')
       .send({ ...validBody, extra: 'field' })
@@ -116,7 +123,7 @@ describe('OutboxTaskController (task-consumer)', () => {
     router.handle.mockRejectedValueOnce(new Error('transient DB error'));
     outbox.getState.mockResolvedValueOnce({ state: 'CLAIMED' });
 
-    await request(app.getHttpServer())
+    await request(getServer(app))
       .post('/internal/tasks/outbox')
       .set('Authorization', 'Bearer valid')
       .send(validBody)
@@ -127,7 +134,7 @@ describe('OutboxTaskController (task-consumer)', () => {
     router.handle.mockRejectedValueOnce(new Error('refund definitive'));
     outbox.getState.mockResolvedValueOnce({ state: 'FAILED' });
 
-    await request(app.getHttpServer())
+    await request(getServer(app))
       .post('/internal/tasks/outbox')
       .set('Authorization', 'Bearer valid')
       .send(validBody)
@@ -137,7 +144,7 @@ describe('OutboxTaskController (task-consumer)', () => {
   it('returns 204 for stale task (router succeeds without error)', async () => {
     router.handle.mockResolvedValueOnce(undefined);
 
-    await request(app.getHttpServer())
+    await request(getServer(app))
       .post('/internal/tasks/outbox')
       .set('Authorization', 'Bearer valid')
       .send(validBody)
@@ -150,13 +157,14 @@ describe('OutboxTaskController (task-consumer)', () => {
     );
     outbox.getState.mockResolvedValueOnce({ state: 'CLAIMED' });
 
-    const res = await request(app.getHttpServer())
+    const res = await request(getServer(app))
       .post('/internal/tasks/outbox')
       .set('Authorization', 'Bearer valid')
       .send(validBody)
       .expect(500);
-    expect(res.body.message).not.toContain('voucher');
-    expect(res.body.message).not.toContain('secret');
-    expect(JSON.stringify(res.body)).not.toContain('stack');
+    const responseBody = res.body as Record<string, unknown>;
+    expect(String(responseBody.message)).not.toContain('voucher');
+    expect(String(responseBody.message)).not.toContain('secret');
+    expect(JSON.stringify(responseBody)).not.toContain('stack');
   });
 });

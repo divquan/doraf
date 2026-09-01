@@ -1,6 +1,6 @@
 export type NodeEnvironment = 'development' | 'production' | 'test';
 export type PaymentProviderMode = 'sandbox' | 'live';
-export type WorkerExecution = 'continuous' | 'run-once';
+export type WorkerExecution = 'run-once';
 
 export interface AppEnvironment {
   NODE_ENV: NodeEnvironment;
@@ -271,9 +271,9 @@ function booleanEnvironment(value: unknown, defaultValue: boolean): boolean {
 }
 
 function workerExecutionEnvironment(value: unknown): WorkerExecution {
-  const execution = value ?? 'continuous';
-  if (execution !== 'continuous' && execution !== 'run-once') {
-    throw new Error('WORKER_EXECUTION must be continuous or run-once');
+  const execution = value ?? 'run-once';
+  if (execution !== 'run-once') {
+    throw new Error('WORKER_EXECUTION must be run-once');
   }
   return execution;
 }

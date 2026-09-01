@@ -1,44 +1,16 @@
-import {
-  Injectable,
-  Logger,
-  OnModuleDestroy,
-  OnModuleInit,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import type { AppEnvironment } from '../config/environment';
+import { Injectable, Logger } from '@nestjs/common';
 import { OUTBOX_CLAIM_LEASE_MS, OutboxService } from './outbox.service';
-import { isContinuousWorker } from '../worker-runtime';
-
-const REPAIR_INTERVAL_MS = 30_000;
 
 /**
  * Reclaims work after a worker process dies while holding an outbox claim.
  * This runs only in the dedicated worker process, never in the HTTP process.
  */
 @Injectable()
-export class OutboxLeaseRecoveryWorker
-  implements OnModuleInit, OnModuleDestroy
-{
+export class OutboxLeaseRecoveryWorker {
   private readonly logger = new Logger(OutboxLeaseRecoveryWorker.name);
-  private timer?: NodeJS.Timeout;
   private running = false;
 
-  constructor(
-    private readonly config: ConfigService<AppEnvironment, true>,
-    private readonly outbox: OutboxService,
-  ) {}
-
-  onModuleInit() {
-    if (!isContinuousWorker(this.config)) return;
-    void this.runOnce();
-    this.timer = setInterval(() => void this.runOnce(), REPAIR_INTERVAL_MS);
-    this.timer.unref();
-    this.logger.log('Outbox lease recovery worker started');
-  }
-
-  onModuleDestroy() {
-    if (this.timer) clearInterval(this.timer);
-  }
+  constructor(private readonly outbox: OutboxService) {}
 
   async runOnce(): Promise<number> {
     if (this.running) return 0;

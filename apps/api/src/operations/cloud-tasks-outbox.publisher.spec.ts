@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/require-await -- test mocks use any and jest.fn without await */
 import { ConfigService } from '@nestjs/config';
 import type { AppEnvironment } from '../config/environment';
 import { CloudTasksOutboxPublisher } from './cloud-tasks-outbox.publisher';
@@ -23,22 +22,15 @@ function createConfig(
 
 function createFakeClient() {
   const calls: unknown[] = [];
-  const client = {
-    queuePath: jest.fn(
-      (project: string, location: string, queue: string) =>
-        `projects/${project}/locations/${location}/queues/${queue}`,
-    ),
-    createTask: jest.fn(async (request: unknown) => {
-      calls.push(request);
-      return [{ name: 'created' }];
-    }),
-  } as unknown as {
-    queuePath: jest.Mock;
-    createTask: jest.Mock;
-    _calls: unknown[];
-  };
-  (client as unknown as Record<string, unknown>)._calls = calls;
-  return client;
+  const queuePath = jest.fn(
+    (project: string, location: string, queue: string) =>
+      `projects/${project}/locations/${location}/queues/${queue}`,
+  );
+  const createTask = jest.fn((request: unknown) => {
+    calls.push(request);
+    return Promise.resolve([{ name: 'created' }]);
+  });
+  return { queuePath, createTask, calls };
 }
 
 describe('CloudTasksOutboxPublisher', () => {
@@ -142,7 +134,7 @@ describe('CloudTasksOutboxPublisher', () => {
       queuePath: jest.fn(
         () => 'projects/my-project/locations/us-central1/queues/outbox',
       ),
-      createTask: jest.fn(async () => {
+      createTask: jest.fn(() => {
         const err = Object.assign(
           new Error(`Task ${expectedTaskName} already exists ALREADY_EXISTS`),
           { code: 6 },
@@ -168,7 +160,7 @@ describe('CloudTasksOutboxPublisher', () => {
       queuePath: jest.fn(
         () => 'projects/my-project/locations/us-central1/queues/outbox',
       ),
-      createTask: jest.fn(async () => {
+      createTask: jest.fn(() => {
         throw Object.assign(new Error('UNAVAILABLE: temporarily unavailable'), {
           code: 14,
         });
@@ -191,7 +183,7 @@ describe('CloudTasksOutboxPublisher', () => {
       queuePath: jest.fn(
         () => 'projects/my-project/locations/us-central1/queues/outbox',
       ),
-      createTask: jest.fn(async () => {
+      createTask: jest.fn(() => {
         const err = Object.assign(
           new Error(
             'Task projects/my-project/locations/us-central1/queues/outbox/tasks/other-id already exists ALREADY_EXISTS',

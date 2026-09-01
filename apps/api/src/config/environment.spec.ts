@@ -26,7 +26,7 @@ describe('validateEnvironment', () => {
     ).toEqual({
       NODE_ENV: 'development',
       WORKER_ENABLED: false,
-      WORKER_EXECUTION: 'continuous',
+      WORKER_EXECUTION: 'run-once',
       CLOUD_TASKS_PROJECT_ID: 'test-project',
       CLOUD_TASKS_LOCATION: 'us-central1',
       CLOUD_TASKS_QUEUE: 'outbox',
@@ -146,7 +146,7 @@ describe('validateEnvironment', () => {
         INTERNAL_AUTH_RP_ID: 'localhost',
         INTERNAL_AUTH_ORIGIN: 'http://localhost:3001',
       }),
-    ).toThrow('WORKER_EXECUTION must be continuous or run-once');
+    ).toThrow('WORKER_EXECUTION must be run-once');
   });
 
   it('requires Cloud Tasks configuration in production', () => {

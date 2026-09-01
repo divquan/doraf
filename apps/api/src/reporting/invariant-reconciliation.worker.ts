@@ -1,40 +1,12 @@
-import {
-  Injectable,
-  Logger,
-  OnModuleDestroy,
-  OnModuleInit,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import type { AppEnvironment } from '../config/environment';
+import { Injectable, Logger } from '@nestjs/common';
 import { InvariantAuditorService } from './invariant-auditor.service';
-import { isContinuousWorker, isRunOnceWorker } from '../worker-runtime';
-
-const AUDIT_INTERVAL_MS = 60_000;
 
 @Injectable()
-export class InvariantReconciliationWorker
-  implements OnModuleInit, OnModuleDestroy
-{
+export class InvariantReconciliationWorker {
   private readonly logger = new Logger(InvariantReconciliationWorker.name);
-  private timer?: NodeJS.Timeout;
   private running = false;
 
-  constructor(
-    private readonly config: ConfigService<AppEnvironment, true>,
-    private readonly auditor: InvariantAuditorService,
-  ) {}
-
-  onModuleInit() {
-    if (!isContinuousWorker(this.config)) return;
-    void this.runOnce();
-    this.timer = setInterval(() => void this.runOnce(), AUDIT_INTERVAL_MS);
-    this.timer.unref();
-    this.logger.log('Invariant reconciliation worker started');
-  }
-
-  onModuleDestroy() {
-    if (this.timer) clearInterval(this.timer);
-  }
+  constructor(private readonly auditor: InvariantAuditorService) {}
 
   async runOnce() {
     if (this.running) return;
@@ -47,17 +19,17 @@ export class InvariantReconciliationWorker
           .map((c) => `${c.code}: ${c.details}`)
           .join(' | ');
         this.logger.error(
-          `Continuous invariant audit detected anomalies: ${failed}`,
+          `Bounded invariant audit detected anomalies: ${failed}`,
         );
       } else {
-        this.logger.debug('Continuous invariant audit passed cleanly');
+        this.logger.debug('Bounded invariant audit passed cleanly');
       }
     } catch (error) {
       this.logger.error(
         'Invariant reconciliation worker audit pass failed',
         error instanceof Error ? error.stack : undefined,
       );
-      if (isRunOnceWorker(this.config)) throw error;
+      throw error;
     } finally {
       this.running = false;
     }

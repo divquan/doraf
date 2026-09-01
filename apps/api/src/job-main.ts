@@ -1,25 +1,16 @@
 import type { INestApplicationContext } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { WorkerAppModule } from './worker-app.module';
 import { CloudTasksOutboxDispatcher } from './operations/cloud-tasks-outbox.dispatcher';
-import { GeneralOutboxWorker } from './operations/general-outbox.worker';
 import { OutboxLeaseRecoveryWorker } from './operations/outbox-lease-recovery.worker';
-import { RedisOutboxConsumer } from './operations/redis-outbox.consumer';
-import { RedisOutboxDispatcher } from './operations/redis-outbox.dispatcher';
 import { PaymentInitializationWorker } from './payments/payment-initialization.worker';
 import { PaymentReconciliationWorker } from './payments/payment-reconciliation.worker';
-import { PricingOutboxWorker } from './pricing/pricing-outbox.worker';
-import { RefundOutboxWorker } from './refunds/refund-outbox.worker';
 import { RefundReconciliationWorker } from './refunds/refund-reconciliation.worker';
 import { InvariantReconciliationWorker } from './reporting/invariant-reconciliation.worker';
-import { WithdrawalOutboxWorker } from './wallet/withdrawal-outbox.worker';
 import { WithdrawalReconciliationWorker } from './wallet/withdrawal-reconciliation.worker';
-import { DeliveryOutboxWorker } from './delivery/delivery-outbox.worker';
-import type { AppEnvironment } from './config/environment';
 
 const JOB_NAMES = [
-  'outbox',
+  'outbox-repair',
   'payment-initialization',
   'payment-reconciliation',
   'refund-reconciliation',
@@ -44,8 +35,7 @@ async function bootstrap() {
   const app = await NestFactory.createApplicationContext(WorkerAppModule);
 
   try {
-    const config = app.get(ConfigService<AppEnvironment, true>);
-    await runJob(app, config, jobName);
+    await runJob(app, jobName);
   } finally {
     await app.close();
   }
@@ -60,12 +50,11 @@ function parseJobName(value: string | undefined): JobName {
 
 async function runJob(
   app: INestApplicationContext,
-  config: ConfigService<AppEnvironment, true>,
   jobName: JobName,
 ): Promise<void> {
   switch (jobName) {
-    case 'outbox':
-      await runOutbox(app);
+    case 'outbox-repair':
+      await app.get(CloudTasksOutboxDispatcher).publishPending();
       return;
     case 'payment-initialization':
       await app.get(PaymentInitializationWorker).runOnce();
@@ -86,7 +75,7 @@ async function runJob(
       await app.get(InvariantReconciliationWorker).runOnce();
       return;
     case 'all':
-      await runOutbox(app);
+      await app.get(CloudTasksOutboxDispatcher).publishPending();
       await app.get(PaymentInitializationWorker).runOnce();
       await app.get(PaymentReconciliationWorker).runOnce();
       await app.get(RefundReconciliationWorker).runOnce();
@@ -95,30 +84,6 @@ async function runJob(
       await app.get(InvariantReconciliationWorker).runOnce();
       return;
   }
-}
-
-async function runOutbox(app: INestApplicationContext): Promise<void> {
-  // Immediate publication repair via Cloud Tasks (bounded, request-safe)
-  try {
-    await app.get(CloudTasksOutboxDispatcher).publishPending();
-  } catch {
-    // Log already handled in dispatcher; continue to legacy workers
-  }
-
-  // Bounded outbox repair: legacy Redis path preserved for Plan 003 removal
-  // while Cloud Tasks handles immediate publication. Keep both operable.
-  try {
-    await app.get(RedisOutboxDispatcher).runOnce();
-    await app.get(RedisOutboxConsumer).runOnce();
-  } catch {
-    // Ignore missing Redis in Cloud Tasks environments; proceed to standard workers
-  }
-
-  await app.get(GeneralOutboxWorker).runOnce();
-  await app.get(PricingOutboxWorker).runOnce();
-  await app.get(RefundOutboxWorker).runOnce();
-  await app.get(WithdrawalOutboxWorker).runOnce();
-  await app.get(DeliveryOutboxWorker).runOnce();
 }
 
 void bootstrap().catch((error) => {

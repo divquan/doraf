@@ -1,6 +1,6 @@
 # Serverless Readiness Report — Dashchecker API
 
-**Date:** 2026-08-31
+**Date:** 2026-09-01
 **Scope:** `apps/api` implementation, configuration, Prisma schema/migrations, dependencies, and executable verification commands.  
 **Method:** The findings below are based on source and runtime inspection. Project Markdown was compared for consistency, but it was not used as evidence for the findings.  
 **Verdict:** **Do not deploy the current API as scale-to-zero serverless.** The HTTP request path can be adapted to serverless, but the current process contains background workers and has unresolved financial recovery, production integration, authorization, and rate-limit problems.  
@@ -10,7 +10,7 @@
 
 The application is a NestJS API backed by Prisma/PostgreSQL. Its durable-data design is a useful foundation: business mutations use database transactions, the schema contains important uniqueness and foreign-key constraints, payment webhooks use the raw request body for signature verification, and outbox rows use database claims with `FOR UPDATE SKIP LOCKED`.
 
-That foundation does not make the application serverless-ready. The deliberately operated fallback worker process still contains polling workers that depend on `onModuleInit()` and `setInterval()`, while the bounded Cloud Run Job entrypoint runs one scheduled pass and exits. Redis mode still has a long-running Streams consumer unless a platform-native queue trigger replaces it. The application also has financial state-machine bugs that would remain bugs on a VM.
+That foundation does not make the application serverless-ready. The HTTP process is now isolated from background work, immediate outbox work is published through Cloud Tasks, and bounded Cloud Run Job entrypoints run one scheduled pass and exit. Production delivery still requires a real provider adapter, and the deployment still needs authenticated queue/job resources and database-backed verification.
 
 The correct conclusion is therefore:
 
@@ -22,7 +22,18 @@ The correct conclusion is therefore:
 
 This is not only a deployment-wiring change. Payment recovery, refund recovery, outbox leases, agent authorization, and delivery failure handling require application changes.
 
-### Implementation update — 2026-08-30
+### Implementation update — 2026-09-01
+
+The Plan 002/003 implementation slice is now reflected in the runtime:
+
+- Cloud Tasks is the sole immediate outbox dispatcher; delivery events are published in every environment and reach the authenticated task router. If production delivery is not configured, the router records a terminal configuration failure instead of leaving the event pending or using the development gateway.
+- Redis adapters, the continuous worker process, and polling outbox workers have been removed. `start:job` exposes bounded `outbox-repair`, reconciliation, lease-recovery, invariant-audit, and `all` jobs.
+- Refund concurrency coverage uses deferred promises and the real handler path; it does not synchronize with timers or copy the production claim predicate.
+- Honest API lint has no remaining inline suppressions or findings. Database-backed suites still require `TEST_DATABASE_URL` and are not claimed as verified without it.
+
+The remaining production delivery adapter and platform deployment evidence are outside this implementation slice.
+
+### Previous implementation update — 2026-08-30
 
 The first implementation slice for F-01 through F-03 is now in the working tree:
 
@@ -30,31 +41,30 @@ The first implementation slice for F-01 through F-03 is now in the working tree:
 - F-02: Redis Streams dispatch is implemented behind `QUEUE_PROVIDER=redis`. The Postgres outbox remains the source of truth; a worker claims rows, publishes `{eventId, claimToken, eventType}`, marks them `QUEUED`, and a consumer acknowledges the Redis message only after the database handler finishes. Local Compose enables Redis AOF. Managed Redis operation, alerting, and failure-path verification remain.
 - F-03: the contradictory payment initialization claim predicate is corrected and covered by a database outcome test proving `RECONCILING / INITIATION_UNCONFIRMED` attempts can be reclaimed without changing their payment reference or reservation.
 
-The implementation slice is not a serverless approval. Redis still requires an explicitly operated worker or a platform-native queue-triggered job, and production scheduler resources and authenticated invocation still need to be configured. F-03's identified predicate defect is now verified against the database; the maximum payment-retry policy remains a separate open product decision.
+That implementation slice was not a serverless approval. Production scheduler resources and authenticated invocation still need to be configured. F-03's identified predicate defect is now verified against the database; the maximum payment-retry policy remains a separate open product decision.
 
 ## 2. Current runtime facts
 
 ### 2.1 HTTP process
 
-`apps/api/src/main.ts` starts a normal NestJS listener with `app.listen()`. `apps/api/src/job-main.ts` is the bounded scheduled-job entrypoint: it accepts only an allowlisted `JOB_NAME`, runs one pass, closes the application context, and exits non-zero when a run-once worker reports failure. The separate `apps/api/src/worker-main.ts` remains the long-running application-context worker process.
+`apps/api/src/main.ts` starts a normal NestJS listener with `app.listen()`. `apps/api/src/job-main.ts` is the bounded scheduled-job entrypoint: it accepts only an allowlisted `JOB_NAME`, runs one pass, closes the application context, and exits non-zero when a run-once worker reports failure. Immediate outbox work is delivered by authenticated Cloud Tasks requests to the task-consumer route.
 
 `apps/api/src/configure-application.ts` configures URI versioning, strict validation, request logging, shutdown hooks, and proxy trust. Webhook handling depends on `rawBody: true` in `main.ts`; any serverless adapter must preserve the exact request bytes before parsing JSON.
 
 ### 2.2 Background workers
 
-The following work runs only when the dedicated worker process is launched with `WORKER_ENABLED=true`. With `QUEUE_PROVIDER=redis`, outbox submission/activation work uses the Redis dispatcher and consumer; the Postgres polling workers are disabled. Payment attempt reconciliation and invariant scans still use timers in both modes.
+The following work runs in the API only when invoked by a Cloud Tasks request or a bounded job. The API does not register polling timers.
 
-| Work                        | Source                                             | Redis mode                        | Consequence of no worker/job runtime                         |
-| --------------------------- | -------------------------------------------------- | --------------------------------- | ------------------------------------------------------------ |
-| General and outbox dispatch | `src/operations/redis-outbox.dispatcher.ts`        | Redis poll ~1s + Streams consumer | Committed outbox work waits indefinitely.                    |
-| Payment initialization      | `src/payments/payment-initialization.worker.ts`    | Database attempt scan every 5s    | Initialization recovery stops.                               |
-| Payment reconciliation      | `src/payments/payment-reconciliation.worker.ts`    | Database attempt scan every 5s    | Provider confirmation is not reconciled.                     |
-| Delivery outbox             | `src/operations/redis-outbox.consumer.ts`          | Development gateway only          | Production delivery remains unavailable until F-07 is fixed. |
-| Refund submission           | `src/operations/redis-outbox.consumer.ts`          | Redis Streams                     | Approved refunds wait in the outbox.                         |
-| Refund reconciliation       | `src/refunds/refund-reconciliation.worker.ts`      | Database scan every 30s           | Unknown refunds are looked up by provider reference or transaction identity. |
-| Withdrawal submission       | `src/operations/redis-outbox.consumer.ts`          | Redis Streams                     | Approved withdrawals wait in the outbox.                     |
-| Withdrawal reconciliation   | `src/wallet/withdrawal-reconciliation.worker.ts`   | Database scan every 30s           | Unknown transfer outcomes are not reconciled.                |
-| Invariant auditing          | `src/reporting/invariant-reconciliation.worker.ts` | Database scan every 60s           | Drift detection stops.                                       |
+| Work                        | Invocation                                      | Consequence of no invocation                         |
+| --------------------------- | ----------------------------------------------- | ---------------------------------------------------- |
+| Immediate outbox dispatch   | Cloud Tasks request plus `outbox-repair` job     | Committed outbox work remains pending.               |
+| Payment initialization      | `payment-initialization` bounded job             | Initialization recovery waits.                       |
+| Payment reconciliation      | `payment-reconciliation` bounded job             | Provider confirmation waits.                         |
+| Delivery outbox             | Cloud Tasks task-consumer route                  | Delivery remains pending or is terminally failed when no provider is configured. |
+| Refund reconciliation       | `refund-reconciliation` bounded job              | Unknown refunds wait for provider lookup.            |
+| Withdrawal reconciliation   | `withdrawal-reconciliation` bounded job          | Unknown transfer outcomes wait.                      |
+| Outbox lease recovery       | `lease-recovery` bounded job                     | Expired claims remain stranded.                      |
+| Invariant auditing          | `invariant-audit` bounded job                    | Drift detection waits.                               |
 
 `timer.unref()` only affects Node.js event-loop behavior. It does not keep a serverless instance alive and does not provide a scheduler.
 
@@ -70,39 +80,39 @@ The following work runs only when the dedicated worker process is launched with 
 
 **Category:** Architecture / serverless suitability  
 **Status:** Application HTTP/worker split and bounded scheduled-job extraction complete; platform scheduling and queue-trigger deployment remain.
-**Impact:** The HTTP process no longer starts polling timers. Scheduled work can run as bounded Cloud Run Jobs, while Redis consumption still requires a queue trigger or continuously operated worker.
+**Impact:** The HTTP process no longer starts polling timers. Scheduled work runs as bounded Cloud Run Jobs, while immediate outbox work is delivered through Cloud Tasks.
 **Effort:** L  
 **Fix risk:** Medium — deployment and module-boundary changes affect every asynchronous workflow.  
 **Confidence:** High.
 
-**Evidence:** `apps/api/src/worker-app.module.ts` registers worker-only providers separately from `apps/api/src/app.module.ts`; `apps/api/src/job-main.ts` runs an allowlisted job once; `WORKER_EXECUTION=run-once` prevents timer startup; Redis dispatch and consumption are registered only in the worker composition root.
+**Evidence:** `apps/api/src/worker-app.module.ts` registers bounded-job providers separately from `apps/api/src/app.module.ts`; `apps/api/src/job-main.ts` runs an allowlisted job once; `WORKER_EXECUTION=run-once` prevents timer startup; `apps/api/src/operations/cloud-tasks-outbox.dispatcher.ts` publishes immediate work.
 
-**Remaining fix:** Configure Cloud Scheduler and Cloud Run Jobs for the bounded job names, authenticate invocation with Cloud IAM, and configure a Cloud Tasks/Pub/Sub trigger for immediate outbox work. The concrete deployment checklist is tracked in [`docs/planning/deployment-todo.md`](../planning/deployment-todo.md). Keep the separate worker process as a non-serverless fallback for local development or a deliberately operated deployment.
+**Remaining fix:** Configure Cloud Scheduler and Cloud Run Jobs for the bounded job names, authenticate invocation with Cloud IAM, and configure the Cloud Tasks queue and task-consumer route. The concrete deployment checklist is tracked in [`docs/planning/deployment-todo.md`](../planning/deployment-todo.md).
 
-The API, continuous worker, and scheduled jobs can use the same container image with different entrypoints or configuration, but they must be separate processes. Cloud Run IAM must protect job invocation, and every queue/job handler must be safe to execute more than once.
+The API and bounded jobs can use the same container image with different entrypoints or configuration, but they must be separate processes. Cloud Run IAM must protect job invocation, and every queue/job handler must be safe to execute more than once.
 
 ### F-02 — The durable outbox needs production operation and failure verification
 
 **Category:** Reliability  
-**Status:** Redis Streams adapter implemented; managed operation and failure-path verification remain.  
-**Impact:** Outbox rows survive API termination and can be handed to Redis, but queued work still depends on an available worker/consumer and Redis is not yet proven as a production-managed dependency.  
+**Status:** Cloud Tasks dispatcher and authenticated task-consumer route implemented; platform deployment and provider delivery remain.
+**Impact:** Outbox rows survive API termination and are published by ID plus claim token. Delivery requires a configured production provider; missing configuration is recorded as an explicit terminal failure.
 **Effort:** L  
 **Fix risk:** High — changing dispatch timing can expose duplicate processing and ordering assumptions.  
 **Confidence:** High.
 
-**Evidence:** `apps/api/src/operations/redis-outbox.dispatcher.ts` claims eligible Postgres rows and publishes to Redis Streams; `redis-outbox.consumer.ts` uses a consumer group and `XAUTOCLAIM`; `redis-outbox.queue.ts` recreates the stream/group after `NOGROUP`; `outbox.service.ts` records `QUEUED`/`DISPATCHED`; migration `20260830220000_redis_outbox_queue` adds the queue state; `compose.yml` enables Redis AOF.
+**Evidence:** `apps/api/src/operations/cloud-tasks-outbox.dispatcher.ts` claims eligible Postgres rows and publishes authenticated Cloud Tasks requests containing the outbox ID and claim token; `apps/api/src/operations/outbox-task.router.ts` reloads and validates the claim before routing; `outbox.service.ts` records `QUEUED`/`DISPATCHED` and terminal failures.
 
 **Current implementation:** Keep the transactional outbox as the source of truth:
 
 1. Create the outbox row in the same transaction as the business mutation.
 2. Claim it with a lease.
-3. Publish a Redis Streams message containing the outbox ID, claim token, and event type.
-4. Mark it `QUEUED` after Redis accepts the message; mark it `DISPATCHED` only after the consumer completes the database handler.
-5. Use a consumer group and `XAUTOCLAIM` to recover unacknowledged messages.
-6. Let the database lease-recovery worker reclaim claims stranded before publication is recorded.
-7. Make the consumer idempotent so duplicate queue delivery is harmless.
+3. Publish a Cloud Tasks request containing the outbox ID and claim token.
+4. Mark it `QUEUED` after Cloud Tasks accepts the request; mark it `DISPATCHED` only after the task handler completes the database handler.
+5. Let the bounded lease-recovery job reclaim claims stranded before publication is recorded.
+6. Let the bounded `outbox-repair` job republish eligible pending work.
+7. Make the task consumer idempotent so duplicate delivery is harmless.
 
-**Remaining fix:** Use a managed Redis deployment with TLS/ACLs, persistence, high availability, max-memory/eviction policy, monitoring, and an explicit recovery procedure. Add failure-path integration tests for API termination after the transaction, termination after `XADD`, consumer termination before `XACK`, Redis outage, duplicate stream messages, and stale Postgres claims. For true scale-to-zero, replace the always-on Redis consumer with a platform-supported queue trigger or retain a minimum worker capacity.
+**Remaining fix:** Provision Cloud Tasks with authenticated OIDC requests, retry/rate/dead-letter policy, monitoring, and an explicit recovery procedure. Add failure-path integration tests for API termination after the transaction, task delivery after `QUEUED`, duplicate task delivery, provider ambiguity, and stale Postgres claims.
 
 Do not mark an event dispatched merely because a handler started. Do not rely on a best-effort post-transaction queue call without a repair path; a process can die between the commit and that call.
 
@@ -185,9 +195,9 @@ The repair path no longer requeues a row solely because it was created long ago;
 **Fix risk:** Medium — event routing changes can affect pricing transitions.  
 **Confidence:** High.
 
-**Evidence:** `apps/api/src/pricing/pricing-outbox.handler.ts` validates the event type and claim; `apps/api/src/pricing/pricing-outbox.worker.ts` claims activation events in Postgres mode; `apps/api/src/operations/redis-outbox.consumer.ts` routes them in Redis mode; `apps/api/src/pricing/pricing.service.ts` ignores stale activation events and makes repeated activation a no-op after the intended effective price is present. `apps/api/test/database-pricing.e2e-spec.ts` proves the persisted price/version is unchanged on replay.
+**Evidence:** `apps/api/src/pricing/pricing-outbox.handler.ts` validates the event type and claim; `apps/api/src/operations/outbox-task.router.ts` routes the task to it; `apps/api/src/pricing/pricing.service.ts` ignores stale activation events and makes repeated activation a no-op after the intended effective price is present. `apps/api/test/database-pricing.e2e-spec.ts` proves the persisted price/version is unchanged on replay.
 
-**Fix implemented:** Route pricing activation events through the transactional outbox dispatcher in both Postgres and Redis modes. The existing database uniqueness rule prevents duplicate activation events for one aggregate/version, while the handler and pricing service reject stale windows and make re-running an activation a no-op after the intended effective state is present.
+**Fix implemented:** Route pricing activation events through the transactional outbox dispatcher and Cloud Tasks task router. The existing database uniqueness rule prevents duplicate activation events for one aggregate/version, while the handler and pricing service reject stale windows and make re-running an activation a no-op after the intended effective state is present.
 
 ### F-07 — Production delivery is not wired
 
@@ -198,7 +208,7 @@ The repair path no longer requeues a row solely because it was created long ago;
 **Fix risk:** Medium — provider failures and duplicate sends must be handled correctly.  
 **Confidence:** High.
 
-**Evidence:** `apps/api/src/delivery/delivery.module.ts` provides a development gateway. `apps/api/src/delivery/delivery-outbox.worker.ts` exits unless `NODE_ENV` is development. Redis mode excludes production delivery events and terminally records an explicit configuration failure rather than sending through the development gateway.
+**Evidence:** `apps/api/src/delivery/delivery.module.ts` currently provides only a development gateway. Cloud Tasks publishes delivery events in production and `apps/api/src/operations/outbox-task.router.ts` routes them to an explicit terminal configuration failure until a production gateway is configured; it never invokes the development gateway in production.
 
 **Fix:**
 
@@ -314,7 +324,7 @@ Any of these can work if they provide durable delivery and retry:
 - Redis Streams with a managed Redis deployment, as implemented by the current worker adapter.
 - A dedicated Postgres worker for lower scale, provided it is not confused with scale-to-zero HTTP execution.
 
-The current implementation chooses Redis Streams. Keep the interface narrow enough that the provider can later change; do not treat the local Compose Redis instance as a production HA configuration.
+The current implementation chooses Cloud Tasks. Keep the interface narrow enough that the provider can later change; do not make domain services depend on the Cloud Tasks SDK.
 
 ### 4.3 Scheduled work
 
@@ -329,7 +339,7 @@ Use scheduled jobs for:
 
 Scheduled jobs must be bounded, acquire the same database leases as queue handlers, and exit with a failure status when work cannot be safely completed.
 
-Redis Streams handles immediate outbox delivery; it does not replace scheduling. The bounded job entrypoint now owns payment/refund/withdrawal reconciliation, lease repair, and invariant scans when invoked by a platform scheduler. Those scheduler resources and their authenticated Cloud Run Job invocations still need to be provisioned and exercised before claiming scale-to-zero readiness.
+Cloud Tasks handles immediate outbox delivery; it does not replace scheduling. The bounded job entrypoint now owns outbox repair, payment/refund/withdrawal reconciliation, lease repair, and invariant scans when invoked by a platform scheduler. Those scheduler resources and their authenticated Cloud Run Job invocations still need to be provisioned and exercised before claiming scale-to-zero readiness.
 
 ### 4.4 Database connections
 
@@ -397,7 +407,7 @@ Implement F-11. Persist the webhook event and processing intent before acknowled
 
 ### Step 7 — Extract workers from the API and dispatch durable outbox work
 
-The current slice implements F-01's application boundary: callable worker methods, a separate worker composition root, an allowlisted bounded `start:job` entrypoint, run-once timer suppression, and independent continuous-worker startup. F-03's database outcome verification is also complete. F-02 still requires managed Redis operations, queue/consumer metrics, failure-injection integration tests, and an authenticated native queue trigger or minimum-capacity worker. Provision Cloud Run Jobs for the named scheduled passes, disable all polling timers in the API deployment, and run the continuous worker independently only where a platform-native trigger is not used.
+The current slice implements F-01's application boundary: callable worker methods, a separate bounded-job composition root, an allowlisted `start:job` entrypoint, and no polling timers in the API deployment. F-03's database outcome verification is also complete. F-02 now uses Cloud Tasks, but still requires queue metrics, authenticated platform resources, and failure-injection integration tests. Provision Cloud Run Jobs for the named scheduled passes and the Cloud Tasks route before claiming serverless readiness.
 
 The deployment must prove that terminating the API process does not stop queued payment, refund, withdrawal, delivery, or repair work.
 
@@ -426,15 +436,13 @@ The following are release gates, not tautological tests:
 - Database connections remain within the configured budget during the maximum-instance test.
 - Large list endpoints remain bounded and return pagination metadata.
 
-Current repository verification observed during review:
+Current repository verification observed during the 2026-09-01 implementation:
 
-- TypeScript typecheck: passed.
-- Prisma schema validation: passed.
-- Unit tests: 23 suites and 65 tests passed.
-- Lint: one formatting-only failure in `apps/api/src/orders/order-contact-protection.service.ts`.
-- HTTP E2E: not fully green because the local PostgreSQL database was unavailable; 19 tests passed and 1 database-dependent test failed.
-- Database-backed integration tests: require a configured test database and were not treated as passing without one.
-- Redis Streams smoke test against the local Compose Redis service: passed (publish, consumer-group read, acknowledge, cleanup).
+- Root and API TypeScript typecheck: passed.
+- API build: passed.
+- Honest API lint with inline configuration disabled: passed with no findings.
+- API unit tests: 29 suites and 105 tests passed.
+- Database-backed integration tests: not verified because `TEST_DATABASE_URL` is unavailable; they were not treated as passing without one.
 
 ## 7. Provider-neutral deployment recommendation
 

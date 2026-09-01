@@ -22,13 +22,15 @@ pnpm --filter @dashchecker/api db:seed
 pnpm --filter @dashchecker/api start:dev
 ```
 
-## Scheduled jobs
+## Background jobs
 
-The HTTP API never starts background polling. Long-running local development
-uses the separate worker process:
+The HTTP API never starts background polling. Immediate outbox work is
+published to Cloud Tasks, and scheduled recovery runs through the bounded job
+entrypoint:
 
 ```bash
-pnpm --filter @dashchecker/api start:worker
+JOB_NAME=outbox-repair pnpm --filter @dashchecker/api start:job
+JOB_NAME=all pnpm --filter @dashchecker/api start:job
 ```
 
 Cloud Run Jobs (or another authenticated scheduler) should invoke the bounded
@@ -36,7 +38,6 @@ job entrypoint instead. Each invocation opens the application context, runs
 one bounded pass, and exits with a non-zero status if the pass cannot complete:
 
 ```bash
-JOB_NAME=outbox pnpm --filter @dashchecker/api start:job
 JOB_NAME=payment-initialization pnpm --filter @dashchecker/api start:job
 JOB_NAME=payment-reconciliation pnpm --filter @dashchecker/api start:job
 JOB_NAME=refund-reconciliation pnpm --filter @dashchecker/api start:job
@@ -47,8 +48,8 @@ JOB_NAME=invariant-audit pnpm --filter @dashchecker/api start:job
 
 The job names are allowlisted in `src/job-main.ts`. Configure Cloud Scheduler
 to trigger Cloud Run Jobs with the platform's authenticated identity; do not
-expose the job command as a public HTTP mutation route. The existing
-`start:worker` process remains the local and deliberately operated fallback.
+expose the job command as a public HTTP mutation route. Configure Cloud Tasks
+to call the authenticated outbox task-consumer route for immediate work.
 
 The current HTTP surface is:
 

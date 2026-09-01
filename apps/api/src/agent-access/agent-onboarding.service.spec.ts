@@ -75,11 +75,11 @@ describe('AgentOnboardingService', () => {
 
     const result = await service.record('agent-1', 'START');
 
-    // Jest's mock call list is intentionally untyped; only inspect the safe field we assert.
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    const updateInput = prisma.agentOnboarding.update.mock.calls[0]?.[0] as {
-      data?: { currentStep?: number };
-    };
+    const updateInput = (
+      prisma.agentOnboarding.update.mock.calls as unknown as Array<
+        [{ data?: { currentStep?: number } }]
+      >
+    )[0]?.[0];
     expect(updateInput.data?.currentStep).toBe(1);
     expect(result.status).toBe('IN_PROGRESS');
     expect(result.steps[1].complete).toBe(true);
@@ -128,10 +128,11 @@ describe('AgentOnboardingService', () => {
 
     const result = await service.record('agent-1', 'COMPLETE');
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    const updateInput = prisma.agentOnboarding.update.mock.calls[0]?.[0] as {
-      data?: { currentStep?: number };
-    };
+    const updateInput = (
+      prisma.agentOnboarding.update.mock.calls as unknown as Array<
+        [{ data?: { currentStep?: number } }]
+      >
+    )[0]?.[0];
     expect(updateInput.data?.currentStep).toBe(4);
     expect(result.status).toBe('COMPLETED');
   });

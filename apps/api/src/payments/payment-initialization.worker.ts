@@ -1,16 +1,6 @@
-import {
-  Injectable,
-  Logger,
-  OnModuleDestroy,
-  OnModuleInit,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import type { AppEnvironment } from '../config/environment';
+import { Injectable, Logger } from '@nestjs/common';
 import { PaymentProviderRequestException } from './payment-gateway.service';
 import { PaymentProcessingService } from './payment-processing.service';
-import { isContinuousWorker, isRunOnceWorker } from '../worker-runtime';
-
-const POLL_INTERVAL_MS = 5_000;
 
 /**
  * Recovers committed checkout attempts when the request process stops after
@@ -19,29 +9,11 @@ const POLL_INTERVAL_MS = 5_000;
  * stable across retries.
  */
 @Injectable()
-export class PaymentInitializationWorker
-  implements OnModuleInit, OnModuleDestroy
-{
+export class PaymentInitializationWorker {
   private readonly logger = new Logger(PaymentInitializationWorker.name);
-  private timer?: NodeJS.Timeout;
   private running = false;
 
-  constructor(
-    private readonly config: ConfigService<AppEnvironment, true>,
-    private readonly payments: PaymentProcessingService,
-  ) {}
-
-  onModuleInit() {
-    if (!isContinuousWorker(this.config)) return;
-    void this.runOnce();
-    this.timer = setInterval(() => void this.runOnce(), POLL_INTERVAL_MS);
-    this.timer.unref();
-    this.logger.log('Payment initialization worker started');
-  }
-
-  onModuleDestroy() {
-    if (this.timer) clearInterval(this.timer);
-  }
+  constructor(private readonly payments: PaymentProcessingService) {}
 
   async runOnce() {
     if (this.running) return;
@@ -57,7 +29,7 @@ export class PaymentInitializationWorker
             `Payment initialization recovery failed reference=${reference}`,
             error instanceof Error ? error.stack : undefined,
           );
-          if (isRunOnceWorker(this.config)) throw error;
+          throw error;
         }
       }
     } catch (error) {
@@ -65,7 +37,7 @@ export class PaymentInitializationWorker
         'Payment initialization recovery pass failed',
         error instanceof Error ? error.stack : undefined,
       );
-      if (isRunOnceWorker(this.config)) throw error;
+      throw error;
     } finally {
       this.running = false;
     }

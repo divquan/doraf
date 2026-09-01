@@ -54,9 +54,7 @@ export class CloudTasksOutboxDispatcher {
     }
   }
 
-  /**
-   * Alias for backwards compatibility with Redis dispatcher naming.
-   */
+  /** Run one bounded publication pass. */
   async runOnce(): Promise<number> {
     return this.publishPending();
   }

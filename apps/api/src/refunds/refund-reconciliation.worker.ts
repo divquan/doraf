@@ -1,40 +1,17 @@
-import {
-  Injectable,
-  Logger,
-  OnModuleDestroy,
-  OnModuleInit,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Injectable, Logger } from '@nestjs/common';
 import { RefundState } from '../generated/prisma/client';
-import type { AppEnvironment } from '../config/environment';
 import { PrismaService } from '../database/prisma.service';
 import { PaymentGatewayService } from '../payments/payment-gateway.service';
-import { isContinuousWorker, isRunOnceWorker } from '../worker-runtime';
 
 @Injectable()
-export class RefundReconciliationWorker
-  implements OnModuleInit, OnModuleDestroy
-{
+export class RefundReconciliationWorker {
   private readonly logger = new Logger(RefundReconciliationWorker.name);
-  private timer?: NodeJS.Timeout;
   private running = false;
 
   constructor(
-    private readonly config: ConfigService<AppEnvironment, true>,
     private readonly prisma: PrismaService,
     private readonly gateway: PaymentGatewayService,
   ) {}
-
-  onModuleInit() {
-    if (!isContinuousWorker(this.config)) return;
-    void this.runOnce();
-    this.timer = setInterval(() => void this.runOnce(), 30_000);
-    this.timer.unref();
-  }
-
-  onModuleDestroy() {
-    if (this.timer) clearInterval(this.timer);
-  }
 
   async runOnce() {
     if (this.running) return;
@@ -97,16 +74,12 @@ export class RefundReconciliationWorker
           this.logger.warn(
             `Refund reconciliation deferred refundId=${refund.id} reason=${error instanceof Error ? error.message.slice(0, 300) : 'unknown'}`,
           );
-          if (isRunOnceWorker(this.config)) {
-            throw new Error(
-              `Refund reconciliation failed refundId=${refund.id}`,
-            );
-          }
+          throw new Error(`Refund reconciliation failed refundId=${refund.id}`);
         }
       }
     } catch (error) {
       this.logger.error('Refund reconciliation pass failed', error);
-      if (isRunOnceWorker(this.config)) throw error;
+      throw error;
     } finally {
       this.running = false;
     }

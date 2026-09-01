@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return, @typescript-eslint/require-await, @typescript-eslint/no-unused-vars -- test mocks use any and jest.fn without await */
 import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { TaskConsumerModule } from './task-consumer.module';
@@ -7,15 +6,15 @@ import { HealthController } from '../health/health.controller';
 import { PricingController } from '../pricing/pricing.controller';
 import { RefundsController } from '../refunds/refunds.controller';
 import { WalletController } from '../wallet/wallet.controller';
-import { RedisOutboxQueue } from '../operations/redis-outbox.queue';
-import { GeneralOutboxWorker } from '../operations/general-outbox.worker';
-import { PricingOutboxWorker } from '../pricing/pricing-outbox.worker';
-import { RefundOutboxWorker } from '../refunds/refund-outbox.worker';
-import { WithdrawalOutboxWorker } from '../wallet/withdrawal-outbox.worker';
-import { DeliveryOutboxWorker } from '../delivery/delivery-outbox.worker';
 import { PrismaService } from '../database/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import request from 'supertest';
+
+type HttpServer = Parameters<typeof request>[0];
+
+function getServer(app: INestApplication): HttpServer {
+  return app.getHttpAdapter().getInstance() as HttpServer;
+}
 
 describe('TaskConsumerModule runtime composition', () => {
   let app: INestApplication;
@@ -28,7 +27,10 @@ describe('TaskConsumerModule runtime composition', () => {
     },
     refund: { findUnique: jest.fn(), updateMany: jest.fn() },
     $queryRaw: jest.fn(),
-    $transaction: jest.fn((fn: any) => fn({ $queryRaw: jest.fn() })),
+    $transaction: jest.fn(
+      (fn: (transaction: { $queryRaw: jest.Mock }) => unknown) =>
+        fn({ $queryRaw: jest.fn() }),
+    ),
   };
 
   const mockConfig = {
@@ -47,7 +49,7 @@ describe('TaskConsumerModule runtime composition', () => {
       };
       return values[key] ?? 'test';
     }),
-    getOrThrow: jest.fn((key: string) => 'test'),
+    getOrThrow: jest.fn(() => 'test'),
   };
 
   beforeAll(async () => {
@@ -68,7 +70,7 @@ describe('TaskConsumerModule runtime composition', () => {
     await app.close();
   });
 
-  it('exposes only internal task and health routes', async () => {
+  it('exposes only internal task and health routes', () => {
     expect(() => app.get(OutboxTaskController)).not.toThrow();
     expect(() => app.get(HealthController)).not.toThrow();
 
@@ -79,27 +81,17 @@ describe('TaskConsumerModule runtime composition', () => {
     const taskControllerMeta = Reflect.getMetadata(
       'path',
       OutboxTaskController,
-    );
+    ) as unknown;
     expect(taskControllerMeta).toBe('internal/tasks/outbox');
-
-    expect(() => app.get(RedisOutboxQueue)).toThrow();
-    expect(() => app.get(GeneralOutboxWorker)).toThrow();
-  });
-
-  it('does not start continuous polling workers', async () => {
-    expect(() => app.get(PricingOutboxWorker)).toThrow();
-    expect(() => app.get(RefundOutboxWorker)).toThrow();
-    expect(() => app.get(WithdrawalOutboxWorker)).toThrow();
-    expect(() => app.get(DeliveryOutboxWorker)).toThrow();
   });
 
   it('health endpoints are available', async () => {
-    const server = app.getHttpServer();
+    const server = getServer(app);
     await request(server).get('/health/live').expect(200);
   });
 
   it('route allowlist: only internal task and health are reachable', async () => {
-    const server = app.getHttpServer();
+    const server = getServer(app);
     await request(server).post('/internal/tasks/outbox').send({}).expect(401);
     await request(server).get('/health/live').expect(200);
     await request(server).get('/health/ready').expect(200);
