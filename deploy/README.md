@@ -49,9 +49,14 @@ gcloud artifacts docker images describe REGION-docker.pkg.dev/PROJECT/REPO/dashc
 Or via Cloud Build (see `../cloudbuild.yaml`):
 
 ```sh
-gcloud builds submit --config cloudbuild.yaml \
-  --substitutions=_PROJECT_ID=PROJECT,_REGION=us-central1,_REPOSITORY=dashchecker
+PROJECT_ID=PROJECT REGION=us-central1 REPOSITORY=dashchecker \
+  bash deploy/gcloud/build-image.sh
 ```
+
+`build-image.sh` uploads the current local source tree to Cloud Build, waits
+for the build and entrypoint checks to pass, then prints the pushed image's
+immutable `IMAGE_URI`. Run it after `00-prerequisites.sh`; use that printed
+value for the service, task-consumer, and Job deployment scripts.
 
 Verify entrypoints without live credentials (see Plan 004 Step 1):
 
@@ -70,7 +75,8 @@ curl -f http://localhost:3000/health/live
 Production secrets are injected via Secret Manager, never via `.env` files or
 `--build-arg`. Required names (validated in `apps/api/src/config/environment.ts`):
 
-`DATABASE_URL`, `DIRECT_URL`, `DASHCHECKER_CRYPTO_KEYS_JSON` (single JSON Secret Manager value containing nine distinct 32-byte base64 keys: `VOUCHER_MASTER_KEY_BASE64`, `VOUCHER_FINGERPRINT_KEY_BASE64`, `SESSION_FINGERPRINT_KEY_BASE64`, `INTERNAL_ENROLLMENT_FINGERPRINT_KEY_BASE64`, `AGENT_PHONE_ENCRYPTION_KEY_BASE64`, `AGENT_PHONE_FINGERPRINT_KEY_BASE64`, `OTP_FINGERPRINT_KEY_BASE64`, `ORDER_CONTACT_ENCRYPTION_KEY_BASE64`, `ORDER_CONTACT_FINGERPRINT_KEY_BASE64` — each independently generated via `openssl rand -base64 32`, no reuse), `PAYSTACK_SECRET_KEY`, `INTERNAL_AUTH_*`, `CLOUD_TASKS_*`.
+- **Secrets**: `DATABASE_URL`, `DASHCHECKER_CRYPTO_KEYS_JSON` (single JSON Secret Manager value containing nine distinct 32-byte base64 keys: `VOUCHER_MASTER_KEY_BASE64`, `VOUCHER_FINGERPRINT_KEY_BASE64`, `SESSION_FINGERPRINT_KEY_BASE64`, `INTERNAL_ENROLLMENT_FINGERPRINT_KEY_BASE64`, `AGENT_PHONE_ENCRYPTION_KEY_BASE64`, `AGENT_PHONE_FINGERPRINT_KEY_BASE64`, `OTP_FINGERPRINT_KEY_BASE64`, `ORDER_CONTACT_ENCRYPTION_KEY_BASE64`, `ORDER_CONTACT_FINGERPRINT_KEY_BASE64` — each independently generated via `openssl rand -base64 32`, no reuse), `PAYSTACK_SECRET_KEY`. (`DIRECT_URL` is for direct Prisma migrations only and is not mounted into runtime).
+- **Environment variables**: `NODE_ENV` (`production` by default; use `development` only for an isolated staging deployment), `PAYSTACK_MODE` (`live` for production, `sandbox` with `NODE_ENV=development`), `PAYSTACK_GUEST_EMAIL_DOMAIN`, `INTERNAL_AUTH_RP_NAME`, `INTERNAL_AUTH_RP_ID`, `INTERNAL_AUTH_ORIGIN`, `CLOUD_TASKS_*`.
 
 For Cloud Tasks the live values must satisfy:
 
@@ -87,17 +93,18 @@ All scripts under `gcloud/` are idempotent and require explicit env vars.
 Do not run them without the operator's project/region/authorization.
 
 1. `gcloud/00-prerequisites.sh` – enable APIs, create Artifact Registry.
-2. `gcloud/01-service-accounts.sh` – create API, task-invoker, scheduler SAs and IAM least-privilege bindings.
-3. `gcloud/create-crypto-secret.sh` – create the nine-key crypto bundle; run with `GRANT_ACCESS=true` after step 2.
-4. `gcloud/02-queue.sh` – create `dashchecker-outbox` queue with retry/rate policy.
-5. `gcloud/03-deploy-api.sh` – deploy public API (`WORKER_ENABLED=false`).
-6. `gcloud/04-deploy-task-consumer.sh` – deploy private task consumer.
-7. `gcloud/05-jobs.sh` – create/update 7 Cloud Run Jobs.
-8. `gcloud/06-schedulers.sh` – create Cloud Scheduler triggers for each Job.
+2. `gcloud/01-service-accounts.sh` – create API, task-invoker, scheduler SAs and Cloud Tasks IAM bindings.
+3. `gcloud/build-image.sh` – upload the local source tree to Cloud Build and print the immutable image URI.
+4. `gcloud/create-crypto-secret.sh` – create the nine-key crypto bundle; run with `GRANT_ACCESS=true` after step 2 (and create `DATABASE_URL` and `PAYSTACK_SECRET_KEY` secrets in Secret Manager).
+5. `gcloud/02-queue.sh` – create Cloud Tasks queue (`QUEUE="${QUEUE:-dashchecker-outbox}"`) with retry/rate policy and enqueuer IAM.
+6. `gcloud/04-deploy-task-consumer.sh` – deploy private task consumer and pin its target/audience URL.
+7. `gcloud/03-deploy-api.sh` – deploy public API (`WORKER_ENABLED=false`, automatically discovers task-consumer URL).
+8. `gcloud/05-jobs.sh` – create/update 7 Cloud Run Jobs (automatically discovers task-consumer URL for outbox repair).
+9. `gcloud/06-schedulers.sh` – create Cloud Scheduler triggers for each Job using the regional Cloud Run Jobs Admin API and OAuth.
 
 Each script prints the `gcloud` command it will run and exits 1 if required
-env vars are absent. Provide `PROJECT_ID`, `REGION`, `IMAGE_URI` (with digest),
-and `TASK_CONSUMER_URL` as documented inside the scripts.
+env vars are absent. Provide `PROJECT_ID`, `REGION`, `IMAGE_URI` (with immutable sha256 digest),
+and other required variables as documented inside the scripts.
 
 ## Verification gates (Plan 004 Step 5)
 

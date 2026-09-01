@@ -4,7 +4,7 @@ steps:
     args:
       - 'build'
       - '-t'
-      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/dashchecker-api:${COMMIT_SHA}'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/dashchecker-api:${BUILD_ID}'
       - '-t'
       - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/dashchecker-api:latest'
       - '-f'
@@ -17,7 +17,7 @@ steps:
     args:
       - 'run'
       - '--rm'
-      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/dashchecker-api:${COMMIT_SHA}'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/dashchecker-api:${BUILD_ID}'
       - 'node'
       - '--check'
       - 'dist/main.js'
@@ -28,7 +28,7 @@ steps:
     args:
       - 'run'
       - '--rm'
-      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/dashchecker-api:${COMMIT_SHA}'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/dashchecker-api:${BUILD_ID}'
       - 'node'
       - '--check'
       - 'dist/task-main.js'
@@ -39,7 +39,7 @@ steps:
     args:
       - 'run'
       - '--rm'
-      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/dashchecker-api:${COMMIT_SHA}'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/dashchecker-api:${BUILD_ID}'
       - 'node'
       - '--check'
       - 'dist/job-main.js'
@@ -47,7 +47,7 @@ steps:
     waitFor: ['build']
 
 images:
-  - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/dashchecker-api:${COMMIT_SHA}'
+  - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/dashchecker-api:${BUILD_ID}'
   - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/dashchecker-api:latest'
 
 # Record image digest after push via `gcloud artifacts docker images describe`

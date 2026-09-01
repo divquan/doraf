@@ -7,7 +7,7 @@ set -euo pipefail
 
 : "${PROJECT_ID:?PROJECT_ID is required}"
 REGION="${REGION:-us-central1}"
-QUEUE="dashchecker-outbox"
+QUEUE="${QUEUE:-dashchecker-outbox}"
 
 # Pilot policy (documented in deploy/README.md and checked into deployment-todo.md):
 # - maxAttempts: 10 (bounded retry, then platform stops; outbox-repair remains the lease-aware fallback)
@@ -44,17 +44,26 @@ fi
 echo "==> Queue state:"
 gcloud tasks queues describe "${QUEUE}" --location="${REGION}" --project="${PROJECT_ID}"
 
-echo "==> Grant queue-scoped enqueuer to API runtime SA (least privilege, queue only)"
+echo "==> Grant queue-scoped enqueuer to API runtime SA and Scheduler SA (outbox-repair)"
 # Scoped to the single queue, not the whole project.
 gcloud tasks queues add-iam-policy-binding "${QUEUE}" \
   --location="${REGION}" \
   --project="${PROJECT_ID}" \
   --member="serviceAccount:dashchecker-api@${PROJECT_ID}.iam.gserviceaccount.com" \
   --role="roles/cloudtasks.enqueuer" >/dev/null
+
+gcloud tasks queues add-iam-policy-binding "${QUEUE}" \
+  --location="${REGION}" \
+  --project="${PROJECT_ID}" \
+  --member="serviceAccount:dashchecker-scheduler@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/cloudtasks.enqueuer" >/dev/null
+
 echo "==> Queue IAM after binding:"
 gcloud tasks queues get-iam-policy "${QUEUE}" --location="${REGION}" --project="${PROJECT_ID}" 2>&1 | head -n 50 || true
 
 echo "==> Verify unauthenticated task creation is not allowed (IAM enqueuer only);"
 echo "    enqueue a staging task after services are deployed:"
 echo "    gcloud tasks create-http-task --queue=${QUEUE} --location=${REGION} --project=${PROJECT_ID} \\"
-echo "      --url=https://${REGION}-run.googleapis.com/ --oidc-service-account-email=dashchecker-task-invoker@${PROJECT_ID}.iam.gserviceaccount.com"
+echo "      --url=https://dashchecker-task-consumer-XXXX.a.run.app/internal/tasks/outbox \\"
+echo "      --oidc-service-account-email=dashchecker-task-invoker@${PROJECT_ID}.iam.gserviceaccount.com \\"
+echo "      --oidc-token-audience=https://dashchecker-task-consumer-XXXX.a.run.app/internal/tasks/outbox"

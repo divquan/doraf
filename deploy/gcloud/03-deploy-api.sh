@@ -6,23 +6,71 @@ set -euo pipefail
 # Public, scale-to-zero, WORKER_ENABLED=false, no Redis.
 
 : "${PROJECT_ID:?PROJECT_ID is required}"
-: "${IMAGE_URI:?IMAGE_URI is required (e.g., us-central1-docker.pkg.dev/PROJECT/REPO/dashchecker-api:SHA@sha256:...) }"
+: "${IMAGE_URI:?IMAGE_URI is required (e.g., us-central1-docker.pkg.dev/PROJECT/REPO/dashchecker-api:SHA@sha256:...)}"
 REGION="${REGION:-us-central1}"
+NODE_ENV="${NODE_ENV:-production}"
 SERVICE="dashchecker-api"
+QUEUE="${QUEUE:-dashchecker-outbox}"
+SERVICE_ACCOUNT="${SERVICE}@${PROJECT_ID}.iam.gserviceaccount.com"
 
-# Example: IMAGE_URI=us-central1-docker.pkg.dev/PROJECT/dashchecker/dashchecker-api:abc123@sha256:...
+# 1. Validate immutable digest in IMAGE_URI
+if [[ ! "${IMAGE_URI}" =~ @sha256:[a-fA-F0-9]{64}$ ]]; then
+  echo "ERROR: IMAGE_URI must include an immutable sha256 digest (e.g., ...:tag@sha256:64hex)" >&2
+  exit 1
+fi
+if [[ "${NODE_ENV}" != "production" && "${NODE_ENV}" != "development" ]]; then
+  echo "ERROR: NODE_ENV must be production or development (got: ${NODE_ENV})" >&2
+  exit 1
+fi
+
+# 2. Require an environment/mode pair that matches the application config.
+: "${PAYSTACK_MODE:?PAYSTACK_MODE is required (live for production, sandbox for staging)}"
+if [[ "${NODE_ENV}" == "production" && "${PAYSTACK_MODE}" != "live" ]]; then
+  echo "ERROR: NODE_ENV=production requires PAYSTACK_MODE=live (got: ${PAYSTACK_MODE})" >&2
+  exit 1
+fi
+if [[ "${NODE_ENV}" != "production" && "${PAYSTACK_MODE}" != "sandbox" ]]; then
+  echo "ERROR: NODE_ENV=${NODE_ENV} requires PAYSTACK_MODE=sandbox (got: ${PAYSTACK_MODE})" >&2
+  exit 1
+fi
+: "${PAYSTACK_GUEST_EMAIL_DOMAIN:?PAYSTACK_GUEST_EMAIL_DOMAIN is required (e.g., example.com)}"
+: "${INTERNAL_AUTH_RP_NAME:?INTERNAL_AUTH_RP_NAME is required (e.g., 'Dashchecker Administration')}"
+: "${INTERNAL_AUTH_RP_ID:?INTERNAL_AUTH_RP_ID is required (e.g., admin.dashchecker.com)}"
+: "${INTERNAL_AUTH_ORIGIN:?INTERNAL_AUTH_ORIGIN is required (e.g., https://admin.dashchecker.com)}"
+
+# 3. Derive or require TASK_CONSUMER_URL without broken REPLACE_ME fallback
+TASK_CONSUMER_URL="${TASK_CONSUMER_URL:-}"
+if [[ -z "${TASK_CONSUMER_URL}" ]]; then
+  if TASK_CONSUMER_URL="$(gcloud run services describe dashchecker-task-consumer --region="${REGION}" --project="${PROJECT_ID}" --format='value(status.url)' 2>/dev/null)"; then
+    echo "==> Derived TASK_CONSUMER_URL=${TASK_CONSUMER_URL} from Cloud Run"
+  else
+    echo "ERROR: dashchecker-task-consumer is not yet deployed and TASK_CONSUMER_URL was not set." >&2
+    echo "Deploy dashchecker-task-consumer first (04-deploy-task-consumer.sh) or provide TASK_CONSUMER_URL explicitly." >&2
+    exit 1
+  fi
+fi
+
+TASK_CONSUMER_URL="${TASK_CONSUMER_URL%/}"
+if [[ "${TASK_CONSUMER_URL}" != https://* ]]; then
+  echo "ERROR: TASK_CONSUMER_URL must be an https:// URL (got: ${TASK_CONSUMER_URL})" >&2
+  exit 1
+fi
+
+CLOUD_TASKS_TARGET_URL="${TASK_CONSUMER_URL}/internal/tasks/outbox"
+CLOUD_TASKS_AUDIENCE="${TASK_CONSUMER_URL}/internal/tasks/outbox"
+CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL="dashchecker-task-invoker@${PROJECT_ID}.iam.gserviceaccount.com"
+
+echo "==> Ensuring Secret Manager access for ${SERVICE_ACCOUNT}"
+for secret in DATABASE_URL DASHCHECKER_CRYPTO_KEYS_JSON PAYSTACK_SECRET_KEY; do
+  gcloud secrets add-iam-policy-binding "${secret}" \
+    --project="${PROJECT_ID}" \
+    --member="serviceAccount:${SERVICE_ACCOUNT}" \
+    --role="roles/secretmanager.secretAccessor" >/dev/null
+done
 
 echo "==> Deploying public service ${SERVICE} from ${IMAGE_URI}"
 
-# Secrets are bound via --set-secrets; never via --set-env-vars or build args.
-# Create secrets beforehand:
-#   echo -n "$DATABASE_URL" | gcloud secrets create DATABASE_URL --data-file=- --project="$PROJECT_ID" --replication-policy=automatic
-#   # DASHCHECKER_CRYPTO_KEYS_JSON must contain nine distinct 32-byte base64 values (no reuse):
-#   # for k in VOUCHER_MASTER_KEY_BASE64 VOUCHER_FINGERPRINT_KEY_BASE64 SESSION_FINGERPRINT_KEY_BASE64 INTERNAL_ENROLLMENT_FINGERPRINT_KEY_BASE64 AGENT_PHONE_ENCRYPTION_KEY_BASE64 AGENT_PHONE_FINGERPRINT_KEY_BASE64 OTP_FINGERPRINT_KEY_BASE64 ORDER_CONTACT_ENCRYPTION_KEY_BASE64 ORDER_CONTACT_FINGERPRINT_KEY_BASE64; do v=$(openssl rand -base64 32); echo "  $k=$v"; done
-#   # Then: printf '%s' '{"VOUCHER_MASTER_KEY_BASE64":"...","VOUCHER_FINGERPRINT_KEY_BASE64":"...","SESSION_FINGERPRINT_KEY_BASE64":"...","INTERNAL_ENROLLMENT_FINGERPRINT_KEY_BASE64":"...","AGENT_PHONE_ENCRYPTION_KEY_BASE64":"...","AGENT_PHONE_FINGERPRINT_KEY_BASE64":"...","OTP_FINGERPRINT_KEY_BASE64":"...","ORDER_CONTACT_ENCRYPTION_KEY_BASE64":"...","ORDER_CONTACT_FINGERPRINT_KEY_BASE64":"..."}' | gcloud secrets create DASHCHECKER_CRYPTO_KEYS_JSON --data-file=- --project="$PROJECT_ID" --replication-policy=automatic
-# Repeat for DIRECT_URL, PAYSTACK_SECRET_KEY, INTERNAL_AUTH_*, etc.
-# This script assumes the secret names match the env var names.
-
+# Consolidated, delimiter-safe env vars (^||^) and consolidated secrets (no DIRECT_URL in runtime)
 gcloud run deploy "${SERVICE}" \
   --image="${IMAGE_URI}" \
   --region="${REGION}" \
@@ -30,7 +78,7 @@ gcloud run deploy "${SERVICE}" \
   --platform=managed \
   --ingress=all \
   --allow-unauthenticated \
-  --service-account="dashchecker-api@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --service-account="${SERVICE_ACCOUNT}" \
   --port=3000 \
   --memory=512Mi \
   --cpu=1 \
@@ -39,14 +87,8 @@ gcloud run deploy "${SERVICE}" \
   --min-instances=0 \
   --timeout=30 \
   --cpu-throttling \
-  --set-env-vars="NODE_ENV=production,WORKER_ENABLED=false,WORKER_EXECUTION=run-once" \
-  --set-env-vars="CLOUD_TASKS_PROJECT_ID=${PROJECT_ID},CLOUD_TASKS_LOCATION=${REGION},CLOUD_TASKS_QUEUE=dashchecker-outbox" \
-  --set-env-vars="CLOUD_TASKS_TARGET_URL=https://dashchecker-task-consumer-REPLACE_ME.a.run.app/internal/tasks/outbox" \
-  --set-env-vars="CLOUD_TASKS_AUDIENCE=https://dashchecker-task-consumer-REPLACE_ME.a.run.app/internal/tasks/outbox" \
-  --set-env-vars="CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL=dashchecker-task-invoker@${PROJECT_ID}.iam.gserviceaccount.com" \
-  --set-secrets="DATABASE_URL=DATABASE_URL:latest,DIRECT_URL=DIRECT_URL:latest" \
-  --set-secrets="DASHCHECKER_CRYPTO_KEYS_JSON=DASHCHECKER_CRYPTO_KEYS_JSON:latest" \
-  --set-secrets="PAYSTACK_SECRET_KEY=PAYSTACK_SECRET_KEY:latest" \
+  --set-env-vars="^||^NODE_ENV=${NODE_ENV}||WORKER_ENABLED=false||WORKER_EXECUTION=run-once||PAYSTACK_MODE=${PAYSTACK_MODE}||PAYSTACK_GUEST_EMAIL_DOMAIN=${PAYSTACK_GUEST_EMAIL_DOMAIN}||INTERNAL_AUTH_RP_NAME=${INTERNAL_AUTH_RP_NAME}||INTERNAL_AUTH_RP_ID=${INTERNAL_AUTH_RP_ID}||INTERNAL_AUTH_ORIGIN=${INTERNAL_AUTH_ORIGIN}||CLOUD_TASKS_PROJECT_ID=${PROJECT_ID}||CLOUD_TASKS_LOCATION=${REGION}||CLOUD_TASKS_QUEUE=${QUEUE}||CLOUD_TASKS_TARGET_URL=${CLOUD_TASKS_TARGET_URL}||CLOUD_TASKS_AUDIENCE=${CLOUD_TASKS_AUDIENCE}||CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL=${CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL}" \
+  --set-secrets="DATABASE_URL=DATABASE_URL:latest,DASHCHECKER_CRYPTO_KEYS_JSON=DASHCHECKER_CRYPTO_KEYS_JSON:latest,PAYSTACK_SECRET_KEY=PAYSTACK_SECRET_KEY:latest" \
   --command="node" \
   --args="dist/main.js"
 

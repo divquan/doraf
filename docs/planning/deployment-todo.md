@@ -26,18 +26,18 @@ task; provider submission and later provider status remain separate states.
 - [ ] Publish the immutable image and record its digest (`deploy/README.md` `docker inspect` / `gcloud artifacts docker images describe`).
 - [ ] Create Cloud Run Jobs using the deployment scripts (`deploy/gcloud/05-jobs.sh`, `node dist/job-main`) – one job per `JOB_NAME`.
 - [ ] Configure each scheduled job with: `NODE_ENV=production`, `WORKER_ENABLED=true`, `WORKER_EXECUTION=run-once`, one allowlisted `JOB_NAME`.
-- [ ] Inject production secrets through Secret Manager (Supabase pooled `DATABASE_URL` and direct `DIRECT_URL` are separate), including `VOUCHER_*`, `PAYSTACK_SECRET_KEY`, `INTERNAL_AUTH_*`.
+- [ ] Inject production secrets through Secret Manager (Supabase pooled `DATABASE_URL` and direct migration `DIRECT_URL` are separate, plus `DASHCHECKER_CRYPTO_KEYS_JSON` and `PAYSTACK_SECRET_KEY`); inject runtime configurations (`PAYSTACK_MODE=live`, `PAYSTACK_GUEST_EMAIL_DOMAIN`, `INTERNAL_AUTH_*`) as environment variables.
 - [ ] Create Cloud Scheduler triggers for the bounded jobs (`deploy/gcloud/06-schedulers.sh`): `outbox-repair`, `payment-initialization`, `payment-reconciliation`, `refund-reconciliation`, `withdrawal-reconciliation`, `lease-recovery`, `invariant-audit`.
-- [ ] Protect Cloud Run Job execution with the dedicated scheduler service account and Cloud IAM. Do not expose the job command as a public HTTP mutation endpoint.
+- [ ] Protect each Cloud Run Job execution with the dedicated scheduler service account and per-job Cloud IAM (`roles/run.invoker`). Cloud Scheduler calls the regional Cloud Run Jobs Admin API with OAuth; do not expose the job command as a public HTTP mutation endpoint.
 - [ ] Set timeout (`--task-timeout=300`), retry (`--max-retries=3`), failure-notification policies for each job. A failed job must be retried and alerted, not treated as a successful empty pass.
 - [ ] Run a production-like test that terminates the API process after a transaction and verifies the scheduled job completes the durable work.
 
 ## Immediate outbox execution — Cloud Tasks (packaged, not yet provisioned live)
 
-Packaged in `deploy/gcloud/02-queue.sh`, `03-deploy-api.sh`, `04-deploy-task-consumer.sh`, and `deploy/README.md`:
+Packaged in `deploy/gcloud/02-queue.sh`, `04-deploy-task-consumer.sh`, `03-deploy-api.sh`, and `deploy/README.md`:
 
 - Queue `dashchecker-outbox` with bounded retry/backoff/rate (`maxAttempts=10`, `minBackoff=10s`/`maxBackoff=600s`/`maxDoublings=4`, `maxConcurrentDispatches=50`, `maxDispatchesPerSecond=100`; pilot dead-letter posture).
-- API service account (`dashchecker-api`) has `roles/cloudtasks.enqueuer` on the queue only.
+- API service account (`dashchecker-api`) and Scheduler SA (`dashchecker-scheduler`) have `roles/cloudtasks.enqueuer` on the queue only.
 - Task-invoker SA (`dashchecker-task-invoker`) is the OIDC principal; `CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL` and `CLOUD_TASKS_AUDIENCE` are pinned to the private consumer URL (`https://dashchecker-task-consumer-.../internal/tasks/outbox`).
 - Cloud Tasks service agent has `roles/iam.serviceAccountTokenCreator` on the task-invoker SA (required for OIDC).
 - Task consumer is `ingress=internal`, `allow-unauthenticated=false`, `roles/run.invoker` only for the task-invoker SA.

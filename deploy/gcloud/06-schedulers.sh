@@ -25,10 +25,8 @@ for JOB in "${!SCHEDULES[@]}"; do
   NAME="dashchecker-${JOB}"
   echo "==> Creating/updating scheduler ${NAME} -> run job dashchecker-${JOB} on ${SCHED}"
 
-  # Scheduler -> Cloud Run Jobs uses HTTP target with OIDC or gcloud run jobs execute integration.
-  # We use the Cloud Scheduler -> Cloud Run Jobs execution via `gcloud scheduler jobs create http`
-  # targeting the Run Jobs execution API. Simpler portable form:
-  #   gcloud scheduler jobs create http <name> --schedule --uri https://REGION-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/PROJECT/jobs/dashchecker-JOB:run
+  # Cloud Scheduler invokes the regional Cloud Run Admin API v2 endpoint with
+  # an OAuth access token. Cloud Run Jobs accept roles/run.invoker on the job.
 
   # Check existence
   if gcloud scheduler jobs describe "${NAME}" --location="${REGION}" --project="${PROJECT_ID}" >/dev/null 2>&1; then
@@ -36,10 +34,10 @@ for JOB in "${!SCHEDULES[@]}"; do
       --location="${REGION}" --project="${PROJECT_ID}" \
       --schedule="${SCHED}" \
       --time-zone="Africa/Accra" \
-      --uri="https://${REGION}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${PROJECT_ID}/jobs/dashchecker-${JOB}:run" \
+      --uri="https://run.googleapis.com/v2/projects/${PROJECT_ID}/locations/${REGION}/jobs/dashchecker-${JOB}:run" \
       --http-method=POST \
-      --oidc-service-account-email="dashchecker-scheduler@${PROJECT_ID}.iam.gserviceaccount.com" \
-      --oidc-token-audience="https://${REGION}-run.googleapis.com/" \
+      --oauth-service-account-email="dashchecker-scheduler@${PROJECT_ID}.iam.gserviceaccount.com" \
+      --oauth-token-scope="https://www.googleapis.com/auth/cloud-platform" \
       --attempt-deadline=300s \
       --max-retry-attempts=3 \
       --min-backoff=10s \
@@ -49,10 +47,10 @@ for JOB in "${!SCHEDULES[@]}"; do
       --location="${REGION}" --project="${PROJECT_ID}" \
       --schedule="${SCHED}" \
       --time-zone="Africa/Accra" \
-      --uri="https://${REGION}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${PROJECT_ID}/jobs/dashchecker-${JOB}:run" \
+      --uri="https://run.googleapis.com/v2/projects/${PROJECT_ID}/locations/${REGION}/jobs/dashchecker-${JOB}:run" \
       --http-method=POST \
-      --oidc-service-account-email="dashchecker-scheduler@${PROJECT_ID}.iam.gserviceaccount.com" \
-      --oidc-token-audience="https://${REGION}-run.googleapis.com/" \
+      --oauth-service-account-email="dashchecker-scheduler@${PROJECT_ID}.iam.gserviceaccount.com" \
+      --oauth-token-scope="https://www.googleapis.com/auth/cloud-platform" \
       --attempt-deadline=300s \
       --max-retry-attempts=3 \
       --min-backoff=10s \
@@ -60,16 +58,16 @@ for JOB in "${!SCHEDULES[@]}"; do
   fi
 done
 
-echo "==> All schedulers configured. Verify regional Run Jobs endpoint:"
-echo "    Expected URI pattern: https://\${REGION}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/\${PROJECT_ID}/jobs/dashchecker-<JOB>:run"
-echo "    Expected audience: https://\${REGION}-run.googleapis.com/ (regional Run API, pinned per job)"
+echo "==> All schedulers configured. Verify Cloud Run Jobs Admin API endpoint:"
+echo "    Expected URI pattern: https://run.googleapis.com/v2/projects/\${PROJECT_ID}/locations/\${REGION}/jobs/dashchecker-<JOB>:run"
+echo "    Expected OAuth scope: https://www.googleapis.com/auth/cloud-platform"
 for JOB in "${!SCHEDULES[@]}"; do
   echo "    -- dashchecker-${JOB}:"
   gcloud scheduler jobs describe "dashchecker-${JOB}" --location="${REGION}" --project="${PROJECT_ID}" \
     --format='value(httpTarget.uri)' 2>&1 | sed 's/^/       uri: /' || true
   gcloud scheduler jobs describe "dashchecker-${JOB}" --location="${REGION}" --project="${PROJECT_ID}" \
-    --format='value(httpTarget.oidcToken.serviceAccountEmail)' 2>&1 | sed 's/^/       oidc SA: /' || true
+    --format='value(httpTarget.oauthToken.serviceAccountEmail)' 2>&1 | sed 's/^/       oauth SA: /' || true
   gcloud scheduler jobs describe "dashchecker-${JOB}" --location="${REGION}" --project="${PROJECT_ID}" \
-    --format='value(httpTarget.oidcToken.audience)' 2>&1 | sed 's/^/       audience: /' || true
+    --format='value(httpTarget.oauthToken.scope)' 2>&1 | sed 's/^/       oauth scope: /' || true
 done
 echo "    gcloud scheduler jobs list --location=${REGION} --project=${PROJECT_ID}"

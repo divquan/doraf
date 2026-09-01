@@ -13,8 +13,12 @@ PROJECT_NUMBER="$(gcloud projects describe "${PROJECT_ID}" --format='value(proje
 API_SA="dashchecker-api"
 TASK_INVOKER_SA="dashchecker-task-invoker"
 SCHEDULER_SA="dashchecker-scheduler"
-# Google-managed Cloud Tasks service agent (format: service-PROJECT_NUMBER@gcp-sa-cloud-tasks.iam.gserviceaccount.com)
-TASKS_AGENT="service-${PROJECT_NUMBER}@gcp-sa-cloud-tasks.iam.gserviceaccount.com"
+# Google-managed Cloud Tasks service agent (format: service-PROJECT_NUMBER@gcp-sa-cloudtasks.iam.gserviceaccount.com)
+TASKS_AGENT="service-${PROJECT_NUMBER}@gcp-sa-cloudtasks.iam.gserviceaccount.com"
+
+echo "==> Ensuring Cloud Tasks service agent exists"
+gcloud beta services identity create --service=cloudtasks.googleapis.com --project="${PROJECT_ID}" >/dev/null 2>&1 || \
+  gcloud services identity create --service=cloudtasks.googleapis.com --project="${PROJECT_ID}" >/dev/null 2>&1 || true
 
 create_sa() {
   local name="$1" display="$2"
@@ -42,22 +46,11 @@ gcloud iam service-accounts add-iam-policy-binding "${TASK_INVOKER_SA}@${PROJECT
   --role="roles/iam.serviceAccountTokenCreator" \
   --project="${PROJECT_ID}" >/dev/null
 
-echo "==> Scheduler SA needs to execute Cloud Run Jobs"
-gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
-  --member="serviceAccount:${SCHEDULER_SA}@${PROJECT_ID}.iam.gserviceaccount.com" \
-  --role="roles/run.jobsExecutor" \
-  --condition=None >/dev/null
-gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
-  --member="serviceAccount:${SCHEDULER_SA}@${PROJECT_ID}.iam.gserviceaccount.com" \
-  --role="roles/run.invoker" \
-  --condition=None >/dev/null
-gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
-  --member="serviceAccount:${SCHEDULER_SA}@${PROJECT_ID}.iam.gserviceaccount.com" \
-  --role="roles/iam.serviceAccountUser" \
-  --condition=None >/dev/null
+echo "==> Cloud Run Job invocation is bound per job in 05-jobs.sh"
 
 echo "==> Task consumer Cloud Run Invoker will be granted to task-invoker SA in 04-deploy-task-consumer.sh"
 echo "    (requires the service URL to exist; that step binds roles/run.invoker on the service)"
 echo "==> Done. Verify:"
 echo "    gcloud iam service-accounts describe ${TASK_INVOKER_SA}@${PROJECT_ID}.iam.gserviceaccount.com --project=${PROJECT_ID}"
 echo "    gcloud iam service-accounts get-iam-policy ${TASK_INVOKER_SA}@${PROJECT_ID}.iam.gserviceaccount.com --project=${PROJECT_ID}"
+echo "    gcloud iam service-accounts get-iam-policy ${SCHEDULER_SA}@${PROJECT_ID}.iam.gserviceaccount.com --project=${PROJECT_ID}"

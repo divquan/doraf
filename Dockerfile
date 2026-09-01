@@ -12,6 +12,10 @@ FROM node:${NODE_VERSION}-alpine AS builder
 
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
+# Prisma's config is evaluated during `prisma generate` and requires a
+# datasource URL even though generation does not connect to a database. This
+# is a synthetic, non-secret builder-only value; runtime uses Secret Manager.
+ENV DIRECT_URL="postgresql://build:build@127.0.0.1:5432/build"
 RUN corepack enable && corepack prepare pnpm@10.33.4 --activate
 
 WORKDIR /app
