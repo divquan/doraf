@@ -2,26 +2,35 @@
 set -euo pipefail
 
 # 06-schedulers.sh – create Cloud Scheduler jobs that invoke Cloud Run Jobs.
-# Requires: PROJECT_ID, REGION
+# Reads: env.production (override with DEPLOY_ENV_FILE)
 # Each scheduler uses the dedicated scheduler SA; do not expose as public HTTP.
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=load-env.sh
+source "${SCRIPT_DIR}/load-env.sh"
 
 : "${PROJECT_ID:?PROJECT_ID is required}"
 REGION="${REGION:-us-central1}"
 
 # Pilot cadence – adjust before production; bounded jobs must not be perpetual loops.
-# Frequencies balance recovery latency vs. DB/provider load.
-declare -A SCHEDULES=(
-  ["outbox-repair"]="*/5 * * * *"
-  ["payment-initialization"]="*/2 * * * *"
-  ["payment-reconciliation"]="*/5 * * * *"
-  ["refund-reconciliation"]="*/10 * * * *"
-  ["withdrawal-reconciliation"]="*/10 * * * *"
-  ["lease-recovery"]="*/5 * * * *"
-  ["invariant-audit"]="0 * * * *"
+# Payment initialization and reconciliation stay frequent because they can affect
+# checkout completion. The remaining jobs are repair, operational follow-up, or
+# audit paths and can run less often without changing the immediate user path.
+# Keep this as a regular array: macOS ships Bash 3.2, which does not support
+# associative arrays.
+SCHEDULES=(
+  "outbox-repair|*/15 * * * *"
+  "payment-initialization|*/2 * * * *"
+  "payment-reconciliation|*/5 * * * *"
+  "refund-reconciliation|0 * * * *"
+  "withdrawal-reconciliation|0 * * * *"
+  "lease-recovery|*/15 * * * *"
+  "invariant-audit|0 3 * * *"
 )
 
-for JOB in "${!SCHEDULES[@]}"; do
-  SCHED="${SCHEDULES[$JOB]}"
+for ENTRY in "${SCHEDULES[@]}"; do
+  JOB="${ENTRY%%|*}"
+  SCHED="${ENTRY#*|}"
   NAME="dashchecker-${JOB}"
   echo "==> Creating/updating scheduler ${NAME} -> run job dashchecker-${JOB} on ${SCHED}"
 
@@ -30,6 +39,7 @@ for JOB in "${!SCHEDULES[@]}"; do
 
   # Check existence
   if gcloud scheduler jobs describe "${NAME}" --location="${REGION}" --project="${PROJECT_ID}" >/dev/null 2>&1; then
+    echo "==> Updating existing Scheduler job ${NAME}"
     gcloud scheduler jobs update http "${NAME}" \
       --location="${REGION}" --project="${PROJECT_ID}" \
       --schedule="${SCHED}" \
@@ -43,6 +53,7 @@ for JOB in "${!SCHEDULES[@]}"; do
       --min-backoff=10s \
       --max-backoff=300s
   else
+    echo "==> Creating new Scheduler job ${NAME}"
     gcloud scheduler jobs create http "${NAME}" \
       --location="${REGION}" --project="${PROJECT_ID}" \
       --schedule="${SCHED}" \
@@ -61,7 +72,8 @@ done
 echo "==> All schedulers configured. Verify Cloud Run Jobs Admin API endpoint:"
 echo "    Expected URI pattern: https://run.googleapis.com/v2/projects/\${PROJECT_ID}/locations/\${REGION}/jobs/dashchecker-<JOB>:run"
 echo "    Expected OAuth scope: https://www.googleapis.com/auth/cloud-platform"
-for JOB in "${!SCHEDULES[@]}"; do
+for ENTRY in "${SCHEDULES[@]}"; do
+  JOB="${ENTRY%%|*}"
   echo "    -- dashchecker-${JOB}:"
   gcloud scheduler jobs describe "dashchecker-${JOB}" --location="${REGION}" --project="${PROJECT_ID}" \
     --format='value(httpTarget.uri)' 2>&1 | sed 's/^/       uri: /' || true

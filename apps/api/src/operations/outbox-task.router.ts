@@ -64,7 +64,14 @@ export class OutboxTaskRouter {
     }
 
     if (eventType === 'DELIVERY_MESSAGE_REQUESTED') {
-      if (this.config.get('NODE_ENV', { infer: true }) !== 'development') {
+      const nodeEnv = this.config.get('NODE_ENV', { infer: true });
+      const hasHubtel = Boolean(
+        this.config.get('HUBTEL_CLIENT_ID', { infer: true }),
+      );
+      const hasLoops = Boolean(
+        this.config.get('LOOPS_API_KEY', { infer: true }),
+      );
+      if (nodeEnv !== 'development' && !hasHubtel && !hasLoops) {
         await this.outbox.reschedule(input.eventId, input.claimToken, {
           availableAt: new Date(),
           error: 'production delivery gateway is not configured',

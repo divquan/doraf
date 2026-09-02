@@ -1,11 +1,19 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DeliveryChannel } from '../generated/prisma/client';
 
+export const DELIVERY_GATEWAY = Symbol('DELIVERY_GATEWAY');
+
 export interface DeliverySubmission {
   channel: DeliveryChannel;
   destination: string;
   destinationMask: string;
   stableClientReference: string;
+  content?: string;
+  dataVariables?: Record<string, unknown>;
+}
+
+export interface DeliveryGateway {
+  submit(input: DeliverySubmission): Promise<DeliverySubmissionResult>;
 }
 
 export interface DeliverySubmissionResult {
@@ -25,7 +33,7 @@ export class DeliverySubmissionError extends Error {
 }
 
 @Injectable()
-export class DevelopmentDeliveryGateway {
+export class DevelopmentDeliveryGateway implements DeliveryGateway {
   private readonly logger = new Logger(DevelopmentDeliveryGateway.name);
 
   /**

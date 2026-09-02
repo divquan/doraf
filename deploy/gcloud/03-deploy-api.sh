@@ -2,8 +2,12 @@
 set -euo pipefail
 
 # 03-deploy-api.sh – deploy public API Cloud Run service.
-# Requires: PROJECT_ID, REGION, IMAGE_URI (with digest), DATABASE_URL secret, etc.
+# Reads: env.production (override with DEPLOY_ENV_FILE)
 # Public, scale-to-zero, WORKER_ENABLED=false, no Redis.
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=load-env.sh
+source "${SCRIPT_DIR}/load-env.sh"
 
 : "${PROJECT_ID:?PROJECT_ID is required}"
 : "${IMAGE_URI:?IMAGE_URI is required (e.g., us-central1-docker.pkg.dev/PROJECT/REPO/dashchecker-api:SHA@sha256:...)}"
@@ -61,11 +65,23 @@ CLOUD_TASKS_AUDIENCE="${TASK_CONSUMER_URL}/internal/tasks/outbox"
 CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL="dashchecker-task-invoker@${PROJECT_ID}.iam.gserviceaccount.com"
 
 echo "==> Ensuring Secret Manager access for ${SERVICE_ACCOUNT}"
+SECRETS="DATABASE_URL=DATABASE_URL:latest,DASHCHECKER_CRYPTO_KEYS_JSON=DASHCHECKER_CRYPTO_KEYS_JSON:latest,PAYSTACK_SECRET_KEY=PAYSTACK_SECRET_KEY:latest"
 for secret in DATABASE_URL DASHCHECKER_CRYPTO_KEYS_JSON PAYSTACK_SECRET_KEY; do
   gcloud secrets add-iam-policy-binding "${secret}" \
     --project="${PROJECT_ID}" \
     --member="serviceAccount:${SERVICE_ACCOUNT}" \
     --role="roles/secretmanager.secretAccessor" >/dev/null
+done
+# Optionally grant and attach Hubtel/Loops secrets if they exist (production SMS/email)
+for secret in HUBTEL_CLIENT_ID HUBTEL_CLIENT_SECRET HUBTEL_SENDER_ID LOOPS_API_KEY LOOPS_VOUCHER_TRANSACTIONAL_ID; do
+  if gcloud secrets describe "${secret}" --project="${PROJECT_ID}" >/dev/null 2>&1; then
+    echo "==> Granting ${secret} to ${SERVICE_ACCOUNT}"
+    gcloud secrets add-iam-policy-binding "${secret}" \
+      --project="${PROJECT_ID}" \
+      --member="serviceAccount:${SERVICE_ACCOUNT}" \
+      --role="roles/secretmanager.secretAccessor" >/dev/null
+    SECRETS="${SECRETS},${secret}=${secret}:latest"
+  fi
 done
 
 echo "==> Deploying public service ${SERVICE} from ${IMAGE_URI}"
@@ -88,7 +104,7 @@ gcloud run deploy "${SERVICE}" \
   --timeout=30 \
   --cpu-throttling \
   --set-env-vars="^||^NODE_ENV=${NODE_ENV}||WORKER_ENABLED=false||WORKER_EXECUTION=run-once||PAYSTACK_MODE=${PAYSTACK_MODE}||PAYSTACK_GUEST_EMAIL_DOMAIN=${PAYSTACK_GUEST_EMAIL_DOMAIN}||INTERNAL_AUTH_RP_NAME=${INTERNAL_AUTH_RP_NAME}||INTERNAL_AUTH_RP_ID=${INTERNAL_AUTH_RP_ID}||INTERNAL_AUTH_ORIGIN=${INTERNAL_AUTH_ORIGIN}||CLOUD_TASKS_PROJECT_ID=${PROJECT_ID}||CLOUD_TASKS_LOCATION=${REGION}||CLOUD_TASKS_QUEUE=${QUEUE}||CLOUD_TASKS_TARGET_URL=${CLOUD_TASKS_TARGET_URL}||CLOUD_TASKS_AUDIENCE=${CLOUD_TASKS_AUDIENCE}||CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL=${CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL}" \
-  --set-secrets="DATABASE_URL=DATABASE_URL:latest,DASHCHECKER_CRYPTO_KEYS_JSON=DASHCHECKER_CRYPTO_KEYS_JSON:latest,PAYSTACK_SECRET_KEY=PAYSTACK_SECRET_KEY:latest" \
+  --set-secrets="${SECRETS}" \
   --command="node" \
   --args="dist/main.js"
 

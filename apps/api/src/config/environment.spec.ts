@@ -54,6 +54,12 @@ describe('validateEnvironment', () => {
       AGENT_AUTH_OTP_MAX_ATTEMPTS: 5,
       AGENT_AUTH_REGISTRATION_TTL_SECONDS: 900,
       AGENT_AUTH_SESSION_TTL_SECONDS: 2_592_000,
+      HUBTEL_CLIENT_ID: undefined,
+      HUBTEL_CLIENT_SECRET: undefined,
+      HUBTEL_SENDER_ID: undefined,
+      HUBTEL_BASE_URL: 'https://smsc.hubtel.com/v1/messages/send',
+      LOOPS_API_KEY: undefined,
+      LOOPS_VOUCHER_TRANSACTIONAL_ID: undefined,
     });
   });
 

@@ -20,6 +20,20 @@ project, region, credentials, and authorization (see Blocker below).
   `refund-reconciliation`, `withdrawal-reconciliation`, `lease-recovery`,
   `invariant-audit`). Each job is `WORKER_ENABLED=true` `WORKER_EXECUTION=run-once`.
 - Cloud Scheduler – dedicated scheduler service account triggers each Job.
+
+Pilot scheduler cadence:
+
+- Payment initialization every 2 minutes and payment reconciliation every 5
+  minutes, preserving prompt checkout recovery.
+- Outbox repair and lease recovery every 15 minutes; normal outbox delivery is
+  immediate through Cloud Tasks, so these are fallback paths.
+- Refund and withdrawal reconciliation hourly, since they are operational
+  follow-up rather than checkout-path work.
+- Invariant audit daily at 03:00 Africa/Accra; it is an audit/reporting check
+  and does not affect user-facing processing.
+
+The cadence is configured in `gcloud/06-schedulers.sh` and can be tightened
+before production if measured recovery objectives require it.
 - Supabase PostgreSQL remains canonical; API and task consumer use the pooled
   `DATABASE_URL`, migrations use `DIRECT_URL`.
 
@@ -49,9 +63,17 @@ gcloud artifacts docker images describe REGION-docker.pkg.dev/PROJECT/REPO/dashc
 Or via Cloud Build (see `../cloudbuild.yaml`):
 
 ```sh
-PROJECT_ID=PROJECT REGION=us-central1 REPOSITORY=dashchecker \
-  bash deploy/gcloud/build-image.sh
+# Create the local deployment configuration once, then edit it.
+cp .env.example.production env.production
+
+# All deploy/gcloud scripts load env.production automatically.
+bash deploy/gcloud/build-image.sh
 ```
+
+Use `DEPLOY_ENV_FILE=/path/to/another.env bash deploy/gcloud/03-deploy-api.sh`
+when deploying with a different configuration file. The env file is used only
+by the local deployment scripts; it is not copied into the image or mounted in
+Cloud Run.
 
 `build-image.sh` uploads the current local source tree to Cloud Build, waits
 for the build and entrypoint checks to pass, then prints the pushed image's
@@ -72,8 +94,9 @@ curl -f http://localhost:3000/health/live
 
 ## Configuration
 
-Production secrets are injected via Secret Manager, never via `.env` files or
-`--build-arg`. Required names (validated in `apps/api/src/config/environment.ts`):
+Production secrets are injected via Secret Manager, never via `env.production`,
+`.env` files, or `--build-arg`. Required names (validated in
+`apps/api/src/config/environment.ts`):
 
 - **Secrets**: `DATABASE_URL`, `DASHCHECKER_CRYPTO_KEYS_JSON` (single JSON Secret Manager value containing nine distinct 32-byte base64 keys: `VOUCHER_MASTER_KEY_BASE64`, `VOUCHER_FINGERPRINT_KEY_BASE64`, `SESSION_FINGERPRINT_KEY_BASE64`, `INTERNAL_ENROLLMENT_FINGERPRINT_KEY_BASE64`, `AGENT_PHONE_ENCRYPTION_KEY_BASE64`, `AGENT_PHONE_FINGERPRINT_KEY_BASE64`, `OTP_FINGERPRINT_KEY_BASE64`, `ORDER_CONTACT_ENCRYPTION_KEY_BASE64`, `ORDER_CONTACT_FINGERPRINT_KEY_BASE64` — each independently generated via `openssl rand -base64 32`, no reuse), `PAYSTACK_SECRET_KEY`. (`DIRECT_URL` is for direct Prisma migrations only and is not mounted into runtime).
 - **Environment variables**: `NODE_ENV` (`production` by default; use `development` only for an isolated staging deployment), `PAYSTACK_MODE` (`live` for production, `sandbox` with `NODE_ENV=development`), `PAYSTACK_GUEST_EMAIL_DOMAIN`, `INTERNAL_AUTH_RP_NAME`, `INTERNAL_AUTH_RP_ID`, `INTERNAL_AUTH_ORIGIN`, `CLOUD_TASKS_*`.
@@ -85,12 +108,14 @@ CLOUD_TASKS_TARGET_URL == CLOUD_TASKS_AUDIENCE == https://dashchecker-task-consu
 CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL == dashchecker-task-invoker@PROJECT.iam.gserviceaccount.com
 ```
 
-Do not put Google credentials in `.env.example`.
+Do not put Google credentials or application secrets in
+`.env.example.production`.
 
 ## Deploy order
 
-All scripts under `gcloud/` are idempotent and require explicit env vars.
-Do not run them without the operator's project/region/authorization.
+All scripts under `gcloud/` are idempotent and read `../env.production` from
+the repository root. Do not run them without the operator's project,
+region, credentials, and authorization.
 
 1. `gcloud/00-prerequisites.sh` – enable APIs, create Artifact Registry.
 2. `gcloud/01-service-accounts.sh` – create API, task-invoker, scheduler SAs and Cloud Tasks IAM bindings.
@@ -102,9 +127,10 @@ Do not run them without the operator's project/region/authorization.
 8. `gcloud/05-jobs.sh` – create/update 7 Cloud Run Jobs (automatically discovers task-consumer URL for outbox repair).
 9. `gcloud/06-schedulers.sh` – create Cloud Scheduler triggers for each Job using the regional Cloud Run Jobs Admin API and OAuth.
 
-Each script prints the `gcloud` command it will run and exits 1 if required
-env vars are absent. Provide `PROJECT_ID`, `REGION`, `IMAGE_URI` (with immutable sha256 digest),
-and other required variables as documented inside the scripts.
+Each script exits 1 if the env file is absent or required values are missing.
+Provide `PROJECT_ID`, `REGION`, `IMAGE_URI` (with immutable sha256 digest), and
+the other required values in `env.production` as documented in
+`.env.example.production` and inside the scripts.
 
 ## Verification gates (Plan 004 Step 5)
 

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
   DeliveryAttemptState,
   DeliveryMessageState,
@@ -8,9 +8,11 @@ import { PrismaService } from '../database/prisma.service';
 import { OrderContactProtectionService } from '../orders/order-contact-protection.service';
 import { OutboxService } from '../operations/outbox.service';
 import {
+  DELIVERY_GATEWAY,
+  type DeliveryGateway,
   DeliverySubmissionError,
-  DevelopmentDeliveryGateway,
 } from './delivery-gateway.service';
+import { VoucherRevealService } from '../recovery/voucher-reveal.service';
 
 const RETRY_DELAYS_MS = [60_000, 5 * 60_000, 15 * 60_000] as const;
 const MAX_SUBMISSIONS = 4;
@@ -22,8 +24,9 @@ export class DeliveryOutboxHandler {
   constructor(
     private readonly prisma: PrismaService,
     private readonly contacts: OrderContactProtectionService,
-    private readonly gateway: DevelopmentDeliveryGateway,
+    @Inject(DELIVERY_GATEWAY) private readonly gateway: DeliveryGateway,
     private readonly outbox: OutboxService,
+    private readonly vouchers: VoucherRevealService,
   ) {}
 
   async handleClaimed(eventId: string, claimToken: string): Promise<boolean> {
@@ -79,11 +82,25 @@ export class DeliveryOutboxHandler {
               message.destinationCiphertext,
               'delivery',
             );
+
+      let content: string | undefined;
+      let dataVariables: Record<string, unknown> | undefined;
+
+      if (message.channel === 'SMS') {
+        content = await this.composeSmsContent(message);
+      } else if (message.channel === 'EMAIL') {
+        dataVariables = await this.composeEmailData(message);
+        // For Loops, also provide a fallback content for logging
+        content = `Your Dashchecker vouchers for order ${message.orderId} are ready.`;
+      }
+
       const submitted = await this.gateway.submit({
         channel: message.channel,
         destination,
         destinationMask: message.destinationMask,
         stableClientReference: attempt.stableClientReference,
+        content,
+        dataVariables,
       });
       await this.prisma.$transaction(async (transaction) => {
         await transaction.deliveryAttempt.update({
@@ -212,5 +229,103 @@ export class DeliveryOutboxHandler {
     this.logger.warn(
       `Delivery submission ${failure.classification.toLowerCase()} messageId=${messageId} attempt=${attempt.attemptNumber} code=${failure.safeCode}`,
     );
+  }
+
+  private async composeSmsContent(message: {
+    orderId: string;
+    orderItemId: string | null;
+    stableClientReference: string;
+  }): Promise<string> {
+    if (!message.orderItemId) {
+      return `Your Dashchecker voucher ${message.stableClientReference} is ready. Visit dashchecker to view.`;
+    }
+    const orderItem = await this.prisma.orderItem.findUnique({
+      where: { id: message.orderItemId },
+      include: {
+        order: {
+          select: {
+            publicReference: true,
+            quantity: true,
+            product: { select: { code: true, name: true } },
+          },
+        },
+        allocation: {
+          include: { voucher: { include: { batch: true } } },
+        },
+      },
+    });
+    if (!orderItem?.allocation?.voucher || !orderItem?.order) {
+      throw new DeliverySubmissionError(
+        'DEFINITIVE',
+        'voucher allocation missing',
+      );
+    }
+    const voucher = orderItem.allocation.voucher;
+    let revealed: { serialNumber: string; pin: string };
+    try {
+      revealed = this.vouchers.reveal(voucher);
+    } catch {
+      throw new DeliverySubmissionError('DEFINITIVE', 'voucher decrypt failed');
+    }
+    const product = orderItem.order.product;
+    const position = orderItem.position;
+    const quantity = orderItem.order.quantity;
+    const orderRef = orderItem.order.publicReference;
+    return `Dashchecker ${product.code} ${position}/${quantity}: Serial ${revealed.serialNumber} PIN ${revealed.pin}. Order ${orderRef}. Valid for 3 checks, locks to candidate/year.`;
+  }
+
+  private async composeEmailData(message: {
+    orderId: string;
+    stableClientReference: string;
+  }): Promise<Record<string, unknown>> {
+    const order = await this.prisma.order.findUnique({
+      where: { id: message.orderId },
+      select: {
+        publicReference: true,
+        quantity: true,
+        product: { select: { code: true, name: true } },
+        items: {
+          orderBy: { position: 'asc' },
+          include: {
+            allocation: { include: { voucher: { include: { batch: true } } } },
+          },
+        },
+      },
+    });
+    if (!order) {
+      throw new DeliverySubmissionError(
+        'DEFINITIVE',
+        'order missing for email',
+      );
+    }
+    const vouchers: Array<{
+      position: number;
+      serialNumber: string;
+      pin: string;
+    }> = [];
+    for (const item of order.items) {
+      if (!item.allocation?.voucher) continue;
+      try {
+        const revealed = this.vouchers.reveal(item.allocation.voucher);
+        vouchers.push({
+          position: item.position,
+          serialNumber: revealed.serialNumber,
+          pin: revealed.pin,
+        });
+      } catch {
+        // Skip undecryptable voucher, mark as error but continue to allow email with available vouchers
+        this.logger.warn(
+          `Voucher decrypt failed for email order=${order.publicReference} item=${item.id}`,
+        );
+      }
+    }
+    return {
+      orderReference: order.publicReference,
+      productCode: order.product.code,
+      productName: order.product.name,
+      quantity: order.quantity,
+      vouchers,
+      deliveryReference: message.stableClientReference,
+    };
   }
 }

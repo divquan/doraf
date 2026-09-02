@@ -2,8 +2,12 @@
 set -euo pipefail
 
 # 02-queue.sh – create Cloud Tasks queue dashchecker-outbox with pilot-appropriate policy.
-# Requires: PROJECT_ID, REGION
+# Reads: env.production (override with DEPLOY_ENV_FILE)
 # Verifies retry/backoff/rate semantics expected by the outbox lease/repair mechanism.
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=load-env.sh
+source "${SCRIPT_DIR}/load-env.sh"
 
 : "${PROJECT_ID:?PROJECT_ID is required}"
 REGION="${REGION:-us-central1}"

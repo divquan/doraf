@@ -36,6 +36,12 @@ export interface AppEnvironment {
   INTERNAL_AUTH_CHALLENGE_TTL_SECONDS: number;
   INTERNAL_AUTH_SESSION_TTL_SECONDS: number;
   INTERNAL_ENROLLMENT_TTL_SECONDS: number;
+  HUBTEL_CLIENT_ID?: string;
+  HUBTEL_CLIENT_SECRET?: string;
+  HUBTEL_SENDER_ID?: string;
+  HUBTEL_BASE_URL: string;
+  LOOPS_API_KEY?: string;
+  LOOPS_VOUCHER_TRANSACTIONAL_ID?: string;
 }
 
 const nodeEnvironments = new Set<NodeEnvironment>([
@@ -187,6 +193,49 @@ export function validateEnvironment(
     'AGENT_AUTH_SESSION_TTL_SECONDS',
   );
 
+  const hubtelClientId = optionalTrimmedString(
+    raw.HUBTEL_CLIENT_ID,
+    'HUBTEL_CLIENT_ID',
+  );
+  const hubtelClientSecret = optionalTrimmedString(
+    raw.HUBTEL_CLIENT_SECRET,
+    'HUBTEL_CLIENT_SECRET',
+  );
+  const hubtelSenderId = optionalTrimmedString(
+    raw.HUBTEL_SENDER_ID,
+    'HUBTEL_SENDER_ID',
+  );
+  const hubtelBaseUrl = hubtelBaseUrlEnvironment(raw.HUBTEL_BASE_URL);
+  const loopsApiKey = optionalTrimmedString(raw.LOOPS_API_KEY, 'LOOPS_API_KEY');
+  const loopsVoucherTransactionalId = optionalTrimmedString(
+    raw.LOOPS_VOUCHER_TRANSACTIONAL_ID,
+    'LOOPS_VOUCHER_TRANSACTIONAL_ID',
+  );
+
+  if (
+    (hubtelClientId !== undefined ||
+      hubtelClientSecret !== undefined ||
+      hubtelSenderId !== undefined) &&
+    !(
+      hubtelClientId !== undefined &&
+      hubtelClientSecret !== undefined &&
+      hubtelSenderId !== undefined
+    )
+  ) {
+    throw new Error(
+      'HUBTEL_CLIENT_ID, HUBTEL_CLIENT_SECRET, and HUBTEL_SENDER_ID must all be set together',
+    );
+  }
+
+  if (
+    (loopsApiKey !== undefined || loopsVoucherTransactionalId !== undefined) &&
+    !(loopsApiKey !== undefined && loopsVoucherTransactionalId !== undefined)
+  ) {
+    throw new Error(
+      'LOOPS_API_KEY and LOOPS_VOUCHER_TRANSACTIONAL_ID must be set together',
+    );
+  }
+
   return {
     NODE_ENV: nodeEnvironment as NodeEnvironment,
     WORKER_ENABLED: booleanEnvironment(raw.WORKER_ENABLED, false),
@@ -221,6 +270,12 @@ export function validateEnvironment(
     INTERNAL_AUTH_CHALLENGE_TTL_SECONDS: challengeTtlSeconds,
     INTERNAL_AUTH_SESSION_TTL_SECONDS: sessionTtlSeconds,
     INTERNAL_ENROLLMENT_TTL_SECONDS: enrollmentTtlSeconds,
+    HUBTEL_CLIENT_ID: hubtelClientId,
+    HUBTEL_CLIENT_SECRET: hubtelClientSecret,
+    HUBTEL_SENDER_ID: hubtelSenderId,
+    HUBTEL_BASE_URL: hubtelBaseUrl,
+    LOOPS_API_KEY: loopsApiKey,
+    LOOPS_VOUCHER_TRANSACTIONAL_ID: loopsVoucherTransactionalId,
   };
 }
 
@@ -584,6 +639,32 @@ function requiredBase64Key(
     );
   }
   return encoded;
+}
+
+function optionalTrimmedString(
+  value: unknown,
+  name: string,
+): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error(`${name} is required`);
+  }
+  return value.trim();
+}
+
+function hubtelBaseUrlEnvironment(value: unknown): string {
+  const raw = typeof value === 'string' ? value.trim() : '';
+  if (!raw) return 'https://smsc.hubtel.com/v1/messages/send';
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new Error('HUBTEL_BASE_URL must be a valid URL');
+  }
+  if (parsed.protocol !== 'https:') {
+    throw new Error('HUBTEL_BASE_URL must be an https:// URL');
+  }
+  return raw;
 }
 
 function requiredString(value: unknown, name: string): string {

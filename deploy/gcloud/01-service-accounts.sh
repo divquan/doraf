@@ -2,8 +2,12 @@
 set -euo pipefail
 
 # 01-service-accounts.sh – create service accounts and least-privilege IAM.
-# Requires: PROJECT_ID, REGION
+# Reads: env.production (override with DEPLOY_ENV_FILE)
 # Idempotent; verifies OIDC audience will be pinned to the task-consumer URL.
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=load-env.sh
+source "${SCRIPT_DIR}/load-env.sh"
 
 : "${PROJECT_ID:?PROJECT_ID is required}"
 REGION="${REGION:-us-central1}"

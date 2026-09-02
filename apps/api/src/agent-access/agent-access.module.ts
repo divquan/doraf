@@ -6,6 +6,7 @@ import { AgentAuthService } from './agent-auth.service';
 import { AgentNoStoreInterceptor } from './agent-no-store.interceptor';
 import { AgentSessionGuard } from './agent-session.guard';
 import { LocalSmsOtpSender } from './local-sms-otp.sender';
+import { HubtelSmsOtpSender } from './hubtel-sms-otp.sender';
 import { SMS_OTP_SENDER } from './agent-access.types';
 import { InternalAccessModule } from '../internal-access/internal-access.module';
 import { PricingModule } from '../pricing/pricing.module';
@@ -14,6 +15,8 @@ import { SalesChannelController } from './sales-channel.controller';
 import { SalesChannelService } from './sales-channel.service';
 import { AgentOnboardingService } from './agent-onboarding.service';
 import { AgentCryptoModule } from './agent-crypto.module';
+import { ConfigService } from '@nestjs/config';
+import type { AppEnvironment } from '../config/environment';
 
 @Module({
   imports: [
@@ -35,7 +38,24 @@ import { AgentCryptoModule } from './agent-crypto.module';
     SalesChannelService,
     AgentOnboardingService,
     LocalSmsOtpSender,
-    { provide: SMS_OTP_SENDER, useExisting: LocalSmsOtpSender },
+    HubtelSmsOtpSender,
+    {
+      provide: SMS_OTP_SENDER,
+      useFactory: (
+        config: ConfigService<AppEnvironment, true>,
+        local: LocalSmsOtpSender,
+        hubtel: HubtelSmsOtpSender,
+      ) => {
+        if (
+          config.get('NODE_ENV', { infer: true }) === 'production' &&
+          config.get('HUBTEL_CLIENT_ID', { infer: true })
+        ) {
+          return hubtel;
+        }
+        return local;
+      },
+      inject: [ConfigService, LocalSmsOtpSender, HubtelSmsOtpSender],
+    },
   ],
   exports: [
     AgentSessionGuard,

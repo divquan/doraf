@@ -2,16 +2,18 @@
 set -euo pipefail
 
 # build-image.sh – build and publish the production image from this local source tree.
-# Requires: PROJECT_ID
-# Optional: REGION, REPOSITORY, BUILD_REGION
+# Reads: env.production (override with DEPLOY_ENV_FILE)
 # Outputs IMAGE_URI with the immutable Artifact Registry digest.
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=load-env.sh
+source "${SCRIPT_DIR}/load-env.sh"
 
 : "${PROJECT_ID:?PROJECT_ID is required}"
 REGION="${REGION:-us-central1}"
 REPOSITORY="${REPOSITORY:-dashchecker}"
 BUILD_REGION="${BUILD_REGION:-global}"
 
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
 
 if [[ ! -f "${REPO_ROOT}/Dockerfile" || ! -f "${REPO_ROOT}/cloudbuild.yaml" ]]; then

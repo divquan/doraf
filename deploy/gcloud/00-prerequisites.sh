@@ -2,8 +2,11 @@
 set -euo pipefail
 
 # 00-prerequisites.sh – enable required APIs and create Artifact Registry.
-# Requires: PROJECT_ID, REGION, REPOSITORY
-# Usage: PROJECT_ID=dashchecker-prod REGION=us-central1 REPOSITORY=dashchecker bash deploy/gcloud/00-prerequisites.sh
+# Reads: env.production (override with DEPLOY_ENV_FILE)
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=load-env.sh
+source "${SCRIPT_DIR}/load-env.sh"
 
 : "${PROJECT_ID:?PROJECT_ID is required}"
 REGION="${REGION:-us-central1}"

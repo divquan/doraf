@@ -3,10 +3,14 @@ set -euo pipefail
 
 # create-crypto-secret.sh - create the bundled Dashchecker cryptographic secret.
 #
-# Requires: PROJECT_ID
-# Optional: GRANT_ACCESS=true after 01-service-accounts.sh has run.
+# Reads: env.production (override with DEPLOY_ENV_FILE)
+# Set GRANT_ACCESS=true after 01-service-accounts.sh has run.
 # Refuses to replace an existing secret because changing these keys can make
 # existing encrypted data or fingerprints unreadable.
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=load-env.sh
+source "${SCRIPT_DIR}/load-env.sh"
 
 : "${PROJECT_ID:?PROJECT_ID is required}"
 SECRET_NAME="DASHCHECKER_CRYPTO_KEYS_JSON"
