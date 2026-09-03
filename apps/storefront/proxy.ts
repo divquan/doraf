@@ -1,99 +1,68 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
+const RESERVED_SUBDOMAINS = new Set([
+  "www",
+  "app",
+  "api",
+  "admin",
+  "agent",
+  "dashboard",
+  "recover",
+])
+
 function getRootDomain(hostHeader: string): string {
-  const storefrontUrl = process.env.DASHCHECKER_STOREFRONT_URL
-  if (storefrontUrl) {
+  const envUrl = process.env.DASHCHECKER_STOREFRONT_URL
+  if (envUrl) {
     try {
-      const parsed = new URL(
-        storefrontUrl.startsWith("http")
-          ? storefrontUrl
-          : `https://${storefrontUrl}`
-      )
-      return parsed.hostname
+      const url = new URL(envUrl.startsWith("http") ? envUrl : `https://${envUrl}`)
+      return url.hostname
     } catch {
-      // Ignore parse error
+      // fall through to host parsing
     }
   }
-  const hostWithoutPort = hostHeader.split(":")[0] || ""
-  if (hostWithoutPort.endsWith(".localhost")) return "localhost"
-  const parts = hostWithoutPort.split(".")
-  if (parts.length >= 2) return parts.slice(-2).join(".")
-  return hostWithoutPort || "localhost"
+
+  const host = hostHeader.split(":")[0] || ""
+  const parts = host.split(".")
+  return parts.length >= 2 ? parts.slice(-2).join(".") : host || "localhost"
+}
+
+function getSubdomain(hostHeader: string, rootDomain: string): string | null {
+  const host = hostHeader.split(":")[0] ?? ""
+  if (!host || host === rootDomain) return null
+  if (host.endsWith(`.${rootDomain}`)) {
+    return host.replace(`.${rootDomain}`, "")
+  }
+  return null
 }
 
 export function proxy(request: NextRequest) {
   const host = request.headers.get("host") || ""
-  const { pathname } = request.nextUrl
+
+  // 1. Canonicalize path: /// -> /, /foo//bar -> /foo/bar
+  const rawPath = request.nextUrl.pathname
+  const pathname = rawPath.replace(/\/{2,}/g, "/")
+  if (pathname !== rawPath) {
+    const url = request.nextUrl.clone()
+    url.pathname = pathname
+    return NextResponse.redirect(url, 308)
+  }
+
   const rootDomain = getRootDomain(host)
 
-  // Handle legacy /buy/:webSalesId paths -> 301 Redirect to subdomain
-  if (pathname.startsWith("/buy/")) {
-    const parts = pathname.split("/").filter(Boolean)
-    const identifier = parts[1]
-    if (identifier) {
-      const portMatch = host.match(/:\d+$/)
-      const port = portMatch ? portMatch[0] : ""
-      const isLocal = rootDomain === "localhost" || rootDomain === "127.0.0.1"
-      const targetHost = isLocal
-        ? `${identifier}.localhost${port}`
-        : `${identifier}.${rootDomain}`
-      const redirectUrl = new URL(
-        `http${request.nextUrl.protocol === "https:" ? "s" : ""}://${targetHost}/`
-      )
-      return NextResponse.redirect(redirectUrl, { status: 301 })
-    }
-  }
+  // 2. Skip API and static assets
+  if (pathname.startsWith("/api/")) return NextResponse.next()
+  if (/\.[a-zA-Z0-9]+$/.test(pathname)) return NextResponse.next()
 
-  // Extract subdomain if accessing via {slug}.domain or {slug}.localhost:3003
-  const hostWithoutPort = host.split(":")[0] ?? ""
-
-  let subdomain: string | null = null
-  if (
-    hostWithoutPort.endsWith(`.${rootDomain}`) &&
-    hostWithoutPort !== rootDomain
-  ) {
-    subdomain = hostWithoutPort.replace(`.${rootDomain}`, "")
-  } else if (
-    hostWithoutPort.endsWith(".localhost") ||
-    (hostWithoutPort.includes("localhost") && hostWithoutPort !== "localhost")
-  ) {
-    const parts = hostWithoutPort.split(".")
-    if (parts.length > 1 && parts[0] !== "localhost" && parts[0] !== "www") {
-      subdomain = parts[0] ?? null
-    }
-  }
-
-  const reserved = new Set([
-    "www",
-    "app",
-    "api",
-    "admin",
-    "dashboard",
-    "recover",
-  ])
-
-  if (pathname.startsWith("/api/")) {
+  // 3. Subdomain rewrite: foo.example.com/ -> /s/foo
+  const subdomain = getSubdomain(host, rootDomain)
+  if (!subdomain || RESERVED_SUBDOMAINS.has(subdomain)) {
     return NextResponse.next()
   }
 
-  // Skip proxying/rewriting for static assets (files with extensions)
-  const hasExtension = /\.[a-zA-Z0-9]+$/.test(pathname)
-  if (hasExtension) {
-    return NextResponse.next()
-  }
-
-  if (subdomain && !reserved.has(subdomain)) {
-    const rewriteUrl = request.nextUrl.clone()
-    if (pathname === "/") {
-      rewriteUrl.pathname = `/s/${subdomain}`
-    } else {
-      rewriteUrl.pathname = `/s/${subdomain}${pathname}`
-    }
-    return NextResponse.rewrite(rewriteUrl)
-  }
-
-  return NextResponse.next()
+  const rewriteUrl = request.nextUrl.clone()
+  rewriteUrl.pathname = pathname === "/" ? `/s/${subdomain}` : `/s/${subdomain}${pathname}`
+  return NextResponse.rewrite(rewriteUrl)
 }
 
 export const config = {

@@ -38,6 +38,7 @@ import {
 } from "@/components/_workspace/payout-destination"
 import { pesewasToGhs } from "@workspace/ui/lib/format"
 import { apiJson, apiRequest } from "@/lib/agent-api"
+import { getStorefrontConfig } from "@/lib/storefront-url"
 import { qrDataUrl } from "@/lib/qr"
 
 interface AgentSession {
@@ -54,6 +55,8 @@ interface SalesChannel {
   type: "WEB"
   subdomainUrl: string
   subdomain: string
+  slug: string | null
+  webSalesId: string
 }
 
 interface SalesSummaryResponse {
@@ -131,7 +134,13 @@ export default async function DashboardPage() {
     : null
   const destination = isPayoutDestination(rawDestination) ? rawDestination : null
   const firstName = agent.name.split(/\s+/)[0] ?? agent.name
-  const salesUrl = channel?.subdomainUrl ?? ""
+  // Re-derive the display URL from portal env (not the API's raw URL, which
+  // falls back to localhost when the API deployment lacks the storefront env).
+  const salesUrl = channel
+    ? getStorefrontConfig(channel.subdomainUrl).formatSubdomainUrl(
+        channel.slug || channel.webSalesId
+      )
+    : ""
   const qr = salesUrl ? await qrDataUrl(salesUrl) : null
 
   const setPricesCount = prices.filter(

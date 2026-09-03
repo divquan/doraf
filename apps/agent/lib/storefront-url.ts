@@ -1,8 +1,13 @@
 export function getStorefrontConfig(storefrontUrl?: string) {
+  // Explicit environment wins over the API-provided URL: the API deployment
+  // may not know the public storefront domain (localhost fallback), while the
+  // portal env does. NEXT_PUBLIC_ comes first because it is the only form
+  // inlined into client ("use client") bundles; the bare name only exists
+  // server-side. Both must be set appropriately at build time for Vercel.
   const rawUrl =
-    storefrontUrl ||
-    process.env.DASHCHECKER_STOREFRONT_URL ||
     process.env.NEXT_PUBLIC_DASHCHECKER_STOREFRONT_URL ||
+    process.env.DASHCHECKER_STOREFRONT_URL ||
+    storefrontUrl ||
     "http://localhost:3003"
 
   try {

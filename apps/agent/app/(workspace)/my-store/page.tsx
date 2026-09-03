@@ -6,6 +6,7 @@ import { type AgentOrderItem } from "@/components/_workspace/recent-orders-table
 import { MyStoreTabPanel } from "@/components/_workspace/my-store-tab-panel"
 import { type PaginationMetadata } from "@/components/transaction-history-table"
 import { apiJson, apiRequest } from "@/lib/agent-api"
+import { getStorefrontConfig } from "@/lib/storefront-url"
 import { qrDataUrl } from "@/lib/qr"
 
 interface AgentSession {
@@ -52,7 +53,11 @@ export default async function MyStorePage(props: {
     ? ((await apiJson(ordersRes)) as PaginatedOrdersResponse)
     : { items: [], pagination: { totalItems: 0, totalPages: 0, currentPage: 1, limit: 10, hasNextPage: false } }
 
-  const salesUrl = channel.subdomainUrl
+  // Re-derive the display URL from portal env (not the API's raw URL, which
+  // falls back to localhost when the API deployment lacks the storefront env).
+  const salesUrl = getStorefrontConfig(channel.subdomainUrl).formatSubdomainUrl(
+    channel.slug || channel.webSalesId
+  )
   const qr = await qrDataUrl(salesUrl)
 
   return (

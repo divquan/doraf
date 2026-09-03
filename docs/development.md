@@ -59,7 +59,12 @@ Administration dashboard.
 The agent portal and public attributed storefront run at http://localhost:3002 and
 http://localhost:3003 respectively. Set `DASHCHECKER_STOREFRONT_URL=http://localhost:3003`
 in `apps/agent/.env` when overriding the example environment; this is the base
-URL the agent portal uses to build buyer-facing sales links. The legacy
+URL the agent portal uses to build buyer-facing sales links. In production
+(e.g. Vercel) also set `NEXT_PUBLIC_DASHCHECKER_STOREFRONT_URL` to the same
+value and redeploy: store links render in client components, and only the
+`NEXT_PUBLIC_` form reaches the browser (inlined at build time, so later env
+changes need a rebuild). Without it, links fall back to localhost even when the
+server-only variable is set. The legacy
 `DASHCHECKER_AGENT_WEB_URL` is still accepted as a fallback. In development, sent OTPs are
 written only to the API terminal so registration and sign-in can be tested
 without an SMS account. They are never returned to or displayed by the agent
