@@ -168,8 +168,10 @@ Administrator-only internal-user endpoint.
 
 Agents register and sign in with Ghana phone numbers and six-digit SMS OTPs.
 Phone values are encrypted, indexed only through a keyed fingerprint, and never
-returned by the API. In development, sent OTPs are written only to the API
-terminal; they are not included in API responses. Production refuses OTP
+returned by the API. In development, sent OTPs are always written to the API
+terminal and never included in API responses; when Hubtel credentials are
+configured the real SMS is also sent best-effort and a Hubtel failure falls
+back to the logged code without blocking the OTP flow. Production refuses OTP
 delivery until a provider-backed SMS adapter is configured. Registration
 completion and authenticated sessions use separate short-lived opaque tokens.
 
