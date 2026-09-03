@@ -64,7 +64,7 @@ Or via Cloud Build (see `../cloudbuild.yaml`):
 
 ```sh
 # Create the local deployment configuration once, then edit it.
-cp .env.example.production env.production
+cp .env.example.production .env.production
 
 # All deploy/gcloud scripts load env.production automatically.
 bash deploy/gcloud/build-image.sh

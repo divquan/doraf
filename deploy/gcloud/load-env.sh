@@ -8,7 +8,7 @@
 
 LOAD_ENV_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 DEPLOY_REPO_ROOT="$(cd -- "${LOAD_ENV_DIR}/../.." && pwd)"
-DEPLOY_ENV_FILE="${DEPLOY_ENV_FILE:-${DEPLOY_REPO_ROOT}/env.production}"
+DEPLOY_ENV_FILE="${DEPLOY_ENV_FILE:-${DEPLOY_REPO_ROOT}/.env.production}"
 
 if [[ ! -f "${DEPLOY_ENV_FILE}" ]]; then
   echo "ERROR: deployment env file not found: ${DEPLOY_ENV_FILE}" >&2
